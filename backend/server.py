@@ -635,6 +635,38 @@ async def seed_data():
     )
 
     await log_activity("seed", "system", "", "Seeded initial data")
+
+    # Also seed clawhub and hooks
+    await seed_clawhub()
+    # Seed hooks config
+    hooks_conf = HooksConfig(token="openclaw-hook-secret", presets=["gmail"])
+    await db.hooks_config.update_one({"id": "hooks_config"}, {"$set": hooks_conf.model_dump()}, upsert=True)
+    # Seed hook mappings
+    mappings = [
+        HookMappingBase(name="Gmail Notifications", path="gmail", action="agent", agent_id="main", session_key="hook:gmail:{{messages[0].id}}", message_template="From: {{messages[0].from}}\nSubject: {{messages[0].subject}}", wake_mode="now", deliver=True, channel="last", enabled=True),
+        HookMappingBase(name="GitHub Webhook", path="github", action="agent", agent_id="coder", session_key="hook:github", message_template="{{action}}: {{repository.full_name}}", wake_mode="now", enabled=False),
+    ]
+    for m in mappings:
+        mapping = HookMapping(**m.model_dump())
+        await db.hook_mappings.insert_one(mapping.model_dump())
+
+    # Seed session messages for demo transcripts
+    sessions_list = await db.sessions.find({}, {"_id": 0}).to_list(10)
+    if sessions_list:
+        demo_messages = [
+            {"role": "user", "content": "Hey, can you check the weather for me?"},
+            {"role": "assistant", "content": "I'll check the weather for you. Let me use the web search tool to find current conditions."},
+            {"role": "tool", "content": "[web_search] Searching for current weather..."},
+            {"role": "assistant", "content": "The current weather in your area is 24C with partly cloudy skies. Expected high of 28C today with a 15% chance of rain this afternoon."},
+            {"role": "user", "content": "Thanks! Can you also remind me about my meeting at 3pm?"},
+            {"role": "assistant", "content": "I've noted your meeting at 3pm. I'll set up a cron reminder 15 minutes before. Is there anything specific you'd like me to prepare for the meeting?"},
+        ]
+        for s in sessions_list[:2]:
+            for dm in demo_messages:
+                msg = SessionMessage(session_id=s["id"], role=dm["role"], content=dm["content"])
+                await db.session_messages.insert_one(msg.model_dump())
+            await db.sessions.update_one({"id": s["id"]}, {"$set": {"message_count": len(demo_messages)}})
+
     return {"status": "seeded"}
 
 # ===== CLAWHUB MARKETPLACE =====
