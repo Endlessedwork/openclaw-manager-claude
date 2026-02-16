@@ -357,6 +357,217 @@ class OpenClawAPITester:
         success, logs = self.run_test("Get Logs", "GET", "/logs", 200)
         return success
 
+    def test_clawhub_operations(self):
+        """Test ClawHub marketplace operations"""
+        print("\n=== Testing ClawHub Operations ===")
+        
+        # Seed ClawHub skills
+        success, response = self.run_test("Seed ClawHub", "POST", "/clawhub/seed", 200)
+        if not success:
+            return False
+        
+        # List ClawHub skills
+        success, skills = self.run_test("List ClawHub Skills", "GET", "/clawhub", 200)
+        if not success:
+            return False
+        
+        print(f"   Found {len(skills)} ClawHub skills")
+        if len(skills) < 16:
+            print(f"❌ Expected at least 16 skills, got {len(skills)}")
+            return False
+        
+        # Test search functionality
+        success, search_results = self.run_test("Search ClawHub Skills", "GET", "/clawhub?search=web", 200)
+        if not success:
+            return False
+        
+        # Test category filtering
+        success, category_results = self.run_test("Filter ClawHub by Category", "GET", "/clawhub?category=web", 200)
+        if not success:
+            return False
+        
+        # Test install/uninstall if skills exist
+        if skills:
+            skill_id = skills[0]['id']
+            skill_slug = skills[0]['slug']
+            
+            # Install skill
+            success, install_response = self.run_test("Install ClawHub Skill", "POST", f"/clawhub/install/{skill_id}", 200)
+            if not success:
+                return False
+            
+            # Verify skill is marked as installed
+            success, updated_skills = self.run_test("Verify Skill Installed", "GET", "/clawhub", 200)
+            if success:
+                installed_skill = next((s for s in updated_skills if s['id'] == skill_id), None)
+                if not installed_skill or not installed_skill.get('installed'):
+                    print(f"❌ Skill {skill_slug} not marked as installed")
+                    return False
+                print(f"✅ Skill {skill_slug} marked as installed")
+            
+            # Uninstall skill
+            success = self.run_test("Uninstall ClawHub Skill", "POST", f"/clawhub/uninstall/{skill_id}", 200)[0]
+            if not success:
+                return False
+            
+            # Verify skill is unmarked
+            success, final_skills = self.run_test("Verify Skill Uninstalled", "GET", "/clawhub", 200)
+            if success:
+                uninstalled_skill = next((s for s in final_skills if s['id'] == skill_id), None)
+                if uninstalled_skill and uninstalled_skill.get('installed'):
+                    print(f"❌ Skill {skill_slug} still marked as installed")
+                    return False
+                print(f"✅ Skill {skill_slug} unmarked as installed")
+        
+        return True
+
+    def test_hooks_operations(self):
+        """Test Hooks/Webhooks operations"""
+        print("\n=== Testing Hooks Operations ===")
+        
+        # Get hooks config
+        success, config = self.run_test("Get Hooks Config", "GET", "/hooks/config", 200)
+        if not success:
+            return False
+        
+        # Update hooks config
+        if config:
+            updated_config = {**config, "enabled": True, "token": "test-token-123"}
+            success = self.run_test("Update Hooks Config", "PUT", "/hooks/config", 200, updated_config)[0]
+            if not success:
+                return False
+        
+        # List hook mappings
+        success, mappings = self.run_test("List Hook Mappings", "GET", "/hooks/mappings", 200)
+        if not success:
+            return False
+        
+        print(f"   Found {len(mappings)} existing hook mappings")
+        
+        # Create hook mapping
+        test_mapping = {
+            "name": "Test Hook",
+            "path": "test-hook",
+            "action": "agent",
+            "agent_id": "main",
+            "session_key": "hook:test",
+            "message_template": "Test message: {{data}}",
+            "wake_mode": "now",
+            "deliver": True,
+            "channel": "last",
+            "enabled": True
+        }
+        success, response = self.run_test("Create Hook Mapping", "POST", "/hooks/mappings", 200, test_mapping)
+        if success and 'id' in response:
+            mapping_id = response['id']
+            
+            # Update hook mapping
+            update_data = {**test_mapping, "enabled": False}
+            success = self.run_test("Update Hook Mapping", "PUT", f"/hooks/mappings/{mapping_id}", 200, update_data)[0]
+            if not success:
+                return False
+            
+            # Delete hook mapping
+            success = self.run_test("Delete Hook Mapping", "DELETE", f"/hooks/mappings/{mapping_id}", 200)[0]
+            return success
+        return False
+
+    def test_session_messages(self):
+        """Test session messages/transcript operations"""
+        print("\n=== Testing Session Messages ===")
+        
+        # Get sessions first
+        success, sessions = self.run_test("Get Sessions for Messages", "GET", "/sessions", 200)
+        if not success:
+            return False
+        
+        if not sessions:
+            print("❌ No sessions available for testing messages")
+            return False
+        
+        session_id = sessions[0]['id']
+        
+        # Get session messages
+        success, transcript = self.run_test("Get Session Messages", "GET", f"/sessions/{session_id}/messages", 200)
+        if not success:
+            return False
+        
+        if 'session' in transcript and 'messages' in transcript:
+            messages = transcript['messages']
+            print(f"   Found {len(messages)} messages in session")
+            if len(messages) > 0:
+                print("✅ Session has transcript messages")
+            else:
+                print("⚠️ Session has no messages")
+        else:
+            print("❌ Invalid transcript response structure")
+            return False
+        
+        # Add a test message
+        success, new_message = self.run_test("Add Session Message", "POST", f"/sessions/{session_id}/messages", 200, {
+            "role": "user",
+            "content": "Test message from API test"
+        })
+        if not success:
+            return False
+        
+        print("✅ Successfully added test message to session")
+        return True
+
+    def test_config_validation(self):
+        """Test config validation endpoint"""
+        print("\n=== Testing Config Validation ===")
+        
+        # Test valid JSON
+        valid_config = '{"agents": {"defaults": {"workspace": "~/.openclaw"}}, "channels": {}}'
+        success, response = self.run_test("Validate Valid Config", "POST", "/config/validate", 200, {
+            "raw_config": valid_config
+        })
+        if not success:
+            return False
+        
+        if response.get('valid') != True:
+            print(f"❌ Valid config marked as invalid: {response}")
+            return False
+        print("✅ Valid config correctly validated")
+        
+        # Test invalid JSON
+        invalid_config = '{"invalid": json, syntax}'
+        success, response = self.run_test("Validate Invalid Config", "POST", "/config/validate", 200, {
+            "raw_config": invalid_config
+        })
+        if not success:
+            return False
+        
+        if response.get('valid') != False:
+            print(f"❌ Invalid config marked as valid: {response}")
+            return False
+        
+        if not response.get('errors'):
+            print("❌ No errors reported for invalid JSON")
+            return False
+        
+        print("✅ Invalid config correctly identified with errors")
+        
+        # Test config with warnings (unknown keys)
+        warning_config = '{"agents": {}, "unknown_key": "value"}'
+        success, response = self.run_test("Validate Config with Warnings", "POST", "/config/validate", 200, {
+            "raw_config": warning_config
+        })
+        if not success:
+            return False
+        
+        if response.get('valid') != True:
+            print(f"❌ Config with warnings marked as invalid: {response}")
+            return False
+        
+        if not response.get('warnings'):
+            print("⚠️ No warnings reported for unknown keys")
+        else:
+            print("✅ Config with unknown keys shows warnings")
+        
+        return True
+
     def cleanup(self):
         """Clean up created test data"""
         print("\n=== Cleaning up test data ===")
