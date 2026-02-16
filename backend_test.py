@@ -606,6 +606,10 @@ def main():
         ("Config Operations", tester.test_config_operations),
         ("Gateway Operations", tester.test_gateway_operations),
         ("Logs", tester.test_logs),
+        ("ClawHub Operations", tester.test_clawhub_operations),
+        ("Hooks Operations", tester.test_hooks_operations),
+        ("Session Messages", tester.test_session_messages),
+        ("Config Validation", tester.test_config_validation),
     ]
     
     try:
