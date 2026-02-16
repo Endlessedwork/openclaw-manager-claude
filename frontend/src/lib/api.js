@@ -64,4 +64,24 @@ export const getLogs = (limit = 50) => api.get(`/logs?limit=${limit}`);
 // Seed
 export const seedData = () => api.post('/seed');
 
+// ClawHub Marketplace
+export const getClawHubSkills = (search = '', category = 'all') => api.get(`/clawhub?search=${search}&category=${category}`);
+export const installClawHubSkill = (id) => api.post(`/clawhub/install/${id}`);
+export const uninstallClawHubSkill = (id) => api.post(`/clawhub/uninstall/${id}`);
+export const seedClawHub = () => api.post('/clawhub/seed');
+
+// Hooks/Webhooks
+export const getHooksConfig = () => api.get('/hooks/config');
+export const updateHooksConfig = (data) => api.put('/hooks/config', data);
+export const getHookMappings = () => api.get('/hooks/mappings');
+export const createHookMapping = (data) => api.post('/hooks/mappings', data);
+export const updateHookMapping = (id, data) => api.put(`/hooks/mappings/${id}`, data);
+export const deleteHookMapping = (id) => api.delete(`/hooks/mappings/${id}`);
+
+// Session Messages
+export const getSessionMessages = (sessionId) => api.get(`/sessions/${sessionId}/messages`);
+
+// Config Validation
+export const validateConfig = (data) => api.post('/config/validate', data);
+
 export default api;
