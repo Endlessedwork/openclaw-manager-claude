@@ -637,6 +637,158 @@ async def seed_data():
     await log_activity("seed", "system", "", "Seeded initial data")
     return {"status": "seeded"}
 
+# ===== CLAWHUB MARKETPLACE =====
+@api_router.get("/clawhub", response_model=List[ClawHubSkill])
+async def list_clawhub_skills(search: str = Query("", max_length=100), category: str = Query("all")):
+    query = {}
+    if search:
+        query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"slug": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}},
+            {"tags": {"$regex": search, "$options": "i"}},
+        ]
+    if category != "all":
+        query["category"] = category
+    return await db.clawhub_skills.find(query, {"_id": 0}).sort("downloads", -1).to_list(200)
+
+@api_router.post("/clawhub/install/{skill_id}")
+async def install_clawhub_skill(skill_id: str):
+    skill = await db.clawhub_skills.find_one({"id": skill_id}, {"_id": 0})
+    if not skill:
+        raise HTTPException(404, "Skill not found")
+    await db.clawhub_skills.update_one({"id": skill_id}, {"$set": {"installed": True, "installed_version": skill["version"]}})
+    # Also create a local skill entry
+    existing = await db.skills.find_one({"name": skill["slug"]})
+    if not existing:
+        local_skill = Skill(name=skill["slug"], description=skill["description"], location="managed", enabled=True, requires_env=skill.get("requires_env", []), requires_bins=skill.get("requires_bins", []), homepage=skill.get("homepage", ""))
+        await db.skills.insert_one(local_skill.model_dump())
+    await log_activity("install", "clawhub", skill_id, f"Installed skill: {skill['slug']}")
+    return {"status": "installed", "slug": skill["slug"]}
+
+@api_router.post("/clawhub/uninstall/{skill_id}")
+async def uninstall_clawhub_skill(skill_id: str):
+    skill = await db.clawhub_skills.find_one({"id": skill_id}, {"_id": 0})
+    if not skill:
+        raise HTTPException(404, "Skill not found")
+    await db.clawhub_skills.update_one({"id": skill_id}, {"$set": {"installed": False, "installed_version": ""}})
+    await db.skills.delete_one({"name": skill["slug"]})
+    await log_activity("uninstall", "clawhub", skill_id, f"Uninstalled skill: {skill['slug']}")
+    return {"status": "uninstalled"}
+
+@api_router.post("/clawhub/seed")
+async def seed_clawhub():
+    count = await db.clawhub_skills.count_documents({})
+    if count > 0:
+        return {"status": "already_seeded"}
+    hub_skills = [
+        ClawHubSkillBase(slug="web-search", name="Web Search", description="Search the web using Brave Search API", author="openclaw", version="2.1.0", tags=["search", "web", "brave"], downloads=12450, stars=89, homepage="https://clawhub.ai/skill/web-search", category="web", requires_env=["BRAVE_API_KEY"]),
+        ClawHubSkillBase(slug="nano-banana-pro", name="Nano Banana Pro", description="Generate or edit images via Gemini 3 Pro Image generation", author="openclaw", version="3.0.1", tags=["image", "gemini", "generation"], downloads=8920, stars=67, homepage="https://clawhub.ai/skill/nano-banana-pro", category="media", requires_env=["GEMINI_API_KEY"]),
+        ClawHubSkillBase(slug="summarize", name="Summarize", description="Summarize long documents, articles, or transcripts", author="openclaw", version="1.4.2", tags=["summarize", "text", "document"], downloads=6340, stars=45, homepage="https://clawhub.ai/skill/summarize", category="text"),
+        ClawHubSkillBase(slug="peekaboo", name="Peekaboo", description="Camera snapshot and image analysis for macOS/iOS nodes", author="openclaw", version="1.2.0", tags=["camera", "image", "vision"], downloads=4210, stars=38, homepage="https://clawhub.ai/skill/peekaboo", category="media"),
+        ClawHubSkillBase(slug="voice-call", name="Voice Call", description="Make and receive voice calls via Twilio integration", author="openclaw", version="2.0.0", tags=["voice", "call", "twilio"], downloads=3150, stars=28, homepage="https://clawhub.ai/skill/voice-call", category="communication", requires_env=["TWILIO_SID", "TWILIO_TOKEN"]),
+        ClawHubSkillBase(slug="gemini-cli", name="Gemini CLI", description="Use Gemini CLI for coding assistance and code review", author="community", version="1.1.0", tags=["coding", "gemini", "cli"], downloads=5670, stars=52, homepage="https://github.com/google-gemini/gemini-cli", category="coding", requires_bins=["gemini"]),
+        ClawHubSkillBase(slug="postgres-backup", name="Postgres Backup", description="Automated PostgreSQL backup and restore management", author="community", version="1.0.3", tags=["postgres", "backup", "database"], downloads=2890, stars=22, category="devops", requires_bins=["pg_dump"]),
+        ClawHubSkillBase(slug="git-assistant", name="Git Assistant", description="Advanced git operations - rebase, cherry-pick, conflict resolution", author="community", version="2.3.0", tags=["git", "version-control", "coding"], downloads=7820, stars=61, category="coding", requires_bins=["git"]),
+        ClawHubSkillBase(slug="calendar-sync", name="Calendar Sync", description="Sync and manage Google Calendar events", author="community", version="1.5.1", tags=["calendar", "google", "scheduling"], downloads=4560, stars=35, category="productivity", requires_env=["GOOGLE_CALENDAR_KEY"]),
+        ClawHubSkillBase(slug="slack-digest", name="Slack Digest", description="Generate daily digests from Slack channels", author="community", version="1.2.0", tags=["slack", "digest", "summary"], downloads=3240, stars=24, category="communication", requires_env=["SLACK_TOKEN"]),
+        ClawHubSkillBase(slug="code-review", name="Code Review", description="Automated code review with security analysis", author="openclaw", version="2.0.1", tags=["code", "review", "security"], downloads=9100, stars=73, category="coding"),
+        ClawHubSkillBase(slug="weather-forecast", name="Weather Forecast", description="Get weather forecasts and alerts for any location", author="community", version="1.0.0", tags=["weather", "forecast", "api"], downloads=1950, stars=15, category="general", requires_env=["WEATHER_API_KEY"]),
+        ClawHubSkillBase(slug="docker-manager", name="Docker Manager", description="Manage Docker containers, images, and compose stacks", author="community", version="1.3.0", tags=["docker", "container", "devops"], downloads=4120, stars=33, category="devops", requires_bins=["docker"]),
+        ClawHubSkillBase(slug="markdown-render", name="Markdown Render", description="Render and export markdown to PDF, HTML, or images", author="community", version="1.1.2", tags=["markdown", "render", "export"], downloads=2670, stars=19, category="text"),
+        ClawHubSkillBase(slug="email-compose", name="Email Compose", description="Draft and send emails with AI-powered writing", author="openclaw", version="1.4.0", tags=["email", "compose", "gmail"], downloads=5430, stars=41, category="communication", requires_env=["GMAIL_TOKEN"]),
+        ClawHubSkillBase(slug="screenshot-ocr", name="Screenshot OCR", description="Take screenshots and extract text with OCR", author="community", version="1.0.1", tags=["screenshot", "ocr", "text"], downloads=3780, stars=29, category="media"),
+    ]
+    for s in hub_skills:
+        skill = ClawHubSkill(**s.model_dump())
+        await db.clawhub_skills.insert_one(skill.model_dump())
+    return {"status": "seeded", "count": len(hub_skills)}
+
+# ===== HOOKS/WEBHOOKS =====
+@api_router.get("/hooks/config")
+async def get_hooks_config():
+    config = await db.hooks_config.find_one({"id": "hooks_config"}, {"_id": 0})
+    if not config:
+        default = HooksConfig()
+        await db.hooks_config.insert_one(default.model_dump())
+        return default.model_dump()
+    return config
+
+@api_router.put("/hooks/config")
+async def update_hooks_config(data: HooksConfig):
+    data.updated_at = datetime.now(timezone.utc).isoformat()
+    await db.hooks_config.update_one({"id": "hooks_config"}, {"$set": data.model_dump()}, upsert=True)
+    await log_activity("update", "hooks", "hooks_config", "Updated hooks config")
+    return await db.hooks_config.find_one({"id": "hooks_config"}, {"_id": 0})
+
+@api_router.get("/hooks/mappings", response_model=List[HookMapping])
+async def list_hook_mappings():
+    return await db.hook_mappings.find({}, {"_id": 0}).to_list(100)
+
+@api_router.post("/hooks/mappings", response_model=HookMapping)
+async def create_hook_mapping(data: HookMappingBase):
+    mapping = HookMapping(**data.model_dump())
+    await db.hook_mappings.insert_one(mapping.model_dump())
+    await log_activity("create", "hook", mapping.id, f"Created hook: {mapping.name}")
+    return mapping
+
+@api_router.put("/hooks/mappings/{mapping_id}", response_model=HookMapping)
+async def update_hook_mapping(mapping_id: str, data: HookMappingBase):
+    existing = await db.hook_mappings.find_one({"id": mapping_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Hook mapping not found")
+    update = data.model_dump()
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.hook_mappings.update_one({"id": mapping_id}, {"$set": update})
+    return await db.hook_mappings.find_one({"id": mapping_id}, {"_id": 0})
+
+@api_router.delete("/hooks/mappings/{mapping_id}")
+async def delete_hook_mapping(mapping_id: str):
+    result = await db.hook_mappings.delete_one({"id": mapping_id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Hook mapping not found")
+    await log_activity("delete", "hook", mapping_id, "Deleted hook mapping")
+    return {"status": "deleted"}
+
+# ===== SESSION MESSAGES (TRANSCRIPT) =====
+@api_router.get("/sessions/{session_id}/messages")
+async def get_session_messages(session_id: str):
+    session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(404, "Session not found")
+    messages = await db.session_messages.find({"session_id": session_id}, {"_id": 0}).sort("timestamp", 1).to_list(500)
+    return {"session": session, "messages": messages}
+
+@api_router.post("/sessions/{session_id}/messages")
+async def add_session_message(session_id: str, role: str = "user", content: str = ""):
+    session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(404, "Session not found")
+    msg = SessionMessage(session_id=session_id, role=role, content=content)
+    await db.session_messages.insert_one(msg.model_dump())
+    await db.sessions.update_one({"id": session_id}, {"$inc": {"message_count": 1}, "$set": {"last_message_at": datetime.now(timezone.utc).isoformat()}})
+    return msg.model_dump()
+
+# ===== CONFIG VALIDATION =====
+@api_router.post("/config/validate")
+async def validate_config(data: dict):
+    raw = data.get("raw_config", "")
+    errors = []
+    warnings = []
+    try:
+        import json
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            errors.append("Config must be a JSON object")
+        else:
+            valid_top = ["agents", "channels", "tools", "session", "messages", "gateway", "hooks", "cron", "skills", "plugins", "browser", "ui", "models", "env", "logging", "commands", "talk", "discovery", "canvasHost", "auth", "wizard", "identity"]
+            for k in parsed.keys():
+                if k not in valid_top and not k.startswith("$"):
+                    warnings.append(f"Unknown top-level key: '{k}'")
+    except json.JSONDecodeError as e:
+        errors.append(f"JSON parse error: {str(e)}")
+    return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings}
+
 app.include_router(api_router)
 
 app.add_middleware(
