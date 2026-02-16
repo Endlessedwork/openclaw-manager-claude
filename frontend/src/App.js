@@ -13,6 +13,8 @@ import SessionsPage from "./pages/SessionsPage";
 import CronPage from "./pages/CronPage";
 import ConfigPage from "./pages/ConfigPage";
 import GatewayPage from "./pages/GatewayPage";
+import ClawHubPage from "./pages/ClawHubPage";
+import HooksPage from "./pages/HooksPage";
 
 function App() {
   return (
@@ -30,6 +32,8 @@ function App() {
             <Route path="/cron" element={<CronPage />} />
             <Route path="/config" element={<ConfigPage />} />
             <Route path="/gateway" element={<GatewayPage />} />
+            <Route path="/clawhub" element={<ClawHubPage />} />
+            <Route path="/hooks" element={<HooksPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
