@@ -1,52 +1,39 @@
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+import { Toaster } from "./components/ui/sonner";
+import MainLayout from "./layout/MainLayout";
+import DashboardPage from "./pages/DashboardPage";
+import AgentsPage from "./pages/AgentsPage";
+import SkillsPage from "./pages/SkillsPage";
+import ToolsPage from "./pages/ToolsPage";
+import ModelsPage from "./pages/ModelsPage";
+import ChannelsPage from "./pages/ChannelsPage";
+import SessionsPage from "./pages/SessionsPage";
+import CronPage from "./pages/CronPage";
+import ConfigPage from "./pages/ConfigPage";
+import GatewayPage from "./pages/GatewayPage";
 
 function App() {
   return (
     <div className="App">
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
+          <Route element={<MainLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/skills" element={<SkillsPage />} />
+            <Route path="/tools" element={<ToolsPage />} />
+            <Route path="/models" element={<ModelsPage />} />
+            <Route path="/channels" element={<ChannelsPage />} />
+            <Route path="/sessions" element={<SessionsPage />} />
+            <Route path="/cron" element={<CronPage />} />
+            <Route path="/config" element={<ConfigPage />} />
+            <Route path="/gateway" element={<GatewayPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
+      <Toaster position="bottom-right" theme="dark" />
     </div>
   );
 }
