@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Bot, Zap, Wrench, Cpu, Radio, MessageSquare,
-  Clock, FileCode, Server, ChevronLeft, ChevronRight, Activity, Menu
+  Clock, FileCode, Server, ChevronLeft, ChevronRight, Activity, Menu,
+  Store, Webhook
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -12,9 +13,11 @@ const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/agents', label: 'Agents', icon: Bot },
   { path: '/skills', label: 'Skills', icon: Zap },
+  { path: '/clawhub', label: 'ClawHub', icon: Store },
   { path: '/tools', label: 'Tools', icon: Wrench },
   { path: '/models', label: 'Models', icon: Cpu },
   { path: '/channels', label: 'Channels', icon: Radio },
+  { path: '/hooks', label: 'Hooks', icon: Webhook },
   { path: '/sessions', label: 'Sessions', icon: MessageSquare },
   { path: '/cron', label: 'Cron Jobs', icon: Clock },
   { path: '/config', label: 'Config', icon: FileCode },
