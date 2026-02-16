@@ -173,6 +173,71 @@ class ActivityLog(BaseModel):
     details: str = ""
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+# ===== CLAWHUB MODELS =====
+class ClawHubSkillBase(BaseModel):
+    slug: str
+    name: str
+    description: str = ""
+    author: str = ""
+    version: str = "1.0.0"
+    tags: List[str] = []
+    downloads: int = 0
+    stars: int = 0
+    homepage: str = ""
+    installed: bool = False
+    installed_version: str = ""
+    skill_md: str = ""
+    requires_env: List[str] = []
+    requires_bins: List[str] = []
+    category: str = "general"
+
+class ClawHubSkill(ClawHubSkillBase):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+# ===== HOOKS MODELS =====
+class HookMappingBase(BaseModel):
+    name: str
+    path: str
+    action: str = "agent"
+    agent_id: str = "main"
+    session_key: str = ""
+    message_template: str = ""
+    wake_mode: str = "now"
+    deliver: bool = False
+    channel: str = "last"
+    model: str = ""
+    enabled: bool = True
+
+class HookMapping(HookMappingBase):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class HooksConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = "hooks_config"
+    enabled: bool = True
+    token: str = ""
+    path: str = "/hooks"
+    max_body_bytes: int = 262144
+    default_session_key: str = "hook:ingress"
+    presets: List[str] = []
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+# ===== SESSION MESSAGES =====
+class SessionMessage(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str
+    role: str = "user"
+    content: str = ""
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    metadata: Dict[str, Any] = {}
+
 # ===== HELPER =====
 async def log_activity(action: str, entity_type: str, entity_id: str = "", details: str = ""):
     log = ActivityLog(action=action, entity_type=entity_type, entity_id=entity_id, details=details)
