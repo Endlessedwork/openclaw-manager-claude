@@ -238,6 +238,30 @@ class SessionMessage(BaseModel):
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     metadata: Dict[str, Any] = {}
 
+# ===== AGENT ACTIVITIES =====
+class AgentActivityBase(BaseModel):
+    agent_id: str = "main"
+    agent_name: str = ""
+    event_type: str = "tool_call"
+    tool_name: str = ""
+    tool_input: str = ""
+    tool_output: str = ""
+    verbose: str = ""
+    status: str = "running"
+    duration_ms: int = 0
+    session_key: str = ""
+    channel: str = ""
+    peer: str = ""
+    model_used: str = ""
+    tokens_in: int = 0
+    tokens_out: int = 0
+    error: str = ""
+
+class AgentActivity(AgentActivityBase):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
 # ===== HELPER =====
 async def log_activity(action: str, entity_type: str, entity_id: str = "", details: str = ""):
     log = ActivityLog(action=action, entity_type=entity_type, entity_id=entity_id, details=details)
