@@ -692,6 +692,161 @@ class OpenClawAPITester:
         
         return True
 
+    def test_system_logs_operations(self):
+        """Test System Logs API endpoints for real-time log viewing"""
+        print("\n=== Testing System Logs Operations ===")
+        
+        # First clear any existing logs for clean test
+        success, clear_response = self.run_test("Clear System Logs", "DELETE", "/system-logs", 200)
+        if not success:
+            return False
+        
+        print(f"   Cleared {clear_response.get('deleted', 0)} existing logs")
+        
+        # Generate some test logs
+        success, generate_response = self.run_test("Generate System Logs", "POST", "/system-logs/generate", 200)
+        if not success:
+            return False
+        
+        generated_count = generate_response.get('generated', 0)
+        print(f"   Generated {generated_count} test log entries")
+        if generated_count == 0:
+            print("❌ No log entries generated")
+            return False
+        
+        # List all system logs
+        success, logs = self.run_test("List System Logs", "GET", "/system-logs", 200)
+        if not success:
+            return False
+        
+        print(f"   Found {len(logs)} log entries")
+        if len(logs) == 0:
+            print("❌ No logs found after generation")
+            return False
+        
+        # Validate log structure
+        if logs:
+            sample_log = logs[0]
+            required_fields = ['id', 'timestamp', 'level', 'source', 'message']
+            missing_fields = [field for field in required_fields if field not in sample_log]
+            if missing_fields:
+                print(f"❌ Missing required fields in log entry: {missing_fields}")
+                return False
+            
+            # Check level values
+            valid_levels = ['DEBUG', 'INFO', 'WARN', 'ERROR']
+            if sample_log['level'] not in valid_levels:
+                print(f"❌ Invalid log level: {sample_log['level']}")
+                return False
+            
+            print(f"✅ Log entry structure validation passed")
+        
+        # Test system logs stats
+        success, stats = self.run_test("Get System Logs Stats", "GET", "/system-logs/stats", 200)
+        if not success:
+            return False
+        
+        required_stats_keys = ['total', 'errors', 'warnings']
+        for key in required_stats_keys:
+            if key not in stats:
+                print(f"❌ Missing key in system logs stats: {key}")
+                return False
+        
+        print(f"   Stats: {stats['total']} total, {stats['errors']} errors, {stats['warnings']} warnings")
+        
+        if stats['total'] != len(logs):
+            print(f"❌ Stats total ({stats['total']}) doesn't match logs count ({len(logs)})")
+            return False
+        
+        # Test filtering by level
+        success, error_logs = self.run_test("Filter by Level (ERROR)", "GET", "/system-logs?level=ERROR", 200)
+        if not success:
+            return False
+        
+        print(f"   Found {len(error_logs)} ERROR level logs")
+        
+        # Verify all returned logs are ERROR level
+        for log in error_logs:
+            if log['level'] != 'ERROR':
+                print(f"❌ Non-ERROR log returned in ERROR filter: {log['level']}")
+                return False
+        
+        # Test filtering by source
+        if logs:
+            # Get a source from first log to test filtering
+            test_source = logs[0]['source'].split(':')[0]  # Get base source (e.g., 'gateway' from 'gateway:main')
+            success, source_logs = self.run_test(f"Filter by Source ({test_source})", "GET", f"/system-logs?source={test_source}", 200)
+            if not success:
+                return False
+            
+            print(f"   Found {len(source_logs)} logs from source '{test_source}'")
+            
+            # Verify all returned logs match the source filter
+            for log in source_logs:
+                if not log['source'].startswith(test_source):
+                    print(f"❌ Non-matching source log returned: {log['source']} (expected {test_source})")
+                    return False
+        
+        # Test search functionality
+        success, search_logs = self.run_test("Search Logs", "GET", "/system-logs?search=gateway", 200)
+        if not success:
+            return False
+        
+        print(f"   Found {len(search_logs)} logs matching 'gateway' search")
+        
+        # Test limit parameter
+        success, limited_logs = self.run_test("Limit System Logs", "GET", "/system-logs?limit=5", 200)
+        if not success:
+            return False
+        
+        if len(limited_logs) > 5:
+            print(f"❌ Limit parameter not respected: got {len(limited_logs)} logs")
+            return False
+        
+        print(f"   Limit test passed: {len(limited_logs)} logs returned")
+        
+        # Test multiple generations (simulating real-time log generation)
+        success, generate_response2 = self.run_test("Generate More System Logs", "POST", "/system-logs/generate", 200)
+        if not success:
+            return False
+        
+        generated_count2 = generate_response2.get('generated', 0)
+        print(f"   Generated {generated_count2} more log entries")
+        
+        # Verify logs increased
+        success, all_logs = self.run_test("List All Logs After Second Generation", "GET", "/system-logs", 200)
+        if not success:
+            return False
+        
+        total_expected = generated_count + generated_count2
+        if len(all_logs) < total_expected:
+            print(f"❌ Expected at least {total_expected} logs, got {len(all_logs)}")
+            return False
+        
+        print(f"✅ Total logs now: {len(all_logs)}")
+        
+        # Test combined filters
+        success, combined_filter_logs = self.run_test("Combined Filters", "GET", "/system-logs?level=INFO&limit=10&search=agent", 200)
+        if not success:
+            return False
+        
+        print(f"   Found {len(combined_filter_logs)} logs with combined filters")
+        
+        # Verify combined filter results
+        for log in combined_filter_logs[:5]:  # Check first few
+            if log['level'] != 'INFO':
+                print(f"❌ Non-INFO log in combined filter: {log['level']}")
+                return False
+            if 'agent' not in log['message'].lower() and 'agent' not in log['source'].lower():
+                print(f"❌ Log doesn't match 'agent' search in combined filter")
+                return False
+        
+        if len(combined_filter_logs) > 10:
+            print(f"❌ Combined filter exceeded limit: {len(combined_filter_logs)}")
+            return False
+        
+        return True
+
     def cleanup(self):
         """Clean up created test data"""
         print("\n=== Cleaning up test data ===")
