@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Bot, Zap, Wrench, Cpu, Radio, MessageSquare,
   Clock, FileCode, Server, ChevronLeft, ChevronRight, Activity, Menu,
-  Store, Webhook
+  Store, Webhook, MonitorDot
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../com
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/activities', label: 'Activities', icon: MonitorDot },
   { path: '/agents', label: 'Agents', icon: Bot },
   { path: '/skills', label: 'Skills', icon: Zap },
   { path: '/clawhub', label: 'ClawHub', icon: Store },
