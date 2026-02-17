@@ -14,7 +14,7 @@ import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 
 const EVENT_TYPES = [
-  { value: '', label: 'All Events' },
+  { value: 'all', label: 'All Events' },
   { value: 'tool_call', label: 'Tool Calls' },
   { value: 'llm_request', label: 'LLM Requests' },
   { value: 'message_received', label: 'Messages In' },
@@ -25,7 +25,7 @@ const EVENT_TYPES = [
 ];
 
 const STATUS_TYPES = [
-  { value: '', label: 'All Status' },
+  { value: 'all', label: 'All Status' },
   { value: 'completed', label: 'Completed' },
   { value: 'running', label: 'Running' },
   { value: 'error', label: 'Error' },
