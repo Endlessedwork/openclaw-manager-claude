@@ -19,8 +19,14 @@ export const getSkill = (id) => api.get(`/skills/${id}`);
 // Tools (read-only)
 export const getTools = () => api.get('/tools');
 
-// Models (read-only)
+// Models (read-only from CLI)
 export const getModels = () => api.get('/models');
+
+// Model Providers (CRUD via config)
+export const getProviders = () => api.get('/models/providers');
+export const createProvider = (data) => api.post('/models/providers', data);
+export const updateProvider = (id, data) => api.put(`/models/providers/${id}`, data);
+export const deleteProvider = (id) => api.delete(`/models/providers/${id}`);
 
 // Channels (read-only)
 export const getChannels = () => api.get('/channels');

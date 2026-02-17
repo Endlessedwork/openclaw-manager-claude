@@ -191,6 +191,75 @@ async def list_models():
     ]
 
 
+@api_router.get("/models/providers")
+async def list_providers():
+    config = await gateway.config_read()
+    providers = config.get("models", {}).get("providers", {})
+    result = []
+    for pid, pdata in providers.items():
+        result.append({
+            "id": pid,
+            "name": pid,
+            "base_url": pdata.get("baseUrl", ""),
+            "api": pdata.get("api", ""),
+            "models": pdata.get("models", []),
+        })
+    return result
+
+
+@api_router.post("/models/providers")
+async def create_provider(body: dict):
+    config = await gateway.config_read()
+    if "models" not in config:
+        config["models"] = {"mode": "merge", "providers": {}}
+    if "providers" not in config["models"]:
+        config["models"]["providers"] = {}
+    pid = body.get("id", "").strip()
+    if not pid:
+        raise HTTPException(400, "Provider ID is required")
+    if pid in config["models"]["providers"]:
+        raise HTTPException(409, f"Provider '{pid}' already exists")
+    config["models"]["providers"][pid] = {
+        "baseUrl": body.get("base_url", ""),
+        "api": body.get("api", "openai-completions"),
+        "models": body.get("models", []),
+    }
+    await gateway.config_write(config)
+    gateway.cache.invalidate("models")
+    await log_activity("create", "provider", pid, f"Created provider {pid}")
+    return {"status": "ok", "id": pid}
+
+
+@api_router.put("/models/providers/{provider_id}")
+async def update_provider(provider_id: str, body: dict):
+    config = await gateway.config_read()
+    providers = config.get("models", {}).get("providers", {})
+    if provider_id not in providers:
+        raise HTTPException(404, f"Provider '{provider_id}' not found")
+    providers[provider_id] = {
+        "baseUrl": body.get("base_url", providers[provider_id].get("baseUrl", "")),
+        "api": body.get("api", providers[provider_id].get("api", "")),
+        "models": body.get("models", providers[provider_id].get("models", [])),
+    }
+    await gateway.config_write(config)
+    gateway.cache.invalidate("models")
+    await log_activity("update", "provider", provider_id, f"Updated provider {provider_id}")
+    return {"status": "ok"}
+
+
+@api_router.delete("/models/providers/{provider_id}")
+async def delete_provider(provider_id: str):
+    config = await gateway.config_read()
+    providers = config.get("models", {}).get("providers", {})
+    if provider_id not in providers:
+        raise HTTPException(404, f"Provider '{provider_id}' not found")
+    del providers[provider_id]
+    await gateway.config_write(config)
+    gateway.cache.invalidate("models")
+    await log_activity("delete", "provider", provider_id, f"Deleted provider {provider_id}")
+    return {"status": "ok"}
+
+
 # ===== CHANNELS (from health probe) =====
 @api_router.get("/channels")
 async def list_channels():
