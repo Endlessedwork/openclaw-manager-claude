@@ -10,7 +10,7 @@ from pathlib import Path
 import uuid
 from datetime import datetime, timezone
 
-from backend.gateway_cli import gateway
+from gateway_cli import gateway
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')

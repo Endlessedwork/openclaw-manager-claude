@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 OPENCLAW_CONFIG = Path.home() / ".openclaw" / "openclaw.json"
+OPENCLAW_BIN = os.environ.get("OPENCLAW_BIN", str(Path.home() / ".npm-global" / "bin" / "openclaw"))
 
 
 class CLICache:
@@ -32,7 +33,7 @@ class GatewayCLI:
         self.cache = CLICache()
 
     async def _run(self, *args, json_output=True, timeout=30) -> dict | str:
-        cmd = ["openclaw"] + list(args)
+        cmd = [OPENCLAW_BIN] + list(args)
         if json_output:
             cmd.append("--json")
         proc = await asyncio.create_subprocess_exec(
@@ -89,7 +90,7 @@ class GatewayCLI:
 
     async def logs_stream(self):
         proc = await asyncio.create_subprocess_exec(
-            "openclaw", "logs", "--follow", "--json",
+            OPENCLAW_BIN, "logs", "--follow", "--json",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env={**os.environ, "NO_COLOR": "1"}
