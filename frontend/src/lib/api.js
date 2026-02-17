@@ -99,4 +99,18 @@ export const getActivityDetail = (id) => api.get(`/activities/${id}`);
 export const simulateActivities = () => api.post('/activities/simulate');
 export const clearActivities = () => api.delete('/activities');
 
+// System Logs
+export const getSystemLogs = (params = {}) => {
+  const q = new URLSearchParams();
+  if (params.level) q.set('level', params.level);
+  if (params.source) q.set('source', params.source);
+  if (params.search) q.set('search', params.search);
+  if (params.limit) q.set('limit', String(params.limit || 200));
+  if (params.since_id) q.set('since_id', params.since_id);
+  return api.get(`/system-logs?${q.toString()}`);
+};
+export const getSystemLogsStats = () => api.get('/system-logs/stats');
+export const generateSystemLogs = () => api.post('/system-logs/generate');
+export const clearSystemLogs = () => api.delete('/system-logs');
+
 export default api;
