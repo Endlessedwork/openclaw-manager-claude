@@ -113,4 +113,10 @@ export const getSystemLogsStats = () => api.get('/system-logs/stats');
 export const generateSystemLogs = () => api.post('/system-logs/generate');
 export const clearSystemLogs = () => api.delete('/system-logs');
 
+// WebSocket URL helper
+export const getWsUrl = (path) => {
+  const base = BACKEND_URL.replace(/^http/, 'ws');
+  return `${base}/api/ws/${path}`;
+};
+
 export default api;
