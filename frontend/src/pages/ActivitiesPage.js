@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { getActivities, getActivitiesStats, simulateActivities, clearActivities, getAgents } from '../lib/api';
+import { getActivities, getActivitiesStats, simulateActivities, clearActivities, getAgents, getWsUrl } from '../lib/api';
 import {
   Activity, Bot, Wrench, MessageSquare, Cpu, Zap, Clock,
   ChevronDown, ChevronRight, RefreshCw, Trash2, Play, Pause,
