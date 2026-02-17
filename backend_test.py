@@ -890,6 +890,7 @@ def main():
         ("Session Messages", tester.test_session_messages),
         ("Config Validation", tester.test_config_validation),
         ("Activities Operations", tester.test_activities_operations),
+        ("System Logs Operations", tester.test_system_logs_operations),
     ]
     
     try:
