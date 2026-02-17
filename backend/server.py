@@ -1032,6 +1032,204 @@ async def clear_activities():
     result = await db.agent_activities.delete_many({})
     return {"deleted": result.deleted_count}
 
+# ===== SYSTEM LOGS (openclaw logs --follow style) =====
+@api_router.get("/system-logs")
+async def list_system_logs(
+    level: str = Query("", max_length=20),
+    source: str = Query("", max_length=50),
+    search: str = Query("", max_length=200),
+    limit: int = Query(200, le=1000),
+    since_id: str = Query("", max_length=100),
+):
+    query = {}
+    if level:
+        query["level"] = level
+    if source:
+        query["source"] = source
+    if search:
+        query["message"] = {"$regex": search, "$options": "i"}
+    if since_id:
+        ref = await db.system_logs.find_one({"id": since_id}, {"_id": 0})
+        if ref:
+            query["timestamp"] = {"$gt": ref["timestamp"]}
+    logs = await db.system_logs.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
+    return logs
+
+@api_router.get("/system-logs/stats")
+async def system_logs_stats():
+    total = await db.system_logs.count_documents({})
+    errors = await db.system_logs.count_documents({"level": "ERROR"})
+    warns = await db.system_logs.count_documents({"level": "WARN"})
+    by_source = await db.system_logs.aggregate([
+        {"$group": {"_id": "$source", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]).to_list(20)
+    by_level = await db.system_logs.aggregate([
+        {"$group": {"_id": "$level", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]).to_list(10)
+    return {"total": total, "errors": errors, "warnings": warns, "by_source": by_source, "by_level": by_level}
+
+@api_router.post("/system-logs/generate")
+async def generate_system_logs():
+    """Generate realistic OpenClaw gateway log entries"""
+    import random
+    now = datetime.now(timezone.utc)
+    from datetime import timedelta
+
+    agents_list = await db.agents.find({}, {"_id": 0, "name": 1}).to_list(10)
+    agent_names = [a["name"] for a in agents_list] if agents_list else ["main"]
+
+    templates = [
+        # Gateway logs
+        ("INFO", "gateway", "Gateway listening on {host}:{port}"),
+        ("INFO", "gateway", "Config reloaded (hybrid mode) - {n} changes detected"),
+        ("DEBUG", "gateway", "Health check OK - uptime {h}h {m}m, mem {mem}MB"),
+        ("INFO", "gateway", "TLS certificate valid until 2026-12-31"),
+        ("WARN", "gateway", "Config reload: unknown key '{key}' ignored"),
+        ("DEBUG", "gateway", "Heartbeat timer fired for agent:{agent}"),
+        # Agent logs
+        ("INFO", "agent:{agent}", "Agent loop started - model {model}"),
+        ("INFO", "agent:{agent}", "Processing message from {channel}:{peer}"),
+        ("DEBUG", "agent:{agent}", "Tool call: {tool}({input})"),
+        ("INFO", "agent:{agent}", "Tool {tool} completed in {ms}ms"),
+        ("WARN", "agent:{agent}", "Tool {tool} timed out after {timeout}s, retrying..."),
+        ("ERROR", "agent:{agent}", "Tool {tool} failed: {error}"),
+        ("DEBUG", "agent:{agent}", "LLM request to {model} - {tokens_in} tokens in"),
+        ("INFO", "agent:{agent}", "LLM response received - {tokens_out} tokens, {ms}ms"),
+        ("WARN", "agent:{agent}", "LLM rate limit hit, backing off {s}s"),
+        ("INFO", "agent:{agent}", "Session context compacted: {old}k -> {new}k tokens"),
+        ("DEBUG", "agent:{agent}", "Workspace sync: {n} files updated"),
+        # Channel logs
+        ("INFO", "channel:{channel}", "Connected to {channel} gateway"),
+        ("INFO", "channel:{channel}", "DM received from {peer} ({len} chars)"),
+        ("INFO", "channel:{channel}", "Message sent to {peer}"),
+        ("WARN", "channel:{channel}", "Connection lost, reconnecting in {s}s..."),
+        ("ERROR", "channel:{channel}", "Authentication failed for {channel}: invalid token"),
+        ("DEBUG", "channel:{channel}", "Group message in {group} - mention detected"),
+        ("INFO", "channel:{channel}", "Pairing request from {peer} - auto-approved"),
+        # Session logs
+        ("INFO", "session", "New session: agent:{agent}:{channel}:dm:{peer}"),
+        ("DEBUG", "session", "Session reset (daily mode) for {agent}:{channel}"),
+        ("INFO", "session", "Session ended: {reason}"),
+        ("DEBUG", "session", "DM scope: per-peer, isolating {peer}"),
+        # Tool logs
+        ("DEBUG", "tool:exec", "$ {cmd}"),
+        ("INFO", "tool:exec", "Exit code: {code} ({ms}ms)"),
+        ("DEBUG", "tool:browser", "Navigating to {url}"),
+        ("INFO", "tool:browser", "Page loaded ({ms}ms) - title: {title}"),
+        ("DEBUG", "tool:web_search", "Searching: {query}"),
+        ("INFO", "tool:web_search", "Found {n} results from Brave Search"),
+        ("DEBUG", "tool:web_fetch", "Fetching {url}"),
+        ("INFO", "tool:web_fetch", "Fetched {bytes} bytes, extracted {chars} chars"),
+        ("INFO", "tool:canvas", "Canvas snapshot captured ({w}x{h})"),
+        ("DEBUG", "tool:apply_patch", "Patching {file}: +{add} -{del} lines"),
+        ("INFO", "tool:image", "Image analyzed: {desc}"),
+        # Skill logs
+        ("INFO", "skill:web-search", "Brave Search API call: {query}"),
+        ("INFO", "skill:nano-banana-pro", "Image generation request: {prompt}"),
+        ("WARN", "skill:nano-banana-pro", "GEMINI_API_KEY not set, skill disabled"),
+        ("DEBUG", "skill:summarize", "Summarizing {chars} chars -> target {target} chars"),
+        # Cron logs
+        ("INFO", "cron", "Job '{job}' triggered ({schedule})"),
+        ("INFO", "cron", "Job '{job}' completed in {ms}ms"),
+        ("ERROR", "cron", "Job '{job}' failed: {error}"),
+        ("DEBUG", "cron", "Next run for '{job}': {next}"),
+        # Hooks logs
+        ("INFO", "hooks", "Webhook received: POST /hooks/{path}"),
+        ("DEBUG", "hooks", "Hook '{name}' dispatched to agent:{agent}"),
+        ("WARN", "hooks", "Hook auth failed: invalid token"),
+    ]
+
+    tools = ["exec", "browser", "web_search", "web_fetch", "canvas", "apply_patch", "image", "message", "cron"]
+    models = ["anthropic/claude-sonnet-4-5", "openai/gpt-5.2", "anthropic/claude-opus-4-6", "google/gemini-3-flash"]
+    channels = ["whatsapp", "telegram", "discord", "slack", "webchat", "signal"]
+    cmds = ["ls -la", "git status", "npm run build", "python3 app.py", "docker ps", "cat README.md", "grep -r TODO .", "pip install requests"]
+    urls = ["https://docs.openclaw.ai", "https://github.com/trending", "https://news.ycombinator.com", "https://api.weather.gov"]
+    errors = ["ECONNRESET", "ETIMEDOUT", "rate limit exceeded", "permission denied", "file not found", "out of memory", "context length exceeded"]
+    jobs = ["daily-summary", "health-check", "backup-db", "sync-contacts"]
+    groups = ["#general", "#engineering", "#support", "#random"]
+
+    generated = []
+    count = random.randint(5, 12)
+
+    for i in range(count):
+        tmpl = random.choice(templates)
+        level, source_tmpl, msg_tmpl = tmpl
+        agent = random.choice(agent_names)
+        channel = random.choice(channels)
+        peer = f"{channel}:user_{random.randint(100,999)}"
+        source = source_tmpl.format(agent=agent, channel=channel)
+
+        replacements = {
+            "host": "127.0.0.1", "port": "18789",
+            "n": str(random.randint(1, 20)),
+            "h": str(random.randint(0, 72)), "m": str(random.randint(0, 59)),
+            "mem": str(random.randint(80, 900)),
+            "agent": agent, "model": random.choice(models),
+            "channel": channel, "peer": peer,
+            "tool": random.choice(tools),
+            "input": random.choice(cmds)[:30],
+            "ms": str(random.randint(5, 15000)),
+            "timeout": str(random.randint(10, 60)),
+            "error": random.choice(errors),
+            "tokens_in": str(random.randint(100, 8000)),
+            "tokens_out": str(random.randint(50, 4000)),
+            "s": str(random.randint(1, 30)),
+            "old": str(random.randint(50, 200)),
+            "new": str(random.randint(10, 50)),
+            "len": str(random.randint(10, 2000)),
+            "group": random.choice(groups),
+            "reason": random.choice(["user idle", "daily reset", "manual close", "peer disconnect"]),
+            "cmd": random.choice(cmds),
+            "code": str(random.choice([0, 0, 0, 1, 127])),
+            "url": random.choice(urls),
+            "title": random.choice(["OpenClaw Docs", "GitHub Trending", "Hacker News", "Weather API"]),
+            "query": random.choice(["latest AI news", "python tutorial", "kubernetes guide", "react hooks"]),
+            "bytes": str(random.randint(1000, 500000)),
+            "chars": str(random.randint(500, 50000)),
+            "w": str(random.choice([1920, 1280, 800])),
+            "file": random.choice(["server.py", "config.yaml", "README.md", "package.json"]),
+            "add": str(random.randint(1, 50)),
+            "del": str(random.randint(0, 20)),
+            "desc": random.choice(["screenshot of dashboard", "photo of whiteboard", "document scan", "chart image"]),
+            "prompt": random.choice(["a lobster mascot", "abstract background", "icon set", "data visualization"]),
+            "target": str(random.randint(200, 1000)),
+            "job": random.choice(jobs),
+            "schedule": random.choice(["0 9 * * *", "*/15 * * * *", "0 0 * * 0"]),
+            "next": (now + timedelta(minutes=random.randint(1, 60))).strftime("%H:%M"),
+            "path": random.choice(["gmail", "github", "stripe", "custom"]),
+            "name": random.choice(["Gmail Notifications", "GitHub Webhook", "Stripe Payments"]),
+            "key": random.choice(["customField", "unknownOption", "legacySetting"]),
+        }
+
+        try:
+            message = msg_tmpl.format(**replacements)
+        except KeyError:
+            message = msg_tmpl
+
+        ts = now - timedelta(seconds=random.randint(0, 20), milliseconds=random.randint(0, 999))
+
+        log_entry = {
+            "id": str(uuid.uuid4()),
+            "timestamp": ts.isoformat(),
+            "level": level,
+            "source": source,
+            "message": message,
+            "agent": agent if "agent" in source else "",
+            "channel": channel if "channel" in source else "",
+            "raw": f"[{ts.strftime('%H:%M:%S.%f')[:-3]}] [{level:5}] [{source}] {message}",
+        }
+        await db.system_logs.insert_one(log_entry)
+        generated.append({k: v for k, v in log_entry.items() if k != "_id"})
+
+    return {"generated": len(generated)}
+
+@api_router.delete("/system-logs")
+async def clear_system_logs():
+    result = await db.system_logs.delete_many({})
+    return {"deleted": result.deleted_count}
+
 app.include_router(api_router)
 
 app.add_middleware(
