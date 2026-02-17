@@ -316,6 +316,14 @@ export default function ActivitiesPage() {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Client-side filter
+  const filteredActivities = activities.filter(a => {
+    if (filterAgent !== 'all' && a.agent_id !== filterAgent) return false;
+    if (filterEvent !== 'all' && a.event_type !== filterEvent) return false;
+    if (filterStatus !== 'all' && a.status !== filterStatus) return false;
+    return true;
+  });
+
   const handleClear = async () => {
     if (!window.confirm('Clear all activity history?')) return;
     try { await clearActivities(); toast.success('Activities cleared'); load(false); }
