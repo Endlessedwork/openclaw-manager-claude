@@ -238,49 +238,79 @@ export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState({});
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [wsConnected, setWsConnected] = useState(false);
   const [filterAgent, setFilterAgent] = useState('all');
   const [filterEvent, setFilterEvent] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showStats, setShowStats] = useState(true);
-  const intervalRef = useRef(null);
   const scrollRef = useRef(null);
+  const wsRef = useRef(null);
 
-  const load = useCallback(async (isPolling = false) => {
-    try {
-      const params = {
-        agent_id: filterAgent === 'all' ? '' : filterAgent,
-        event_type: filterEvent === 'all' ? '' : filterEvent,
-        status: filterStatus === 'all' ? '' : filterStatus,
-        limit: 200,
-      };
-      const [actRes, statsRes] = await Promise.all([
-        getActivities(params),
-        getActivitiesStats(),
-      ]);
-      setActivities(actRes.data);
-      setStats(statsRes.data);
-      if (!isPolling) {
-        const agRes = await getAgents();
-        setAgents(agRes.data);
-      }
-    } catch (e) {
-      if (!isPolling) toast.error('Failed to load activities');
-    } finally {
-      if (!isPolling) setLoading(false);
-    }
-  }, [filterAgent, filterEvent, filterStatus]);
-
-  useEffect(() => { load(false); }, [load]);
-
-  // Auto-refresh polling
+  // Initial load (agents + stats)
   useEffect(() => {
-    if (autoRefresh) {
-      intervalRef.current = setInterval(() => {
-        simulateActivities().then(() => load(true));
-      }, 4000);
+    const init = async () => {
+      try {
+        const [agRes, statsRes] = await Promise.all([getAgents(), getActivitiesStats()]);
+        setAgents(agRes.data);
+        setStats(statsRes.data);
+      } catch {}
+      setLoading(false);
+    };
+    init();
+  }, []);
+
+  // Refresh stats periodically
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try { const res = await getActivitiesStats(); setStats(res.data); } catch {}
+    }, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // WebSocket connection
+  useEffect(() => {
+    if (!autoRefresh) {
+      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+      setWsConnected(false);
+      return;
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [autoRefresh, load]);
+    let ws = null;
+    let reconnectTimer = null;
+    let pingTimer = null;
+
+    const connect = () => {
+      ws = new WebSocket(getWsUrl('activities'));
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setWsConnected(true);
+        pingTimer = setInterval(() => { if (ws.readyState === WebSocket.OPEN) ws.send('ping'); }, 25000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'pong') return;
+          const newActs = msg.data || [];
+          if (newActs.length === 0) return;
+          setActivities(prev => {
+            const combined = msg.type === 'init' ? newActs : [...newActs, ...prev];
+            return combined.slice(0, 300);
+          });
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        setWsConnected(false);
+        if (pingTimer) clearInterval(pingTimer);
+        if (autoRefresh) reconnectTimer = setTimeout(connect, 3000);
+      };
+      ws.onerror = () => setWsConnected(false);
+    };
+
+    connect();
+    return () => { if (ws) ws.close(); if (reconnectTimer) clearTimeout(reconnectTimer); if (pingTimer) clearInterval(pingTimer); };
+  }, [autoRefresh]);
 
   const toggleExpand = (id) => {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
