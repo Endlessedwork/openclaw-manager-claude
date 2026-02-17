@@ -84,4 +84,19 @@ export const getSessionMessages = (sessionId) => api.get(`/sessions/${sessionId}
 // Config Validation
 export const validateConfig = (data) => api.post('/config/validate', data);
 
+// Agent Activities
+export const getActivities = (params = {}) => {
+  const q = new URLSearchParams();
+  if (params.agent_id) q.set('agent_id', params.agent_id);
+  if (params.event_type) q.set('event_type', params.event_type);
+  if (params.status) q.set('status', params.status);
+  if (params.limit) q.set('limit', params.limit);
+  if (params.since_id) q.set('since_id', params.since_id);
+  return api.get(`/activities?${q.toString()}`);
+};
+export const getActivitiesStats = () => api.get('/activities/stats');
+export const getActivityDetail = (id) => api.get(`/activities/${id}`);
+export const simulateActivities = () => api.post('/activities/simulate');
+export const clearActivities = () => api.delete('/activities');
+
 export default api;
