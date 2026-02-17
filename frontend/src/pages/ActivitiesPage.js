@@ -247,8 +247,14 @@ export default function ActivitiesPage() {
 
   const load = useCallback(async (isPolling = false) => {
     try {
+      const params = {
+        agent_id: filterAgent === 'all' ? '' : filterAgent,
+        event_type: filterEvent === 'all' ? '' : filterEvent,
+        status: filterStatus === 'all' ? '' : filterStatus,
+        limit: 200,
+      };
       const [actRes, statsRes] = await Promise.all([
-        getActivities({ agent_id: filterAgent, event_type: filterEvent, status: filterStatus, limit: 200 }),
+        getActivities(params),
         getActivitiesStats(),
       ]);
       setActivities(actRes.data);
