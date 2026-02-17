@@ -1233,6 +1233,197 @@ async def clear_system_logs():
 
 app.include_router(api_router)
 
+# ===== WEBSOCKET MANAGER =====
+class ConnectionManager:
+    def __init__(self):
+        self.log_connections: Set[WebSocket] = set()
+        self.activity_connections: Set[WebSocket] = set()
+
+    async def connect_logs(self, ws: WebSocket):
+        await ws.accept()
+        self.log_connections.add(ws)
+
+    async def connect_activities(self, ws: WebSocket):
+        await ws.accept()
+        self.activity_connections.add(ws)
+
+    def disconnect_logs(self, ws: WebSocket):
+        self.log_connections.discard(ws)
+
+    def disconnect_activities(self, ws: WebSocket):
+        self.activity_connections.discard(ws)
+
+    async def broadcast_logs(self, data: list):
+        dead = set()
+        for ws in self.log_connections:
+            try:
+                await ws.send_json({"type": "logs", "data": data})
+            except Exception:
+                dead.add(ws)
+        self.log_connections -= dead
+
+    async def broadcast_activities(self, data: list):
+        dead = set()
+        for ws in self.activity_connections:
+            try:
+                await ws.send_json({"type": "activities", "data": data})
+            except Exception:
+                dead.add(ws)
+        self.activity_connections -= dead
+
+ws_manager = ConnectionManager()
+
+async def _generate_logs_batch():
+    """Internal: generate logs and return them"""
+    import random
+    now = datetime.now(timezone.utc)
+    from datetime import timedelta
+    agents_list = await db.agents.find({}, {"_id": 0, "name": 1}).to_list(10)
+    agent_names = [a["name"] for a in agents_list] if agents_list else ["main"]
+    templates = [
+        ("INFO", "gateway", "Config reloaded (hybrid mode) - {n} changes detected"),
+        ("DEBUG", "gateway", "Health check OK - uptime {h}h {m}m, mem {mem}MB"),
+        ("WARN", "gateway", "Config reload: unknown key '{key}' ignored"),
+        ("DEBUG", "gateway", "Heartbeat timer fired for agent:{agent}"),
+        ("INFO", "agent:{agent}", "Processing message from {channel}:{peer}"),
+        ("DEBUG", "agent:{agent}", "Tool call: {tool}({input})"),
+        ("INFO", "agent:{agent}", "Tool {tool} completed in {ms}ms"),
+        ("WARN", "agent:{agent}", "Tool {tool} timed out after {timeout}s, retrying..."),
+        ("ERROR", "agent:{agent}", "Tool {tool} failed: {error}"),
+        ("DEBUG", "agent:{agent}", "LLM request to {model} - {tokens_in} tokens in"),
+        ("INFO", "agent:{agent}", "LLM response received - {tokens_out} tokens, {ms}ms"),
+        ("INFO", "agent:{agent}", "Session context compacted: {old}k -> {new}k tokens"),
+        ("INFO", "channel:{channel}", "DM received from {peer} ({len} chars)"),
+        ("INFO", "channel:{channel}", "Message sent to {peer}"),
+        ("WARN", "channel:{channel}", "Connection lost, reconnecting in {s}s..."),
+        ("DEBUG", "channel:{channel}", "Group message in {group} - mention detected"),
+        ("INFO", "session", "New session: agent:{agent}:{channel}:dm:{peer}"),
+        ("DEBUG", "session", "Session reset (daily mode) for {agent}:{channel}"),
+        ("DEBUG", "tool:exec", "$ {cmd}"),
+        ("INFO", "tool:exec", "Exit code: {code} ({ms}ms)"),
+        ("DEBUG", "tool:web_search", "Searching: {query}"),
+        ("INFO", "tool:web_fetch", "Fetched {bytes} bytes, extracted {chars} chars"),
+        ("INFO", "skill:web-search", "Brave Search API call: {query}"),
+        ("INFO", "cron", "Job '{job}' triggered ({schedule})"),
+        ("DEBUG", "hooks", "Hook '{name}' dispatched to agent:{agent}"),
+    ]
+    tools = ["exec", "browser", "web_search", "web_fetch", "canvas", "apply_patch", "image", "message"]
+    models = ["anthropic/claude-sonnet-4-5", "openai/gpt-5.2", "google/gemini-3-flash"]
+    channels = ["whatsapp", "telegram", "discord", "slack", "webchat"]
+    cmds = ["ls -la", "git status", "npm run build", "python3 app.py", "docker ps"]
+    errors = ["ECONNRESET", "ETIMEDOUT", "rate limit exceeded", "permission denied"]
+    jobs = ["daily-summary", "health-check"]
+    groups = ["#general", "#engineering"]
+    generated = []
+    count = random.randint(2, 5)
+    for _ in range(count):
+        tmpl = random.choice(templates)
+        level, source_tmpl, msg_tmpl = tmpl
+        agent = random.choice(agent_names)
+        channel = random.choice(channels)
+        peer = f"{channel}:user_{random.randint(100,999)}"
+        source = source_tmpl.format(agent=agent, channel=channel)
+        r = {"host": "127.0.0.1", "port": "18789", "n": str(random.randint(1,20)), "h": str(random.randint(0,72)), "m": str(random.randint(0,59)), "mem": str(random.randint(80,900)), "agent": agent, "model": random.choice(models), "channel": channel, "peer": peer, "tool": random.choice(tools), "input": random.choice(cmds)[:30], "ms": str(random.randint(5,15000)), "timeout": str(random.randint(10,60)), "error": random.choice(errors), "tokens_in": str(random.randint(100,8000)), "tokens_out": str(random.randint(50,4000)), "s": str(random.randint(1,30)), "old": str(random.randint(50,200)), "new": str(random.randint(10,50)), "len": str(random.randint(10,2000)), "group": random.choice(groups), "cmd": random.choice(cmds), "code": str(random.choice([0,0,0,1])), "query": random.choice(["latest AI news","python tutorial","kubernetes guide"]), "bytes": str(random.randint(1000,500000)), "chars": str(random.randint(500,50000)), "job": random.choice(jobs), "schedule": "*/15 * * * *", "name": random.choice(["Gmail Notifications","GitHub Webhook"]), "key": random.choice(["customField","unknownOption"])}
+        try:
+            message = msg_tmpl.format(**r)
+        except KeyError:
+            message = msg_tmpl
+        ts = now - timedelta(seconds=random.randint(0,3), milliseconds=random.randint(0,999))
+        log_entry = {"id": str(uuid.uuid4()), "timestamp": ts.isoformat(), "level": level, "source": source, "message": message, "agent": agent if "agent" in source else "", "channel": channel if "channel" in source else "", "raw": f"[{ts.strftime('%H:%M:%S.%f')[:-3]}] [{level:5}] [{source}] {message}"}
+        await db.system_logs.insert_one(log_entry)
+        generated.append({k: v for k, v in log_entry.items() if k != "_id"})
+    return generated
+
+async def _generate_activities_batch():
+    """Internal: generate activities and return them"""
+    import random
+    now = datetime.now(timezone.utc)
+    from datetime import timedelta
+    agents_list = await db.agents.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(10)
+    if not agents_list:
+        return []
+    tools_catalog = [("exec", ["ls -la", "git status", "npm run build"]), ("web_search", ["latest AI news", "python guide"]), ("browser", ["navigate to dashboard"]), ("canvas", ["snapshot current state"]), ("message", ["Sent reply to user"]), ("image", ["Analyzing uploaded screenshot"]), ("apply_patch", ["Modified server.py"])]
+    models = ["anthropic/claude-sonnet-4-5", "openai/gpt-5.2", "google/gemini-3-flash"]
+    channels = ["whatsapp", "telegram", "discord", "webchat"]
+    event_types = [("tool_call", 55), ("llm_request", 25), ("message_received", 10), ("message_sent", 10)]
+    statuses = [("completed", 80), ("running", 10), ("error", 5), ("cancelled", 5)]
+    generated = []
+    for _ in range(random.randint(1, 3)):
+        agent = random.choice(agents_list)
+        et = random.choices([e[0] for e in event_types], weights=[e[1] for e in event_types])[0]
+        st = random.choices([s[0] for s in statuses], weights=[s[1] for s in statuses])[0]
+        tool_name, tool_input, tool_output, verbose, dur, model_used, tok_in, tok_out, error = "", "", "", "", 0, "", 0, 0, ""
+        ch = random.choice(channels)
+        if et == "tool_call":
+            t = random.choice(tools_catalog)
+            tool_name, tool_input = t[0], random.choice(t[1])
+            dur = random.randint(50, 15000)
+            verbose = f"$ {tool_input}\n> Done in {dur}ms"
+            tool_output = f"[{tool_name}] Completed" if st == "completed" else f"[{tool_name}] {st}"
+            if st == "error":
+                error = random.choice(["timeout", "permission denied", "rate limit"])
+                verbose += f"\n> ERROR: {error}"
+        elif et == "llm_request":
+            model_used = random.choice(models)
+            tok_in, tok_out = random.randint(200, 8000), random.randint(50, 4000)
+            dur = random.randint(500, 12000)
+            verbose = f"Model: {model_used}\nTokens: {tok_in}/{tok_out}\nLatency: {dur}ms"
+        ts = now - timedelta(seconds=random.randint(0, 5))
+        act = AgentActivity(agent_id=agent["id"], agent_name=agent["name"], event_type=et, tool_name=tool_name, tool_input=tool_input, tool_output=tool_output, verbose=verbose, status=st, duration_ms=dur, session_key=f"agent:{agent['name']}:{ch}:dm:{ch}:user_{random.randint(100,999)}", channel=ch, peer=f"{ch}:user_{random.randint(100,999)}", model_used=model_used, tokens_in=tok_in, tokens_out=tok_out, error=error, timestamp=ts.isoformat())
+        await db.agent_activities.insert_one(act.model_dump())
+        generated.append(act.model_dump())
+    return generated
+
+@app.websocket("/api/ws/logs")
+async def ws_logs(websocket: WebSocket):
+    await ws_manager.connect_logs(websocket)
+    try:
+        # Send initial batch of recent logs
+        recent = await db.system_logs.find({}, {"_id": 0}).sort("timestamp", -1).limit(100).to_list(100)
+        recent.reverse()
+        await websocket.send_json({"type": "init", "data": recent})
+
+        while True:
+            # Wait for client messages (keepalive) or generate new logs
+            try:
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=3.0)
+                # Client can send "ping" or filter changes
+                if msg == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except asyncio.TimeoutError:
+                pass
+            # Generate and broadcast new logs
+            new_logs = await _generate_logs_batch()
+            if new_logs:
+                await websocket.send_json({"type": "logs", "data": new_logs})
+    except WebSocketDisconnect:
+        ws_manager.disconnect_logs(websocket)
+    except Exception:
+        ws_manager.disconnect_logs(websocket)
+
+@app.websocket("/api/ws/activities")
+async def ws_activities(websocket: WebSocket):
+    await ws_manager.connect_activities(websocket)
+    try:
+        recent = await db.agent_activities.find({}, {"_id": 0}).sort("timestamp", -1).limit(50).to_list(50)
+        recent.reverse()
+        await websocket.send_json({"type": "init", "data": recent})
+
+        while True:
+            try:
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=4.0)
+                if msg == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except asyncio.TimeoutError:
+                pass
+            new_acts = await _generate_activities_batch()
+            if new_acts:
+                await websocket.send_json({"type": "activities", "data": new_acts})
+    except WebSocketDisconnect:
+        ws_manager.disconnect_activities(websocket)
+    except Exception:
+        ws_manager.disconnect_activities(websocket)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
