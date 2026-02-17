@@ -392,7 +392,7 @@ export default function ActivitiesPage() {
               return (
                 <div key={a._id} className="flex items-center gap-3">
                   <span className={`text-xs font-mono w-20 truncate ${agentColor(a._id)}`}>
-                    {agents.find(ag => ag.id === a._id)?.name || a._id.slice(0, 8)}
+                    {a._id || 'unknown'}
                   </span>
                   <div className="flex-1 h-4 bg-zinc-900 rounded-sm overflow-hidden relative">
                     <div

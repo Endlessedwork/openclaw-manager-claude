@@ -490,7 +490,7 @@ async def list_activities(
 @api_router.get("/activities/stats")
 async def activities_stats():
     pipeline_agent = [
-        {"$group": {"_id": "$agent_id", "count": {"$sum": 1}, "errors": {"$sum": {"$cond": [{"$eq": ["$status", "error"]}, 1, 0]}}}},
+        {"$group": {"_id": "$agent_name", "count": {"$sum": 1}, "errors": {"$sum": {"$cond": [{"$eq": ["$status", "error"]}, 1, 0]}}}},
         {"$sort": {"count": -1}}
     ]
     pipeline_tools = [
@@ -629,7 +629,9 @@ async def ws_activities(websocket: WebSocket):
     proc = None
     try:
         proc = await gateway.logs_stream()
-        await websocket.send_json({"type": "init", "data": []})
+        # Send recent activities from DB on init
+        recent = await db.agent_activities.find({}, {"_id": 0}).sort("timestamp", -1).limit(100).to_list(100)
+        await websocket.send_json({"type": "init", "data": recent})
         buffer = []
 
         async def read_activities():
@@ -644,9 +646,11 @@ async def ws_activities(websocket: WebSocket):
                     msg = entry.get("message", "")
                     sub = entry.get("subsystem", "")
                     if any(k in msg.lower() for k in ["tool", "llm", "message", "session", "heartbeat"]):
+                        agent_name = sub.split("/")[-1] if "/" in sub else "main"
                         activity = {
                             "id": str(uuid.uuid4()),
-                            "agent_name": sub.split("/")[-1] if "/" in sub else "main",
+                            "agent_id": agent_name,
+                            "agent_name": agent_name,
                             "event_type": "tool_call" if "tool" in msg.lower() else "llm_request" if "llm" in msg.lower() else "message_received",
                             "tool_name": "",
                             "status": "completed",
@@ -656,6 +660,7 @@ async def ws_activities(websocket: WebSocket):
                             "message": msg,
                         }
                         buffer.append(activity)
+                        await db.agent_activities.insert_one({**activity})
                 except json.JSONDecodeError:
                     pass
 
