@@ -845,6 +845,193 @@ async def validate_config(data: dict):
         errors.append(f"JSON parse error: {str(e)}")
     return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings}
 
+# ===== AGENT ACTIVITIES =====
+@api_router.get("/activities")
+async def list_activities(
+    agent_id: str = Query("", max_length=100),
+    event_type: str = Query("", max_length=50),
+    status: str = Query("", max_length=20),
+    limit: int = Query(100, le=500),
+    since_id: str = Query("", max_length=100),
+):
+    query = {}
+    if agent_id:
+        query["agent_id"] = agent_id
+    if event_type:
+        query["event_type"] = event_type
+    if status:
+        query["status"] = status
+    if since_id:
+        ref = await db.agent_activities.find_one({"id": since_id}, {"_id": 0})
+        if ref:
+            query["timestamp"] = {"$gt": ref["timestamp"]}
+    activities = await db.agent_activities.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
+    return activities
+
+@api_router.get("/activities/stats")
+async def activities_stats():
+    pipeline_agent = [
+        {"$group": {"_id": "$agent_id", "count": {"$sum": 1}, "errors": {"$sum": {"$cond": [{"$eq": ["$status", "error"]}, 1, 0]}}}},
+        {"$sort": {"count": -1}}
+    ]
+    pipeline_tools = [
+        {"$match": {"event_type": "tool_call"}},
+        {"$group": {"_id": "$tool_name", "count": {"$sum": 1}, "avg_ms": {"$avg": "$duration_ms"}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 15}
+    ]
+    pipeline_types = [
+        {"$group": {"_id": "$event_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    agent_stats = await db.agent_activities.aggregate(pipeline_agent).to_list(50)
+    tool_stats = await db.agent_activities.aggregate(pipeline_tools).to_list(15)
+    type_stats = await db.agent_activities.aggregate(pipeline_types).to_list(20)
+    total = await db.agent_activities.count_documents({})
+    running = await db.agent_activities.count_documents({"status": "running"})
+    errors = await db.agent_activities.count_documents({"status": "error"})
+    return {
+        "total": total,
+        "running": running,
+        "errors": errors,
+        "by_agent": agent_stats,
+        "by_tool": tool_stats,
+        "by_type": type_stats,
+    }
+
+@api_router.get("/activities/{activity_id}")
+async def get_activity(activity_id: str):
+    act = await db.agent_activities.find_one({"id": activity_id}, {"_id": 0})
+    if not act:
+        raise HTTPException(404, "Activity not found")
+    return act
+
+@api_router.post("/activities/simulate")
+async def simulate_activities():
+    """Generate a batch of simulated real-time agent activities for demo"""
+    import random
+    agents_list = await db.agents.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(10)
+    if not agents_list:
+        return {"generated": 0}
+
+    tools_catalog = [
+        ("exec", "runtime", ["ls -la workspace/", "cat README.md", "python3 script.py", "git status", "npm run build", "grep -r 'TODO' .", "docker ps", "pip install requests"]),
+        ("web_search", "web", ["latest news about AI agents", "python fastapi middleware guide", "kubernetes deployment best practices", "react server components 2026", "openclaw agent tutorial"]),
+        ("web_fetch", "web", ["https://docs.openclaw.ai/tools", "https://github.com/trending", "https://news.ycombinator.com", "https://api.weather.gov/forecasts"]),
+        ("browser", "ui", ["navigate to dashboard", "click submit button", "fill form fields", "take screenshot", "scroll to bottom"]),
+        ("canvas", "ui", ["snapshot current state", "render markdown", "present slide 3", "eval expression"]),
+        ("message", "messaging", ["Sent reply to user on WhatsApp", "Posted update in Discord #general", "Forwarded email summary to Telegram"]),
+        ("image", "core", ["Analyzing uploaded screenshot", "Processing document scan", "Identifying objects in photo"]),
+        ("apply_patch", "fs", ["Modified server.py +15 -3 lines", "Updated package.json dependencies", "Patched config.yaml"]),
+        ("cron", "automation", ["Scheduled daily-summary for 09:00", "Triggered health-check run", "Updated cron next-run time"]),
+        ("sessions_spawn", "sessions", ["Spawned sub-agent 'coder' for code review", "Spawned sub-agent 'support' for ticket #234"]),
+    ]
+
+    event_types = [
+        ("tool_call", 55),
+        ("llm_request", 20),
+        ("message_received", 10),
+        ("message_sent", 8),
+        ("session_start", 3),
+        ("session_end", 2),
+        ("heartbeat", 2),
+    ]
+
+    models = ["anthropic/claude-sonnet-4-5", "openai/gpt-5.2", "anthropic/claude-opus-4-6", "google/gemini-3-flash"]
+    channels = ["whatsapp", "telegram", "discord", "webchat", "slack"]
+    statuses_w = [("completed", 78), ("running", 10), ("error", 7), ("cancelled", 5)]
+
+    now = datetime.now(timezone.utc)
+    generated = []
+
+    for i in range(random.randint(3, 8)):
+        agent = random.choice(agents_list)
+        et_choice = random.choices([e[0] for e in event_types], weights=[e[1] for e in event_types])[0]
+        st_choice = random.choices([s[0] for s in statuses_w], weights=[s[1] for s in statuses_w])[0]
+
+        tool_name = ""
+        tool_input = ""
+        tool_output = ""
+        verbose = ""
+        dur = 0
+        model_used = ""
+        tokens_in = 0
+        tokens_out = 0
+        error_msg = ""
+        ch = random.choice(channels)
+        peer = f"{ch}:user_{random.randint(100,999)}"
+
+        if et_choice == "tool_call":
+            tool_info = random.choice(tools_catalog)
+            tool_name = tool_info[0]
+            tool_input = random.choice(tool_info[2])
+            dur = random.randint(50, 15000)
+            if st_choice == "completed":
+                tool_output = f"[{tool_name}] Completed successfully"
+                verbose = f"$ {tool_input}\n> Processing...\n> Done in {dur}ms\n> Exit code: 0"
+            elif st_choice == "error":
+                tool_output = f"[{tool_name}] Error"
+                error_msg = random.choice(["Command timed out after 30s", "Permission denied", "Network unreachable", "Rate limit exceeded", "File not found"])
+                verbose = f"$ {tool_input}\n> ERROR: {error_msg}\n> Exit code: 1"
+            elif st_choice == "running":
+                verbose = f"$ {tool_input}\n> Running..."
+            else:
+                tool_output = f"[{tool_name}] Cancelled by user"
+                verbose = f"$ {tool_input}\n> Cancelled"
+
+        elif et_choice == "llm_request":
+            model_used = random.choice(models)
+            tokens_in = random.randint(200, 8000)
+            tokens_out = random.randint(50, 4000)
+            dur = random.randint(500, 12000)
+            verbose = f"Model: {model_used}\nTokens: {tokens_in} in / {tokens_out} out\nLatency: {dur}ms"
+            if st_choice == "error":
+                error_msg = random.choice(["API rate limit", "Context length exceeded", "Invalid API key", "Server overloaded"])
+                verbose += f"\nERROR: {error_msg}"
+
+        elif et_choice in ("message_received", "message_sent"):
+            verbose = f"Channel: {ch}\nPeer: {peer}\nContent length: {random.randint(10, 2000)} chars"
+
+        elif et_choice == "session_start":
+            verbose = f"New session started\nChannel: {ch}\nPeer: {peer}\nAgent: {agent['name']}"
+
+        elif et_choice == "heartbeat":
+            st_choice = "completed"
+            dur = random.randint(10, 100)
+            verbose = f"Heartbeat OK\nUptime: {random.randint(1,72)}h\nMemory: {random.randint(50,800)}MB"
+
+        from datetime import timedelta
+        ts = now - timedelta(seconds=random.randint(0, 30))
+
+        act = AgentActivity(
+            agent_id=agent["id"],
+            agent_name=agent["name"],
+            event_type=et_choice,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            tool_output=tool_output,
+            verbose=verbose,
+            status=st_choice,
+            duration_ms=dur,
+            session_key=f"agent:{agent['name']}:{ch}:dm:{peer}",
+            channel=ch,
+            peer=peer,
+            model_used=model_used,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            error=error_msg,
+            timestamp=ts.isoformat(),
+        )
+        await db.agent_activities.insert_one(act.model_dump())
+        generated.append(act.model_dump())
+
+    return {"generated": len(generated)}
+
+@api_router.delete("/activities")
+async def clear_activities():
+    result = await db.agent_activities.delete_many({})
+    return {"deleted": result.deleted_count}
+
 app.include_router(api_router)
 
 app.add_middleware(
