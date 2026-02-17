@@ -238,9 +238,9 @@ export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState({});
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [filterAgent, setFilterAgent] = useState('');
-  const [filterEvent, setFilterEvent] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [filterAgent, setFilterAgent] = useState('all');
+  const [filterEvent, setFilterEvent] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [showStats, setShowStats] = useState(true);
   const intervalRef = useRef(null);
   const scrollRef = useRef(null);
