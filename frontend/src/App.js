@@ -16,6 +16,7 @@ import GatewayPage from "./pages/GatewayPage";
 import ClawHubPage from "./pages/ClawHubPage";
 import HooksPage from "./pages/HooksPage";
 import ActivitiesPage from "./pages/ActivitiesPage";
+import LogsPage from "./pages/LogsPage";
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
             <Route path="/config" element={<ConfigPage />} />
             <Route path="/gateway" element={<GatewayPage />} />
             <Route path="/activities" element={<ActivitiesPage />} />
+            <Route path="/logs" element={<LogsPage />} />
             <Route path="/clawhub" element={<ClawHubPage />} />
             <Route path="/hooks" element={<HooksPage />} />
           </Route>
