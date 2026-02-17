@@ -734,6 +734,7 @@ def main():
         ("Hooks Operations", tester.test_hooks_operations),
         ("Session Messages", tester.test_session_messages),
         ("Config Validation", tester.test_config_validation),
+        ("Activities Operations", tester.test_activities_operations),
     ]
     
     try:
