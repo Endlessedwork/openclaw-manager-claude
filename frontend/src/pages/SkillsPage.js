@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getSkills, createSkill, updateSkill, deleteSkill } from '../lib/api';
-import { Zap, Plus, Pencil, Trash2, Search, ToggleLeft, ToggleRight } from 'lucide-react';
+import { getSkills } from '../lib/api';
+import { Zap, Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -34,12 +34,12 @@ export default function SkillsPage() {
   useEffect(() => { load(); }, []);
 
   const filtered = skills.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.description.toLowerCase().includes(search.toLowerCase())
+    (s.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (s.description || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_SKILL); setDialogOpen(true); };
-  const openEdit = (skill) => { setEditing(skill); setForm(skill); setDialogOpen(true); };
+  const openEdit = (skill) => { setEditing(skill); setForm({ ...skill }); setDialogOpen(true); };
 
   const handleSave = async () => {
     try {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { getSystemLogs, getSystemLogsStats, clearSystemLogs, getWsUrl } from '../lib/api';
+import { getSystemLogsStats, getWsUrl } from '../lib/api';
 import {
   Terminal, Search, Trash2, ArrowDown, ArrowUp,
   Filter, X, Wifi, WifiOff

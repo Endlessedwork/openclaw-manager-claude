@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getCronJobs, createCronJob, updateCronJob, deleteCronJob } from '../lib/api';
+import { getCronJobs } from '../lib/api';
 import { Clock, Plus, Pencil, Trash2, Play, Pause } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -29,7 +29,7 @@ export default function CronPage() {
   useEffect(() => { load(); }, []);
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_JOB); setDialogOpen(true); };
-  const openEdit = (j) => { setEditing(j); setForm(j); setDialogOpen(true); };
+  const openEdit = (j) => { setEditing(j); setForm({ ...j }); setDialogOpen(true); };
 
   const handleSave = async () => {
     try {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getHooksConfig, updateHooksConfig, getHookMappings, createHookMapping, updateHookMapping, deleteHookMapping } from '../lib/api';
+import { getHooksConfig, getHookMappings } from '../lib/api';
 import { Webhook, Plus, Pencil, Trash2, Settings, Zap, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -37,7 +37,7 @@ export default function HooksPage() {
   useEffect(() => { load(); }, []);
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_MAPPING); setDialogOpen(true); };
-  const openEdit = (m) => { setEditing(m); setForm(m); setDialogOpen(true); };
+  const openEdit = (m) => { setEditing(m); setForm({ ...m }); setDialogOpen(true); };
 
   const handleSave = async () => {
     try {

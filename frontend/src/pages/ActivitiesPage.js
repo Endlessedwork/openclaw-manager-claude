@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { getActivities, getActivitiesStats, simulateActivities, clearActivities, getAgents, getWsUrl } from '../lib/api';
+import React, { useEffect, useState, useRef } from 'react';
+import { getActivitiesStats, getAgents, getWsUrl } from '../lib/api';
 import {
-  Activity, Bot, Wrench, MessageSquare, Cpu, Zap, Clock,
-  ChevronDown, ChevronRight, RefreshCw, Trash2, Play, Pause,
-  AlertTriangle, CheckCircle, XCircle, Loader, Ban, Terminal,
-  Filter, BarChart3, ArrowDown
+  Activity, Wrench, MessageSquare, Cpu, Zap,
+  ChevronDown, ChevronRight,
+  CheckCircle, XCircle, Loader, Ban, Terminal,
+  Filter, BarChart3
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -324,17 +324,6 @@ export default function ActivitiesPage() {
     return true;
   });
 
-  const handleClear = async () => {
-    if (!window.confirm('Clear all activity history?')) return;
-    try { await clearActivities(); toast.success('Activities cleared'); load(false); }
-    catch { toast.error('Failed to clear'); }
-  };
-
-  const handleSimulate = async () => {
-    try { await simulateActivities(); load(true); }
-    catch { toast.error('Simulation failed'); }
-  };
-
   return (
     <div data-testid="activities-page" className="space-y-5">
       {/* Header */}
@@ -348,8 +337,8 @@ export default function ActivitiesPage() {
         <div className="flex items-center gap-3">
           {/* Live Toggle */}
           <div className="flex items-center gap-2 bg-[#0c0c0e] border border-zinc-800/60 rounded-lg px-3 py-2">
-            <div className={`w-2 h-2 rounded-full ${autoRefresh ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'}`}
-              style={autoRefresh ? { boxShadow: '0 0 8px rgba(16,185,129,0.6)' } : {}} />
+            <div className={`w-2 h-2 rounded-full ${autoRefresh && wsConnected ? 'bg-emerald-500 animate-pulse' : autoRefresh ? 'bg-amber-500' : 'bg-zinc-600'}`}
+              style={autoRefresh && wsConnected ? { boxShadow: '0 0 8px rgba(16,185,129,0.6)' } : {}} />
             <Label className="text-xs text-zinc-400 cursor-pointer" htmlFor="auto-refresh">Live</Label>
             <Switch
               id="auto-refresh"
@@ -358,12 +347,6 @@ export default function ActivitiesPage() {
               onCheckedChange={setAutoRefresh}
             />
           </div>
-          <Button variant="outline" size="sm" onClick={handleSimulate} className="border-zinc-700 text-zinc-400 hover:bg-zinc-800" data-testid="simulate-btn">
-            <Play className="w-3.5 h-3.5 mr-1" /> Simulate
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleClear} className="border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-red-500" data-testid="clear-activities-btn">
-            <Trash2 className="w-3.5 h-3.5 mr-1" /> Clear
-          </Button>
         </div>
       </div>
 
@@ -462,7 +445,11 @@ export default function ActivitiesPage() {
             {STATUS_TYPES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <span className="text-[10px] font-mono text-zinc-600 ml-auto tabular-nums">{activities.length} events</span>
+        <span className="text-[10px] font-mono text-zinc-600 ml-auto tabular-nums">
+          {filteredActivities.length !== activities.length
+            ? `${filteredActivities.length} / ${activities.length} events`
+            : `${activities.length} events`}
+        </span>
       </div>
 
       {/* Activity Stream */}
@@ -474,7 +461,7 @@ export default function ActivitiesPage() {
         <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-12 text-center">
           <Activity className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
           <p className="text-zinc-500 mb-2">No activities yet</p>
-          <p className="text-xs text-zinc-600">Turn on Live mode or click Simulate to generate demo data</p>
+          <p className="text-xs text-zinc-600">Turn on Live mode to stream real-time gateway activities</p>
         </div>
       ) : (
         <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg overflow-hidden" ref={scrollRef}>
@@ -482,15 +469,19 @@ export default function ActivitiesPage() {
           <div className="px-4 py-2 bg-[#101012] border-b border-zinc-800/60 flex items-center gap-3">
             <Terminal className="w-3.5 h-3.5 text-orange-500" />
             <span className="text-xs font-mono text-zinc-500">Activity Stream</span>
-            {autoRefresh && (
+            {autoRefresh && wsConnected ? (
               <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-500 ml-auto">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
               </span>
-            )}
+            ) : autoRefresh && !wsConnected ? (
+              <span className="flex items-center gap-1 text-[10px] font-mono text-amber-500 ml-auto">
+                RECONNECTING
+              </span>
+            ) : null}
           </div>
           {/* Activity Rows */}
           <div className="max-h-[600px] overflow-y-auto">
-            {activities.map(act => (
+            {filteredActivities.map(act => (
               <ActivityRow
                 key={act.id}
                 act={act}

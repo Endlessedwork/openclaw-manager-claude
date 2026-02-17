@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getModels, createModel, updateModel, deleteModel } from '../lib/api';
+import { getModels } from '../lib/api';
 import { Cpu, Plus, Pencil, Trash2, Star, StarOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -31,7 +31,7 @@ export default function ModelsPage() {
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_PROVIDER); setModelsText(''); setDialogOpen(true); };
   const openEdit = (p) => {
-    setEditing(p); setForm(p);
+    setEditing(p); setForm({ ...p });
     setModelsText((p.models || []).map(m => `${m.id}:${m.alias || m.id}`).join('\n'));
     setDialogOpen(true);
   };

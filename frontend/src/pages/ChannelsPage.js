@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getChannels, createChannel, updateChannel, deleteChannel } from '../lib/api';
+import { getChannels } from '../lib/api';
 import { Radio, Plus, Pencil, Trash2, Wifi, WifiOff, MessageCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -39,7 +39,7 @@ export default function ChannelsPage() {
   useEffect(() => { load(); }, []);
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_CHANNEL); setDialogOpen(true); };
-  const openEdit = (ch) => { setEditing(ch); setForm(ch); setDialogOpen(true); };
+  const openEdit = (ch) => { setEditing(ch); setForm({ ...ch }); setDialogOpen(true); };
 
   const handleSave = async () => {
     try {
@@ -57,7 +57,7 @@ export default function ChannelsPage() {
 
   const handleToggle = async (ch) => {
     try {
-      await updateChannel(ch.id, { ...ch, enabled: !ch.enabled, status: !ch.enabled ? 'connected' : 'disconnected' });
+      await updateChannel(ch.id, { ...ch, enabled: !ch.enabled });
       toast.success(`Channel ${ch.enabled ? 'disabled' : 'enabled'}`); load();
     } catch { toast.error('Failed'); }
   };

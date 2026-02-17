@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getTools, createTool, updateTool, deleteTool } from '../lib/api';
+import { getTools } from '../lib/api';
 import { Wrench, Plus, Pencil, Trash2, Search, Shield, ShieldOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -29,7 +29,7 @@ export default function ToolsPage() {
   useEffect(() => { load(); }, []);
 
   const filtered = tools.filter(t => {
-    const matchSearch = t.tool_name.toLowerCase().includes(search.toLowerCase()) || t.description.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = (t.tool_name || '').toLowerCase().includes(search.toLowerCase()) || (t.description || '').toLowerCase().includes(search.toLowerCase());
     const matchCat = filterCat === 'all' || t.category === filterCat;
     return matchSearch && matchCat;
   });
