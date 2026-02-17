@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Dict, Any
 
 class OpenClawAPITester:
-    def __init__(self, base_url: str = "https://openclaw-control-1.preview.emergentagent.com"):
+    def __init__(self, base_url: str = "https://openclaw-dash.preview.emergentagent.com"):
         self.base_url = f"{base_url}/api"
         self.tests_run = 0
         self.tests_passed = 0
