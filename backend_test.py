@@ -568,6 +568,130 @@ class OpenClawAPITester:
         
         return True
 
+    def test_activities_operations(self):
+        """Test Activities API endpoints for agent behavior monitoring"""
+        print("\n=== Testing Activities Operations ===")
+        
+        # First clear any existing activities for clean test
+        success, clear_response = self.run_test("Clear Activities", "DELETE", "/activities", 200)
+        if not success:
+            return False
+        
+        # Generate some test activities
+        success, simulate_response = self.run_test("Simulate Activities", "POST", "/activities/simulate", 200)
+        if not success:
+            return False
+        
+        generated_count = simulate_response.get('generated', 0)
+        print(f"   Generated {generated_count} test activities")
+        if generated_count == 0:
+            print("❌ No activities generated from simulation")
+            return False
+        
+        # List all activities
+        success, activities = self.run_test("List Activities", "GET", "/activities", 200)
+        if not success:
+            return False
+        
+        print(f"   Found {len(activities)} activities")
+        if len(activities) == 0:
+            print("❌ No activities found after simulation")
+            return False
+        
+        # Test activities stats
+        success, stats = self.run_test("Get Activities Stats", "GET", "/activities/stats", 200)
+        if not success:
+            return False
+        
+        required_stats_keys = ['total', 'running', 'errors', 'by_agent', 'by_tool', 'by_type']
+        for key in required_stats_keys:
+            if key not in stats:
+                print(f"❌ Missing key in activities stats: {key}")
+                return False
+        
+        print(f"   Stats: {stats['total']} total, {stats['running']} running, {stats['errors']} errors")
+        
+        if stats['total'] != len(activities):
+            print(f"❌ Stats total ({stats['total']}) doesn't match activities count ({len(activities)})")
+            return False
+        
+        # Test filtering by agent
+        if stats.get('by_agent') and len(stats['by_agent']) > 0:
+            first_agent = stats['by_agent'][0]['_id']
+            success, agent_activities = self.run_test("Filter by Agent", "GET", f"/activities?agent_id={first_agent}", 200)
+            if not success:
+                return False
+            
+            agent_count = len(agent_activities)
+            expected_count = stats['by_agent'][0]['count']
+            print(f"   Agent '{first_agent}' has {agent_count} activities (expected {expected_count})")
+            if agent_count != expected_count:
+                print(f"❌ Agent activity count mismatch")
+                return False
+        
+        # Test filtering by event type
+        if stats.get('by_type') and len(stats['by_type']) > 0:
+            first_event_type = stats['by_type'][0]['_id']
+            success, type_activities = self.run_test("Filter by Event Type", "GET", f"/activities?event_type={first_event_type}", 200)
+            if not success:
+                return False
+            
+            type_count = len(type_activities)
+            print(f"   Event type '{first_event_type}' has {type_count} activities")
+            
+        # Test filtering by status
+        success, completed_activities = self.run_test("Filter by Status", "GET", "/activities?status=completed", 200)
+        if not success:
+            return False
+        
+        print(f"   Found {len(completed_activities)} completed activities")
+        
+        # Test activity detail retrieval
+        if activities:
+            test_activity_id = activities[0]['id']
+            success, activity_detail = self.run_test("Get Activity Detail", "GET", f"/activities/{test_activity_id}", 200)
+            if not success:
+                return False
+            
+            if activity_detail.get('id') != test_activity_id:
+                print(f"❌ Activity detail ID mismatch")
+                return False
+            
+            print(f"✅ Retrieved activity detail for {test_activity_id}")
+        
+        # Test limit parameter
+        success, limited_activities = self.run_test("Limit Activities", "GET", "/activities?limit=5", 200)
+        if not success:
+            return False
+        
+        if len(limited_activities) > 5:
+            print(f"❌ Limit parameter not respected: got {len(limited_activities)} activities")
+            return False
+        
+        print(f"   Limit test passed: {len(limited_activities)} activities returned")
+        
+        # Test multiple simulations
+        success, simulate_response2 = self.run_test("Simulate More Activities", "POST", "/activities/simulate", 200)
+        if not success:
+            return False
+        
+        generated_count2 = simulate_response2.get('generated', 0)
+        print(f"   Generated {generated_count2} more test activities")
+        
+        # Verify activities increased
+        success, all_activities = self.run_test("List All Activities After Second Simulation", "GET", "/activities", 200)
+        if not success:
+            return False
+        
+        total_expected = generated_count + generated_count2
+        if len(all_activities) < total_expected:
+            print(f"❌ Expected at least {total_expected} activities, got {len(all_activities)}")
+            return False
+        
+        print(f"✅ Total activities now: {len(all_activities)}")
+        
+        return True
+
     def cleanup(self):
         """Clean up created test data"""
         print("\n=== Cleaning up test data ===")
