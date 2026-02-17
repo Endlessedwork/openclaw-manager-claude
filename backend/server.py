@@ -171,27 +171,24 @@ async def list_tools():
     ]
 
 
-# ===== MODEL PROVIDERS (from config) =====
+# ===== MODELS (from CLI - includes env-based providers) =====
 @api_router.get("/models")
 async def list_models():
-    config = await gateway.config_read()
-    providers = config.get("models", {}).get("providers", {})
-    result = []
-    for name, prov in providers.items():
-        models = prov.get("models", [])
-        result.append({
-            "id": name,
-            "name": name.title(),
-            "provider_id": name,
-            "enabled": True,
-            "is_primary": False,
-            "api_base": prov.get("baseUrl", ""),
-            "models": [
-                {"id": m.get("id", ""), "alias": m.get("name", "")}
-                for m in models
-            ],
-        })
-    return result
+    raw = await gateway.models()
+    return [
+        {
+            "id": m["key"],
+            "name": m.get("name", m["key"]),
+            "key": m["key"],
+            "provider_id": m["key"].split("/")[0] if "/" in m["key"] else "",
+            "enabled": m.get("available", False) and not m.get("missing", True),
+            "is_primary": "default" in m.get("tags", []),
+            "input": m.get("input", ""),
+            "context_window": m.get("contextWindow"),
+            "tags": m.get("tags", []),
+        }
+        for m in raw.get("models", [])
+    ]
 
 
 # ===== CHANNELS (from health probe) =====

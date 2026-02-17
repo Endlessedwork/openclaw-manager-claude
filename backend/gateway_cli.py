@@ -69,6 +69,9 @@ class GatewayCLI:
     async def cron_jobs(self):
         return await self.cache.get("cron", lambda: self._run("cron", "list"), 30)
 
+    async def models(self):
+        return await self.cache.get("models", lambda: self._run("models", "list"), 60)
+
     async def config_read(self):
         async def _read():
             import aiofiles
