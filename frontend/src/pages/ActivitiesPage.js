@@ -408,7 +408,7 @@ export default function ActivitiesPage() {
         <Select value={filterAgent} onValueChange={setFilterAgent}>
           <SelectTrigger className="w-40 h-8 bg-[#050505] border-zinc-800 text-xs"><SelectValue placeholder="All Agents" /></SelectTrigger>
           <SelectContent className="bg-zinc-900 border-zinc-800">
-            <SelectItem value="">All Agents</SelectItem>
+            <SelectItem value="all">All Agents</SelectItem>
             {agents.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
           </SelectContent>
         </Select>
