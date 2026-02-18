@@ -31,16 +31,13 @@ const mockDashboardData = {
   ],
 };
 
-let mockSeedData;
 let mockGetDashboard;
 
 jest.mock('../lib/api', () => ({
-  seedData: (...args) => mockSeedData(...args),
   getDashboard: (...args) => mockGetDashboard(...args),
 }));
 
 beforeEach(() => {
-  mockSeedData = jest.fn().mockResolvedValue({});
   mockGetDashboard = jest.fn().mockResolvedValue({ data: mockDashboardData });
 });
 

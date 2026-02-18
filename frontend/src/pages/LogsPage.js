@@ -190,10 +190,11 @@ export default function LogsPage() {
     });
   };
 
-  const handleClear = async () => {
-    if (!window.confirm('Clear all logs?')) return;
-    try { await clearSystemLogs(); setLogs([]); setTotalReceived(0); toast.success('Logs cleared'); }
-    catch { toast.error('Failed'); }
+  const handleClear = () => {
+    if (!window.confirm('Clear displayed logs?')) return;
+    setLogs([]);
+    setTotalReceived(0);
+    toast.success('Logs cleared');
   };
 
   const scrollToBottom = () => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); setFollowing(true); };

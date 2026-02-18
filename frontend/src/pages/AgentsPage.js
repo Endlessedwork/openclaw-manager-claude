@@ -68,13 +68,8 @@ export default function AgentsPage() {
     } catch { toast.error('Failed to save agent'); }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this agent?')) return;
-    try {
-      await deleteAgent(id);
-      toast.success('Agent deleted');
-      load();
-    } catch { toast.error('Failed to delete'); }
+  const handleDelete = () => {
+    toast.error('Agents are managed via openclaw.json config file');
   };
 
   const statusBadge = (status) => {

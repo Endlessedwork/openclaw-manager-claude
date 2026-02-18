@@ -41,26 +41,17 @@ export default function SkillsPage() {
   const openCreate = () => { setEditing(null); setForm(EMPTY_SKILL); setDialogOpen(true); };
   const openEdit = (skill) => { setEditing(skill); setForm({ ...skill }); setDialogOpen(true); };
 
-  const handleSave = async () => {
-    try {
-      if (editing) { await updateSkill(editing.id, form); toast.success('Skill updated'); }
-      else { await createSkill(form); toast.success('Skill created'); }
-      setDialogOpen(false); load();
-    } catch { toast.error('Failed to save skill'); }
+  const handleSave = () => {
+    toast.error('Skills are managed via CLI and config file');
+    setDialogOpen(false);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this skill?')) return;
-    try { await deleteSkill(id); toast.success('Skill deleted'); load(); }
-    catch { toast.error('Failed to delete'); }
+  const handleDelete = () => {
+    toast.error('Skills are managed via CLI and config file');
   };
 
-  const handleToggle = async (skill) => {
-    try {
-      await updateSkill(skill.id, { ...skill, enabled: !skill.enabled });
-      toast.success(`Skill ${skill.enabled ? 'disabled' : 'enabled'}`);
-      load();
-    } catch { toast.error('Failed to toggle skill'); }
+  const handleToggle = () => {
+    toast.error('Skill toggling is managed via CLI and config file');
   };
 
   const locationBadge = (loc) => {
