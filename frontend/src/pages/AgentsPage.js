@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { getAgents } from '../lib/api';
+import React, { useEffect, useState, useCallback } from 'react';
+import { getAgents, getAgent, getModels, updateAgentMd } from '../lib/api';
 import { Bot, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -22,32 +22,46 @@ const EMPTY_AGENT = {
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState([]);
+  const [availableModels, setAvailableModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_AGENT);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const res = await getAgents();
       setAgents(res.data);
     } catch { toast.error('Failed to load agents'); }
     finally { setLoading(false); }
-  };
+    try {
+      const res = await getModels();
+      setAvailableModels(res.data);
+    } catch { /* models list optional */ }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_AGENT); setDialogOpen(true); };
-  const openEdit = (agent) => { setEditing(agent); setForm({ ...agent }); setDialogOpen(true); };
+  const openEdit = async (agent) => {
+    setEditing(agent);
+    setForm({ ...EMPTY_AGENT, ...agent });
+    setDialogOpen(true);
+    try {
+      const res = await getAgent(agent.id);
+      setForm(prev => ({ ...prev, soul_md: res.data.soul_md || '', agents_md: res.data.agents_md || '', identity_md: res.data.identity_md || '' }));
+    } catch { /* .md files optional */ }
+  };
 
   const handleSave = async () => {
     try {
       if (editing) {
-        await updateAgent(editing.id, form);
+        await updateAgentMd(editing.id, {
+          soul_md: form.soul_md,
+          agents_md: form.agents_md,
+          identity_md: form.identity_md,
+        });
         toast.success('Agent updated');
-      } else {
-        await createAgent(form);
-        toast.success('Agent created');
       }
       setDialogOpen(false);
       load();
@@ -184,13 +198,37 @@ export default function AgentsPage() {
             <TabsContent value="model" className="space-y-4 mt-4">
               <div>
                 <Label className="text-zinc-400 text-xs">Primary Model</Label>
-                <Input value={form.model_primary} onChange={e => setForm({...form, model_primary: e.target.value})}
-                  className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" placeholder="provider/model" />
+                <Select value={form.model_primary} onValueChange={v => setForm({...form, model_primary: v})}>
+                  <SelectTrigger className="bg-[#050505] border-zinc-800 text-sm mt-1 font-mono"><SelectValue placeholder="Select a model" /></SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-800 max-h-60">
+                    {availableModels.map(m => (
+                      <SelectItem key={m.key} value={m.key} className="font-mono text-sm">
+                        {m.name} <span className="text-zinc-500 ml-1">({m.key})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
-                <Label className="text-zinc-400 text-xs">Fallback Models (comma separated)</Label>
-                <Input value={(form.model_fallbacks || []).join(', ')} onChange={e => setForm({...form, model_fallbacks: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})}
-                  className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" placeholder="openai/gpt-5.2, google/gemini-3-flash" />
+                <Label className="text-zinc-400 text-xs mb-2 block">Fallback Models</Label>
+                <div className="bg-[#050505] border border-zinc-800 rounded-md p-2 space-y-1 max-h-48 overflow-y-auto">
+                  {availableModels.length === 0 && <p className="text-xs text-zinc-600 px-2 py-1">No models available</p>}
+                  {availableModels.filter(m => m.key !== form.model_primary).map(m => {
+                    const checked = (form.model_fallbacks || []).includes(m.key);
+                    return (
+                      <label key={m.key} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-zinc-800/50 cursor-pointer text-sm">
+                        <input type="checkbox" checked={checked}
+                          onChange={() => {
+                            const fallbacks = form.model_fallbacks || [];
+                            setForm({...form, model_fallbacks: checked ? fallbacks.filter(k => k !== m.key) : [...fallbacks, m.key]});
+                          }}
+                          className="rounded border-zinc-700 bg-zinc-900 text-orange-500 focus:ring-orange-500/30" />
+                        <span className="font-mono text-zinc-300">{m.name}</span>
+                        <span className="font-mono text-zinc-600 text-xs ml-auto">{m.key}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </TabsContent>
             <TabsContent value="tools" className="space-y-4 mt-4">
@@ -250,14 +288,19 @@ export default function AgentsPage() {
                 </Select>
               </div>
               <div>
+                <Label className="text-zinc-400 text-xs">IDENTITY.md</Label>
+                <Textarea value={form.identity_md} onChange={e => setForm({...form, identity_md: e.target.value})}
+                  className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" rows={4} placeholder="Identity, name, persona..." />
+              </div>
+              <div>
                 <Label className="text-zinc-400 text-xs">SOUL.md</Label>
                 <Textarea value={form.soul_md} onChange={e => setForm({...form, soul_md: e.target.value})}
-                  className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" rows={3} placeholder="Persona, boundaries, tone..." />
+                  className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" rows={4} placeholder="Persona, boundaries, tone..." />
               </div>
               <div>
                 <Label className="text-zinc-400 text-xs">AGENTS.md</Label>
                 <Textarea value={form.agents_md} onChange={e => setForm({...form, agents_md: e.target.value})}
-                  className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" rows={3} placeholder="Operating instructions..." />
+                  className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" rows={4} placeholder="Operating instructions..." />
               </div>
               <div>
                 <Label className="text-zinc-400 text-xs">Mention Patterns (comma separated)</Label>

@@ -11,9 +11,10 @@ const api = axios.create({
 // Dashboard
 export const getDashboard = () => api.get('/dashboard');
 
-// Agents (read-only)
+// Agents
 export const getAgents = () => api.get('/agents');
 export const getAgent = (id) => api.get(`/agents/${id}`);
+export const updateAgentMd = (id, data) => api.put(`/agents/${id}/md`, data);
 
 // Skills (read-only)
 export const getSkills = () => api.get('/skills');
@@ -53,7 +54,7 @@ export const getLogs = (limit = 50) => api.get(`/logs?limit=${limit}`);
 
 // ClawHub Marketplace
 export const getClawHubSkills = (search = '', category = 'all') => api.get(`/clawhub?search=${search}&category=${category}`);
-export const installClawHubSkill = (id) => api.post(`/clawhub/install/${id}`);
+export const installClawHubSkill = (id, envVars = {}) => api.post(`/clawhub/install/${id}`, { env_vars: envVars });
 export const uninstallClawHubSkill = (id) => api.post(`/clawhub/uninstall/${id}`);
 
 // Hooks/Webhooks

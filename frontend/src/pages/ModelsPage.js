@@ -1,15 +1,23 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getModels, getProviders, createProvider, updateProvider, deleteProvider } from '../lib/api';
-import { Cpu, Plus, Pencil, Trash2, Star, AlertTriangle, CheckCircle2, Server } from 'lucide-react';
+import { Cpu, Plus, Pencil, Trash2, Star, AlertTriangle, CheckCircle2, Server, X } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Textarea } from '../components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 
-const EMPTY_PROVIDER = { id: '', base_url: '', api: 'openai-completions', models: [] };
+const EMPTY_PROVIDER = { id: '', base_url: '', api: 'openai-completions' };
+const EMPTY_MODEL_ROW = { id: '', name: '', contextWindow: '' };
+
+const API_TYPES = [
+  { value: 'openai-completions', label: 'OpenAI Completions' },
+  { value: 'openai-responses', label: 'OpenAI Responses' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'google', label: 'Google Gemini' },
+];
 
 export default function ModelsPage() {
   const { canEdit } = useAuth();
@@ -19,7 +27,7 @@ export default function ModelsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_PROVIDER);
-  const [modelsText, setModelsText] = useState('');
+  const [modelRows, setModelRows] = useState([{ ...EMPTY_MODEL_ROW }]);
 
   const load = useCallback(async () => {
     try {
@@ -32,33 +40,41 @@ export default function ModelsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const openCreate = () => { setEditing(null); setForm(EMPTY_PROVIDER); setModelsText(''); setDialogOpen(true); };
+  const openCreate = () => {
+    setEditing(null);
+    setForm(EMPTY_PROVIDER);
+    setModelRows([{ ...EMPTY_MODEL_ROW }]);
+    setDialogOpen(true);
+  };
   const openEdit = (p) => {
     setEditing(p);
     setForm({ id: p.id, base_url: p.base_url, api: p.api });
-    setModelsText(
-      (p.models || []).map(m => {
-        const parts = [m.id];
-        if (m.name) parts.push(m.name);
-        if (m.contextWindow) parts.push(m.contextWindow);
-        return parts.join(':');
-      }).join('\n')
-    );
+    const rows = (p.models || []).map(m => ({
+      id: m.id || '',
+      name: m.name || '',
+      contextWindow: m.contextWindow ? String(m.contextWindow) : '',
+    }));
+    setModelRows(rows.length > 0 ? rows : [{ ...EMPTY_MODEL_ROW }]);
     setDialogOpen(true);
   };
 
-  const parseModels = (text) =>
-    text.split('\n').filter(Boolean).map(line => {
-      const [id, name, ctx] = line.split(':').map(s => s?.trim());
-      const m = { id };
-      if (name) m.name = name;
-      if (ctx && !isNaN(Number(ctx))) m.contextWindow = Number(ctx);
-      return m;
-    });
+  const updateModelRow = (index, field, value) => {
+    setModelRows(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row));
+  };
+  const addModelRow = () => setModelRows(prev => [...prev, { ...EMPTY_MODEL_ROW }]);
+  const removeModelRow = (index) => {
+    setModelRows(prev => prev.length <= 1 ? [{ ...EMPTY_MODEL_ROW }] : prev.filter((_, i) => i !== index));
+  };
 
   const handleSave = async () => {
     try {
-      const payload = { ...form, models: parseModels(modelsText) };
+      const parsedModels = modelRows.filter(r => r.id.trim()).map(r => {
+        const m = { id: r.id.trim() };
+        if (r.name.trim()) m.name = r.name.trim();
+        if (r.contextWindow && !isNaN(Number(r.contextWindow))) m.contextWindow = Number(r.contextWindow);
+        return m;
+      });
+      const payload = { ...form, models: parsedModels };
       if (editing) {
         await updateProvider(editing.id, payload);
         toast.success('Provider updated — gateway reloading');
@@ -240,11 +256,38 @@ export default function ModelsPage() {
             </div>
             <div>
               <Label className="text-zinc-400 text-xs">API Type</Label>
-              <Input value={form.api} onChange={e => setForm({...form, api: e.target.value})} className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" placeholder="openai-completions" />
+              <Select value={form.api} onValueChange={v => setForm({...form, api: v})}>
+                <SelectTrigger className="bg-[#050505] border-zinc-800 text-sm mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
+                  {API_TYPES.map(t => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <Label className="text-zinc-400 text-xs">Models (one per line: id:name:contextWindow)</Label>
-              <Textarea value={modelsText} onChange={e => setModelsText(e.target.value)} className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" rows={4} placeholder={"kimi-k2.5:Kimi K2.5:256000\ngpt-4o:GPT-4o:128000"} />
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-zinc-400 text-xs">Models</Label>
+                <Button type="button" variant="ghost" size="sm" onClick={addModelRow} className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10 h-6 px-2 text-xs">
+                  <Plus className="w-3 h-3 mr-1" /> Add Model
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {modelRows.map((row, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input value={row.id} onChange={e => updateModelRow(i, 'id', e.target.value)}
+                      className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm flex-[2]" placeholder="model-id" />
+                    <Input value={row.name} onChange={e => updateModelRow(i, 'name', e.target.value)}
+                      className="bg-[#050505] border-zinc-800 focus:border-orange-500 text-sm flex-[2]" placeholder="Display Name" />
+                    <Input value={row.contextWindow} onChange={e => updateModelRow(i, 'contextWindow', e.target.value)}
+                      className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm flex-1" placeholder="Context" type="number" />
+                    <button type="button" onClick={() => removeModelRow(i)} className="p-1 text-zinc-600 hover:text-red-400 shrink-0">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-1">Model ID is required. Display name and context window are optional.</p>
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-zinc-800/60">

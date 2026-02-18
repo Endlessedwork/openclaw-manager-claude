@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getDashboard, seedData } from '../lib/api';
+import { getDashboard } from '../lib/api';
 import { Activity, Bot, Zap, Radio, MessageSquare, Cpu, Clock, Server } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,8 +30,6 @@ export default function DashboardPage() {
 
   const load = async () => {
     try {
-      // Seed data first if empty
-      await seedData();
       const res = await getDashboard();
       setData(res.data);
     } catch (e) {
@@ -62,18 +60,24 @@ export default function DashboardPage() {
       </div>
 
       {/* Gateway Status Banner */}
-      <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse-glow" style={{ boxShadow: '0 0 12px rgba(16,185,129,0.6)' }} />
-          <div>
-            <p className="text-sm font-medium text-zinc-200">Gateway Status</p>
-            <p className="text-xs font-mono text-zinc-500">{data?.gateway_status === 'running' ? 'OPERATIONAL' : 'OFFLINE'} · Port 18789</p>
+      {(() => {
+        const isRunning = data?.gateway_status === 'running';
+        return (
+          <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-5 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`w-3 h-3 rounded-full ${isRunning ? 'bg-emerald-500 animate-pulse-glow' : 'bg-red-500'}`}
+                style={{ boxShadow: isRunning ? '0 0 12px rgba(16,185,129,0.6)' : '0 0 12px rgba(239,68,68,0.6)' }} />
+              <div>
+                <p className="text-sm font-medium text-zinc-200">Gateway Status</p>
+                <p className="text-xs font-mono text-zinc-500">{isRunning ? 'OPERATIONAL' : 'OFFLINE'} · Port 18789</p>
+              </div>
+            </div>
+            <span className={`text-xs font-mono px-2 py-1 rounded uppercase tracking-wider ${isRunning ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
+              {data?.gateway_status || 'unknown'}
+            </span>
           </div>
-        </div>
-        <span className="text-xs font-mono px-2 py-1 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 uppercase tracking-wider">
-          {data?.gateway_status || 'unknown'}
-        </span>
-      </div>
+        );
+      })()}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

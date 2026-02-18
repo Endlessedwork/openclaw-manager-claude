@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getClawHubSkills, installClawHubSkill, uninstallClawHubSkill } from '../lib/api';
-import { Store, Search, Download, Trash2, Star, ExternalLink, Package, CheckCircle } from 'lucide-react';
+import { Store, Search, Download, Trash2, Star, ExternalLink, Package, CheckCircle, Key } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,6 +18,8 @@ export default function ClawHubPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [installing, setInstalling] = useState({});
+  const [envDialogSkill, setEnvDialogSkill] = useState(null);
+  const [envValues, setEnvValues] = useState({});
 
   const load = useCallback(async (s = search, c = category) => {
     setLoading(true);
@@ -33,10 +37,20 @@ export default function ClawHubPage() {
     return () => clearTimeout(timer);
   }, [search, category, load]);
 
-  const handleInstall = async (skill) => {
+  const handleInstallClick = (skill) => {
+    if (skill.requires_env?.length > 0) {
+      setEnvDialogSkill(skill);
+      setEnvValues({});
+    } else {
+      doInstall(skill, {});
+    }
+  };
+
+  const doInstall = async (skill, envVars) => {
+    setEnvDialogSkill(null);
     setInstalling(prev => ({ ...prev, [skill.id]: true }));
     try {
-      await installClawHubSkill(skill.id);
+      await installClawHubSkill(skill.id, envVars);
       toast.success(`Installed ${skill.slug}`);
       load();
     } catch { toast.error('Install failed'); }
@@ -162,7 +176,7 @@ export default function ClawHubPage() {
                   <>
                     <span className="text-xs text-zinc-600 font-mono">Not installed</span>
                     {canEdit() && (
-                      <Button data-testid={`install-${skill.slug}`} size="sm" onClick={() => handleInstall(skill)}
+                      <Button data-testid={`install-${skill.slug}`} size="sm" onClick={() => handleInstallClick(skill)}
                         disabled={installing[skill.id]}
                         className="bg-orange-600 hover:bg-orange-700 text-white text-xs shadow-[0_0_10px_rgba(249,115,22,0.2)]">
                         <Download className="w-3.5 h-3.5 mr-1" /> {installing[skill.id] ? 'Installing...' : 'Install'}
@@ -175,6 +189,44 @@ export default function ClawHubPage() {
           ))}
         </div>
       )}
+
+      {/* Env Vars Dialog */}
+      <Dialog open={!!envDialogSkill} onOpenChange={(open) => { if (!open) setEnvDialogSkill(null); }}>
+        <DialogContent className="bg-zinc-950 border-zinc-800 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-zinc-200">
+              <Key className="w-4 h-4 text-amber-500" /> API Keys Required
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-zinc-500 mb-4">
+            <span className="font-semibold text-zinc-300">{envDialogSkill?.name}</span> requires the following environment variables to work.
+          </p>
+          <div className="space-y-3">
+            {envDialogSkill?.requires_env?.map(envKey => (
+              <div key={envKey}>
+                <Label className="text-xs font-mono text-zinc-400 mb-1 block">{envKey}</Label>
+                <Input
+                  type="password"
+                  placeholder={`Enter ${envKey}`}
+                  value={envValues[envKey] || ''}
+                  onChange={e => setEnvValues(prev => ({ ...prev, [envKey]: e.target.value }))}
+                  className="bg-[#050505] border-zinc-800 focus:border-orange-500 text-sm font-mono"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="ghost" size="sm" onClick={() => setEnvDialogSkill(null)} className="text-zinc-500">
+              Cancel
+            </Button>
+            <Button size="sm" onClick={() => doInstall(envDialogSkill, envValues)}
+              disabled={envDialogSkill?.requires_env?.some(k => !envValues[k]?.trim())}
+              className="bg-orange-600 hover:bg-orange-700 text-white text-xs shadow-[0_0_10px_rgba(249,115,22,0.2)]">
+              <Download className="w-3.5 h-3.5 mr-1" /> Install
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

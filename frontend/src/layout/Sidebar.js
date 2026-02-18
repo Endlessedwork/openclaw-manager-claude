@@ -51,9 +51,10 @@ export default function Sidebar() {
             <Activity className="w-4 h-4 text-white" />
           </div>
           {!collapsed && (
-            <span className="font-semibold text-base tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              OpenClaw
-            </span>
+            <div className="flex flex-col leading-tight">
+              <span className="font-bold text-base tracking-widest" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
+              <span className="text-[10px] text-zinc-500 tracking-wider">Operation</span>
+            </div>
           )}
         </div>
 
