@@ -101,3 +101,286 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "OpenClaw Manager - Full test run and coverage gap analysis"
+
+backend:
+  - task: "Seed Data API"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "POST /api/seed - 200 OK"
+
+  - task: "Dashboard API"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "GET /api/dashboard - 200 OK, gateway status running"
+
+  - task: "Agents CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "All CRUD operations (list, create, get, update, delete) passed"
+
+  - task: "Skills CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "All CRUD operations passed"
+
+  - task: "Tools CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "All CRUD operations passed"
+
+  - task: "Models CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "All CRUD operations passed"
+
+  - task: "Channels CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "All CRUD operations passed"
+
+  - task: "Sessions CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "List, create, delete all passed"
+
+  - task: "Cron Jobs CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "All CRUD operations passed"
+
+  - task: "Config Operations"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Get and update config both passed"
+
+  - task: "Gateway Operations"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Status and restart both passed"
+
+  - task: "Logs API"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "GET /api/logs passed"
+
+  - task: "ClawHub Operations"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Seed, list, search, filter, install, uninstall all passed"
+
+  - task: "Hooks Operations"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Config get/update and mapping CRUD all passed"
+
+  - task: "Session Messages"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Get and add messages both passed"
+
+  - task: "Config Validation"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Valid, invalid, and warning configs all correctly validated"
+
+  - task: "Activities Operations"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Clear, simulate, list, stats, filter by agent/event/status, detail, limit all passed"
+
+  - task: "System Logs Operations"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Clear, generate, list, stats, filter by level/source, search, limit, combined filters all passed"
+
+frontend:
+  - task: "Frontend Unit Tests"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/*.test.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+        - agent: "testing"
+        - comment: "NO frontend test files exist. Zero test coverage. 20 source files with 0 test files."
+        - working: true
+        - agent: "testing"
+        - comment: "Created 3 test files: DashboardPage.test.js (7 tests), AgentsPage.test.js (9 tests), LogsPage.test.js (10 tests). All 26 tests passing."
+        - working: true
+        - agent: "testing"
+        - comment: "Added ActivitiesPage.test.js (13 tests) covering WebSocket migration fixes. Now 4 test files, 39 tests total, all passing."
+        - working: true
+        - agent: "testing"
+        - comment: "Added SkillsPage.test.js (12 tests), ConfigPage.test.js (10 tests), SessionsPage.test.js (11 tests). Regression tests for bug fixes: null description filter, missing validation errors array, transcript clearing on session switch. Now 7 test files, 72 tests total, all passing."
+
+  - task: "Activities Page"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/ActivitiesPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+        - agent: "testing"
+        - comment: "Page exists and is modified (git status shows changes). Needs manual/UI testing. Task #1 indicates WebSocket migration may be incomplete."
+        - working: true
+        - agent: "testing"
+        - comment: "WebSocket migration verified via 13 unit tests. WS connects to correct URL, LIVE/RECONNECTING indicators work, activities render from WS init/update messages, pong ignored, expand/collapse works, simulate/clear buttons work, stats display correctly."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Frontend Unit Tests - coverage gap"
+    - "Activities Page - WebSocket migration"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+    - message: |
+        Initial test run complete.
+        BACKEND: 77/77 tests passed (100% success rate). All 18 API test suites green.
+        FRONTEND: ZERO test files exist. No unit tests at all for 20 source files.
+        Coverage gaps:
+        1. No frontend tests whatsoever - critical gap
+        2. Backend tests are integration-only (hitting live API), no unit tests
+        3. WebSocket endpoints not tested (activities, system-logs)
+        4. Error/edge case coverage is minimal (no 404, 400 bad request tests)
+        5. No tests for frontend components, hooks, or routing
