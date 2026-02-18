@@ -14,6 +14,10 @@ jest.mock('lucide-react', () => ({
   CheckCircle2: (props) => <svg data-testid="icon-check" {...props} />,
   Server: (props) => <svg data-testid="icon-server" {...props} />,
   X: (props) => <svg data-testid="icon-x" {...props} />,
+  GripVertical: (props) => <svg data-testid="icon-grip" {...props} />,
+  ChevronDown: (props) => <svg data-testid="icon-chevron" {...props} />,
+  Save: (props) => <svg data-testid="icon-save" {...props} />,
+  Image: (props) => <svg data-testid="icon-image" {...props} />,
 }));
 
 const mockModels = [
@@ -25,7 +29,15 @@ const mockProviders = [
   { id: 'custom-provider', api: 'openai-completions', base_url: 'https://api.example.com', models: [{ id: 'custom-model' }] },
 ];
 
-let mockGetModels, mockGetProviders, mockCreateProvider, mockUpdateProvider, mockDeleteProvider;
+const mockFallbacks = {
+  model: { primary: 'openai/gpt-5.1-codex', fallbacks: ['anthropic/claude-sonnet-4-5', 'openai/gpt-4o'] },
+  imageModel: { primary: 'google/gemini-2.5-flash', fallbacks: ['anthropic/claude-sonnet-4-5'] },
+  agents: [
+    { id: 'main', name: 'main', model: 'anthropic/claude-sonnet-4-5', fallbacks: [] },
+  ],
+};
+
+let mockGetModels, mockGetProviders, mockCreateProvider, mockUpdateProvider, mockDeleteProvider, mockGetFallbacks, mockUpdateFallbacks, mockUpdateAgentFallbacks;
 
 jest.mock('../lib/api', () => ({
   getModels: (...args) => mockGetModels(...args),
@@ -33,6 +45,9 @@ jest.mock('../lib/api', () => ({
   createProvider: (...args) => mockCreateProvider(...args),
   updateProvider: (...args) => mockUpdateProvider(...args),
   deleteProvider: (...args) => mockDeleteProvider(...args),
+  getFallbacks: (...args) => mockGetFallbacks(...args),
+  updateFallbacks: (...args) => mockUpdateFallbacks(...args),
+  updateAgentFallbacks: (...args) => mockUpdateAgentFallbacks(...args),
 }));
 
 jest.mock('../contexts/AuthContext', () => ({
@@ -66,12 +81,35 @@ jest.mock('../components/ui/select', () => ({
   SelectValue: () => <span />,
 }));
 
+jest.mock('../components/ui/tabs', () => ({
+  Tabs: ({ children }) => <div data-testid="tabs">{children}</div>,
+  TabsList: ({ children }) => <div>{children}</div>,
+  TabsTrigger: ({ children, value }) => <button data-testid={`tab-${value}`}>{children}</button>,
+  TabsContent: ({ children, value }) => <div data-testid={`tab-content-${value}`}>{children}</div>,
+}));
+
+jest.mock('../components/ui/accordion', () => ({
+  Accordion: ({ children }) => <div data-testid="accordion">{children}</div>,
+  AccordionItem: ({ children }) => <div>{children}</div>,
+  AccordionTrigger: ({ children }) => <button>{children}</button>,
+  AccordionContent: ({ children }) => <div>{children}</div>,
+}));
+
+jest.mock('../components/SortableFallbackList', () => {
+  return function MockSortableFallbackList({ items }) {
+    return <div data-testid="sortable-list">{items.map(i => <span key={i}>{i}</span>)}</div>;
+  };
+});
+
 beforeEach(() => {
   mockGetModels = jest.fn().mockResolvedValue({ data: mockModels });
   mockGetProviders = jest.fn().mockResolvedValue({ data: mockProviders });
   mockCreateProvider = jest.fn().mockResolvedValue({ data: { id: 'new' } });
   mockUpdateProvider = jest.fn().mockResolvedValue({ data: {} });
   mockDeleteProvider = jest.fn().mockResolvedValue({ data: {} });
+  mockGetFallbacks = jest.fn().mockResolvedValue({ data: mockFallbacks });
+  mockUpdateFallbacks = jest.fn().mockResolvedValue({ data: { status: 'ok' } });
+  mockUpdateAgentFallbacks = jest.fn().mockResolvedValue({ data: { status: 'ok' } });
   window.confirm = jest.fn(() => true);
 });
 
@@ -154,6 +192,36 @@ describe('ModelsPage', () => {
     render(<ModelsPage />);
     await waitFor(() => {
       expect(screen.getByText('custom-model')).toBeInTheDocument();
+    });
+  });
+
+  it('renders fallback priority section', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Fallback Priority')).toBeInTheDocument();
+    });
+  });
+
+  it('displays fallback models in the sortable list', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      const sortableLists = screen.getAllByTestId('sortable-list');
+      expect(sortableLists.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('shows per-agent overrides section', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Per-Agent Overrides')).toBeInTheDocument();
+    });
+  });
+
+  it('shows text and image model tabs', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('tab-text')).toBeInTheDocument();
+      expect(screen.getByTestId('tab-image')).toBeInTheDocument();
     });
   });
 });
