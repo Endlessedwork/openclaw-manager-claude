@@ -3,8 +3,9 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Bot, Zap, Wrench, Cpu, Radio, MessageSquare,
   Clock, FileCode, Server, ChevronLeft, ChevronRight, Activity, Menu,
-  Store, Webhook, MonitorDot, ScrollText
+  Store, Webhook, MonitorDot, ScrollText, LogOut, Users
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
@@ -29,6 +30,12 @@ const navItems = [
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { user, logout, isAdmin } = useAuth();
+
+  const allNavItems = [
+    ...navItems,
+    ...(isAdmin() ? [{ path: '/users', label: 'Users', icon: Users }] : []),
+  ];
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -53,7 +60,7 @@ export default function Sidebar() {
         {/* Nav Items */}
         <ScrollArea className="flex-1 py-3">
           <nav className="flex flex-col gap-0.5 px-2">
-            {navItems.map(({ path, label, icon: Icon }) => {
+            {allNavItems.map(({ path, label, icon: Icon }) => {
               const isActive = path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
               const link = (
                 <NavLink
@@ -85,6 +92,25 @@ export default function Sidebar() {
             })}
           </nav>
         </ScrollArea>
+
+        {/* User Profile */}
+        {user && (
+          <div className={`px-3 py-3 border-t border-white/5 ${collapsed ? 'text-center' : ''}`}>
+            {!collapsed && (
+              <div className="mb-2">
+                <div className="text-sm font-medium text-zinc-300 truncate">{user.name}</div>
+                <div className="text-xs text-zinc-500 truncate">{user.role}</div>
+              </div>
+            )}
+            <button
+              onClick={logout}
+              className={`flex items-center gap-2 text-sm text-zinc-500 hover:text-red-400 transition-colors ${collapsed ? 'justify-center w-full' : ''}`}
+            >
+              <LogOut className="w-4 h-4" />
+              {!collapsed && <span>Sign out</span>}
+            </button>
+          </div>
+        )}
 
         {/* Collapse Toggle */}
         <div className="px-2 pb-4 pt-2 border-t border-white/5">
