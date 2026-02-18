@@ -28,6 +28,14 @@ app = FastAPI()
 @app.on_event("startup")
 async def set_db():
     app.state.db = db
+    async def _warmup():
+        await gateway.warmup()
+        # Pre-build dashboard after CLI cache is warm
+        try:
+            await _build_dashboard()
+        except Exception:
+            pass
+    asyncio.create_task(_warmup())
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -48,27 +56,39 @@ async def log_activity(action: str, entity_type: str, entity_id: str = "", detai
 
 
 # ===== DASHBOARD =====
-@api_router.get("/dashboard")
-async def get_dashboard(user=Depends(get_current_user)):
-    health = await gateway.health()
-    agents = await gateway.agents()
-    sessions = await gateway.sessions()
-    skills = await gateway.skills()
-    cron = await gateway.cron_jobs()
+async def _build_dashboard():
+    """Build dashboard data from CLI calls."""
+    results = await asyncio.gather(
+        gateway.health(),
+        gateway.skills(),
+        gateway.cron_jobs(),
+        gateway.config_read(),
+        return_exceptions=True,
+    )
+    health = results[0] if not isinstance(results[0], Exception) else {}
+    skills = results[1] if not isinstance(results[1], Exception) else {}
+    cron = results[2] if not isinstance(results[2], Exception) else {}
+    config = results[3] if not isinstance(results[3], Exception) else {}
     skill_list = skills.get("skills", [])
     active_skills = [s for s in skill_list if s.get("eligible") and not s.get("disabled")]
     channel_list = health.get("channels", {})
     active_channels = [k for k, v in channel_list.items() if v.get("configured")]
+    session_data = health.get("sessions", {})
     return {
-        "agents": len(agents),
+        "agents": len(health.get("agents", [])),
         "skills": {"total": len(skill_list), "active": len(active_skills)},
         "channels": {"total": len(channel_list), "active": len(active_channels)},
-        "sessions": sessions.get("count", 0),
+        "sessions": session_data.get("count", 0) if isinstance(session_data, dict) else 0,
         "cron_jobs": len(cron.get("jobs", [])),
-        "model_providers": len((await gateway.config_read()).get("models", {}).get("providers", {})),
+        "model_providers": len(config.get("models", {}).get("providers", {})),
         "gateway_status": "running" if health.get("ok") else "offline",
         "recent_activity": [],
     }
+
+
+@api_router.get("/dashboard")
+async def get_dashboard(user=Depends(get_current_user)):
+    return await gateway.cache.get("dashboard", _build_dashboard, 30, stale_ok=True)
 
 
 # ===== AGENTS (read-only from CLI) =====
@@ -96,18 +116,53 @@ async def get_agent(agent_id: str, user=Depends(get_current_user)):
     raw = await gateway.agents()
     for a in raw:
         if a.get("id") == agent_id:
+            workspace = a.get("workspace", "")
+            md_files = {}
+            if workspace:
+                wp = Path(workspace)
+                for fname in ("SOUL.md", "AGENTS.md", "IDENTITY.md"):
+                    fpath = wp / fname
+                    if fpath.is_file():
+                        try:
+                            md_files[fname] = fpath.read_text(encoding="utf-8")
+                        except Exception:
+                            md_files[fname] = ""
             return {
                 "id": a.get("id"),
                 "name": a.get("id"),
                 "description": a.get("identityName", a.get("name", "")),
-                "workspace": a.get("workspace", ""),
+                "workspace": workspace,
                 "model_primary": a.get("model", ""),
                 "tools_profile": "full",
                 "status": "active",
                 "sandbox_mode": "off",
                 "identity_emoji": a.get("identityEmoji", ""),
+                "soul_md": md_files.get("SOUL.md", ""),
+                "agents_md": md_files.get("AGENTS.md", ""),
+                "identity_md": md_files.get("IDENTITY.md", ""),
             }
     raise HTTPException(404, "Agent not found")
+
+
+@api_router.put("/agents/{agent_id}/md")
+async def update_agent_md(agent_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
+    raw = await gateway.agents()
+    agent = None
+    for a in raw:
+        if a.get("id") == agent_id:
+            agent = a
+            break
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+    workspace = agent.get("workspace", "")
+    if not workspace:
+        raise HTTPException(400, "Agent has no workspace")
+    wp = Path(workspace)
+    wp.mkdir(parents=True, exist_ok=True)
+    for fname, key in [("SOUL.md", "soul_md"), ("AGENTS.md", "agents_md"), ("IDENTITY.md", "identity_md")]:
+        if key in body:
+            (wp / fname).write_text(body[key], encoding="utf-8")
+    return {"status": "ok"}
 
 
 # ===== SKILLS (read-only from CLI) =====
@@ -557,10 +612,25 @@ async def list_clawhub_skills(search: str = Query("", max_length=100), category:
 
 
 @api_router.post("/clawhub/install/{skill_id}")
-async def install_clawhub_skill(skill_id: str, user=Depends(require_role("admin", "editor"))):
+async def install_clawhub_skill(skill_id: str, body: dict = None, user=Depends(require_role("admin", "editor"))):
     skill = await db.clawhub_skills.find_one({"id": skill_id}, {"_id": 0})
     if not skill:
         raise HTTPException(404, "Skill not found")
+    # Save env vars to openclaw .env file if provided
+    env_vars = (body or {}).get("env_vars", {})
+    if env_vars:
+        import aiofiles
+        env_file = Path.home() / ".openclaw" / ".env"
+        existing = {}
+        if env_file.exists():
+            async with aiofiles.open(env_file, "r") as f:
+                for line in (await f.read()).splitlines():
+                    if "=" in line and not line.startswith("#"):
+                        k, v = line.split("=", 1)
+                        existing[k.strip()] = v.strip()
+        existing.update(env_vars)
+        async with aiofiles.open(env_file, "w") as f:
+            await f.write("\n".join(f"{k}={v}" for k, v in existing.items()) + "\n")
     await db.clawhub_skills.update_one({"id": skill_id}, {"$set": {"installed": True, "installed_version": skill["version"]}})
     await log_activity("install", "clawhub", skill_id, f"Installed skill: {skill['slug']}")
     return {"status": "installed", "slug": skill["slug"]}
