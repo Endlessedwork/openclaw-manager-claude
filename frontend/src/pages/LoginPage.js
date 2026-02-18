@@ -6,7 +6,7 @@ import { Activity } from 'lucide-react';
 export default function LoginPage() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(username, password);
       navigate('/', { replace: true });
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed');
@@ -49,15 +49,15 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1.5">Email</label>
+            <label className="block text-sm font-medium text-zinc-400 mb-1.5">Username</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               required
               autoFocus
               className="w-full px-3 py-2 bg-[#09090b] border border-white/10 rounded-lg text-zinc-200 text-sm placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
-              placeholder="admin@example.com"
+              placeholder="admin"
             />
           </div>
 

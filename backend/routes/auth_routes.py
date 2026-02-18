@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Response, Depends
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from datetime import datetime, timezone
 from bson import ObjectId
 
@@ -12,21 +12,21 @@ auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
 @auth_router.post("/login")
 async def login(body: LoginRequest, request: Request, response: Response):
     db = request.app.state.db
-    user = await db.users.find_one({"email": body.email})
+    user = await db.users.find_one({"username": body.username})
     if not user or not verify_password(body.password, user["hashed_password"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
     if not user.get("is_active", True):
         raise HTTPException(status_code=403, detail="Account is disabled")
 
     user_id = str(user["_id"])
-    access_token = create_access_token(user_id, user["email"], user["role"])
+    access_token = create_access_token(user_id, user["username"], user["role"])
     refresh_token = create_refresh_token(user_id)
 
     response.set_cookie(
@@ -49,7 +49,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
         "token_type": "bearer",
         "user": {
             "id": user_id,
-            "email": user["email"],
+            "username": user["username"],
             "name": user["name"],
             "role": user["role"],
         },
@@ -72,7 +72,7 @@ async def refresh(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
     user_id = str(user["_id"])
-    new_access = create_access_token(user_id, user["email"], user["role"])
+    new_access = create_access_token(user_id, user["username"], user["role"])
     new_refresh = create_refresh_token(user_id)
 
     response.set_cookie(
@@ -90,7 +90,7 @@ async def refresh(request: Request, response: Response):
         "token_type": "bearer",
         "user": {
             "id": user_id,
-            "email": user["email"],
+            "username": user["username"],
             "name": user["name"],
             "role": user["role"],
         },

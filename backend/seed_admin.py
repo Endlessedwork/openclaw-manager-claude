@@ -22,22 +22,22 @@ async def seed():
 
     existing = await db.users.find_one({"role": "admin"})
     if existing:
-        print(f"Admin already exists: {existing['email']}")
+        print(f"Admin already exists: {existing['username']}")
         client.close()
         return
 
-    email = input("Admin email: ").strip()
-    name = input("Admin name: ").strip() or "Admin"
+    username = input("Admin username: ").strip()
+    name = input("Admin display name: ").strip() or username
     password = getpass.getpass("Admin password: ").strip()
 
-    if not email or not password:
-        print("Email and password are required")
+    if not username or not password:
+        print("Username and password are required")
         client.close()
         sys.exit(1)
 
     now = datetime.now(timezone.utc)
     await db.users.insert_one({
-        "email": email,
+        "username": username,
         "hashed_password": hash_password(password),
         "name": name,
         "role": "admin",
@@ -47,9 +47,9 @@ async def seed():
         "last_login": None,
     })
 
-    await db.users.create_index("email", unique=True)
+    await db.users.create_index("username", unique=True)
 
-    print(f"Admin user created: {email}")
+    print(f"Admin user created: {username}")
     client.close()
 
 

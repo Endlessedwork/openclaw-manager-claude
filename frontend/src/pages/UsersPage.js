@@ -16,7 +16,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState(null);
-  const [form, setForm] = useState({ email: '', password: '', name: '', role: 'viewer' });
+  const [form, setForm] = useState({ username: '', password: '', name: '', role: 'viewer' });
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -37,7 +37,7 @@ export default function UsersPage() {
       await createUser(form);
       toast.success('User created');
       setShowCreate(false);
-      setForm({ email: '', password: '', name: '', role: 'viewer' });
+      setForm({ username: '', password: '', name: '', role: 'viewer' });
       fetchUsers();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to create user');
@@ -60,8 +60,8 @@ export default function UsersPage() {
     }
   };
 
-  const handleDelete = async (id, email) => {
-    if (!window.confirm(`Delete user ${email}?`)) return;
+  const handleDelete = async (id, username) => {
+    if (!window.confirm(`Delete user ${username}?`)) return;
     try {
       await deleteUser(id);
       toast.success('User deleted');
@@ -99,7 +99,7 @@ export default function UsersPage() {
           <p className="text-sm text-zinc-500 mt-1">{users.length} users</p>
         </div>
         <button
-          onClick={() => { setShowCreate(true); setEditUser(null); setForm({ email: '', password: '', name: '', role: 'viewer' }); }}
+          onClick={() => { setShowCreate(true); setEditUser(null); setForm({ username: '', password: '', name: '', role: 'viewer' }); }}
           className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm font-medium text-white transition-colors"
         >
           <Plus className="w-4 h-4" /> Add User
@@ -114,13 +114,14 @@ export default function UsersPage() {
           <form onSubmit={editUser ? handleUpdate : handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {!editUser && (
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Email</label>
-                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required
-                  className="w-full px-3 py-2 bg-[#09090b] border border-white/10 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-orange-500/50" />
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Username</label>
+                <input type="text" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required
+                  className="w-full px-3 py-2 bg-[#09090b] border border-white/10 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-orange-500/50"
+                  placeholder="johndoe" />
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Name</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-1">Display Name</label>
               <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required={!editUser}
                 className="w-full px-3 py-2 bg-[#09090b] border border-white/10 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-orange-500/50" />
             </div>
@@ -172,7 +173,7 @@ export default function UsersPage() {
                 <tr key={u.id} className="border-b border-white/5 hover:bg-white/[0.02]">
                   <td className="px-4 py-3">
                     <div className="text-zinc-200 font-medium">{u.name}</div>
-                    <div className="text-zinc-500 text-xs">{u.email}</div>
+                    <div className="text-zinc-500 text-xs">@{u.username}</div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${roleConfig.color}`}>
@@ -195,7 +196,7 @@ export default function UsersPage() {
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       {u.id !== currentUser?.id && (
-                        <button onClick={() => handleDelete(u.id, u.email)}
+                        <button onClick={() => handleDelete(u.id, u.username)}
                           className="p-1.5 hover:bg-red-500/10 rounded text-zinc-500 hover:text-red-400">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

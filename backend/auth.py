@@ -25,10 +25,10 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(user_id: str, email: str, role: str) -> str:
+def create_access_token(user_id: str, username: str, role: str) -> str:
     payload = {
         "sub": user_id,
-        "email": email,
+        "username": username,
         "role": role,
         "type": "access",
         "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -74,7 +74,7 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return {
         "id": str(user["_id"]),
-        "email": user["email"],
+        "username": user["username"],
         "name": user["name"],
         "role": user["role"],
     }

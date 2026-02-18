@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 from bson import ObjectId
@@ -12,7 +12,7 @@ VALID_ROLES = {"admin", "editor", "viewer"}
 
 
 class CreateUserRequest(BaseModel):
-    email: EmailStr
+    username: str
     password: str  # min 8 chars enforced below
     name: str
     role: str = "viewer"
@@ -32,7 +32,7 @@ async def list_users(request: Request, user=Depends(require_role("admin"))):
     return [
         {
             "id": str(u["_id"]),
-            "email": u["email"],
+            "username": u["username"],
             "name": u["name"],
             "role": u["role"],
             "is_active": u.get("is_active", True),
@@ -50,12 +50,12 @@ async def create_user(body: CreateUserRequest, request: Request, user=Depends(re
         raise HTTPException(400, "Password must be at least 8 characters")
     if body.role not in VALID_ROLES:
         raise HTTPException(400, f"Role must be one of: {', '.join(VALID_ROLES)}")
-    existing = await db.users.find_one({"email": body.email})
+    existing = await db.users.find_one({"username": body.username})
     if existing:
-        raise HTTPException(409, "Email already registered")
+        raise HTTPException(409, "Username already taken")
     now = datetime.now(timezone.utc)
     result = await db.users.insert_one({
-        "email": body.email,
+        "username": body.username,
         "hashed_password": hash_password(body.password),
         "name": body.name,
         "role": body.role,
@@ -64,7 +64,7 @@ async def create_user(body: CreateUserRequest, request: Request, user=Depends(re
         "updated_at": now,
         "last_login": None,
     })
-    return {"id": str(result.inserted_id), "email": body.email, "role": body.role}
+    return {"id": str(result.inserted_id), "username": body.username, "role": body.role}
 
 
 @user_router.put("/{user_id}")

@@ -60,8 +60,8 @@ export function AuthProvider({ children }) {
     tryRefresh();
   }, []);
 
-  const login = useCallback(async (email, password) => {
-    const res = await api.post('/auth/login', { email, password }, { withCredentials: true });
+  const login = useCallback(async (username, password) => {
+    const res = await api.post('/auth/login', { username, password }, { withCredentials: true });
     setToken(res.data.access_token);
     setUser(res.data.user);
     return res.data;
