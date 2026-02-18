@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { getGatewayStatus, restartGateway, getLogs } from '../lib/api';
-import { Server, RefreshCw, Activity, AlertTriangle, CheckCircle, RotateCcw } from 'lucide-react';
+import { RefreshCw, Activity, RotateCcw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function GatewayPage() {
+  const { isAdmin } = useAuth();
   const [status, setStatus] = useState(null);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,9 +40,11 @@ export default function GatewayPage() {
           <Button variant="outline" onClick={load} className="border-zinc-700 text-zinc-400 hover:bg-zinc-800">
             <RefreshCw className="w-4 h-4 mr-2" /> Refresh
           </Button>
-          <Button data-testid="restart-gateway-btn" onClick={handleRestart} disabled={restarting} className="bg-red-600 hover:bg-red-700 text-white">
-            <RotateCcw className="w-4 h-4 mr-2" /> {restarting ? 'Restarting...' : 'Restart Gateway'}
-          </Button>
+          {isAdmin() && (
+            <Button data-testid="restart-gateway-btn" onClick={handleRestart} disabled={restarting} className="bg-red-600 hover:bg-red-700 text-white">
+              <RotateCcw className="w-4 h-4 mr-2" /> {restarting ? 'Restarting...' : 'Restart Gateway'}
+            </Button>
+          )}
         </div>
       </div>
 

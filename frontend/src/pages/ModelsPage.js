@@ -7,10 +7,12 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 
 const EMPTY_PROVIDER = { id: '', base_url: '', api: 'openai-completions', models: [] };
 
 export default function ModelsPage() {
+  const { canEdit } = useAuth();
   const [models, setModels] = useState([]);
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -160,9 +162,11 @@ export default function ModelsPage() {
                 <h2 className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Config Providers</h2>
                 <p className="text-sm text-zinc-500 mt-1">Manage providers in openclaw.json — changes reload the gateway</p>
               </div>
-              <Button data-testid="create-provider-btn" onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-                <Plus className="w-4 h-4 mr-2" /> Add Provider
-              </Button>
+              {canEdit() && (
+                <Button data-testid="create-provider-btn" onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+                  <Plus className="w-4 h-4 mr-2" /> Add Provider
+                </Button>
+              )}
             </div>
 
             {providers.length === 0 ? (
@@ -197,14 +201,16 @@ export default function ModelsPage() {
                         </div>
                       )}
                     </div>
-                    <div className="border-t border-zinc-800/60 px-5 py-3 flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(p)} className="text-zinc-500 hover:text-orange-500 hover:bg-orange-500/10">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-zinc-500 hover:text-red-500 hover:bg-red-500/10">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
+                    {canEdit() && (
+                      <div className="border-t border-zinc-800/60 px-5 py-3 flex items-center justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(p)} className="text-zinc-500 hover:text-orange-500 hover:bg-orange-500/10">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-zinc-500 hover:text-red-500 hover:bg-red-500/10">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

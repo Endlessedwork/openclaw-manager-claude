@@ -3,8 +3,10 @@ import { getConfig, updateConfig, validateConfig } from '../lib/api';
 import { FileCode, Save, RotateCcw, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ConfigPage() {
+  const { canEdit } = useAuth();
   const [config, setConfig] = useState(null);
   const [rawConfig, setRawConfig] = useState('');
   const [loading, setLoading] = useState(true);
@@ -38,6 +40,7 @@ export default function ConfigPage() {
   };
 
   const handleSave = async () => {
+    if (!config) { toast.error('Config not loaded'); return; }
     setSaving(true);
     try {
       await updateConfig({ ...config, raw_config: rawConfig });
@@ -59,12 +62,16 @@ export default function ConfigPage() {
           <Button variant="outline" onClick={load} className="border-zinc-700 text-zinc-400 hover:bg-zinc-800">
             <RotateCcw className="w-4 h-4 mr-2" /> Reset
           </Button>
-          <Button data-testid="validate-config-btn" variant="outline" onClick={handleValidate} disabled={validating} className="border-sky-500/30 text-sky-500 hover:bg-sky-500/10">
-            <CheckCircle className="w-4 h-4 mr-2" /> {validating ? 'Validating...' : 'Validate'}
-          </Button>
-          <Button data-testid="save-config-btn" onClick={handleSave} disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-            <Save className="w-4 h-4 mr-2" /> {saving ? 'Saving...' : 'Save Config'}
-          </Button>
+          {canEdit() && (
+            <Button data-testid="validate-config-btn" variant="outline" onClick={handleValidate} disabled={validating} className="border-sky-500/30 text-sky-500 hover:bg-sky-500/10">
+              <CheckCircle className="w-4 h-4 mr-2" /> {validating ? 'Validating...' : 'Validate'}
+            </Button>
+          )}
+          {canEdit() && (
+            <Button data-testid="save-config-btn" onClick={handleSave} disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+              <Save className="w-4 h-4 mr-2" /> {saving ? 'Saving...' : 'Save Config'}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -97,7 +104,7 @@ export default function ConfigPage() {
             {validation.valid ? (
               <><CheckCircle className="w-4 h-4 text-emerald-500" /><span className="text-sm font-medium text-emerald-500">Configuration Valid</span></>
             ) : (
-              <><XCircle className="w-4 h-4 text-red-500" /><span className="text-sm font-medium text-red-500">{validation.errors.length} Error(s)</span></>
+              <><XCircle className="w-4 h-4 text-red-500" /><span className="text-sm font-medium text-red-500">{validation.errors?.length ?? 0} Error(s)</span></>
             )}
           </div>
           {validation.errors?.length > 0 && (

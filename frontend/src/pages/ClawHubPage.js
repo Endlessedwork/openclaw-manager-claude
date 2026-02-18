@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { getClawHubSkills, installClawHubSkill, uninstallClawHubSkill, seedClawHub } from '../lib/api';
+import { getClawHubSkills, installClawHubSkill, uninstallClawHubSkill } from '../lib/api';
 import { Store, Search, Download, Trash2, Star, ExternalLink, Package, CheckCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 
 const CATEGORIES = ['all', 'web', 'media', 'text', 'coding', 'communication', 'devops', 'productivity', 'general'];
 
 export default function ClawHubPage() {
+  const { canEdit } = useAuth();
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -17,9 +19,8 @@ export default function ClawHubPage() {
 
   const load = async () => {
     try {
-      await seedClawHub();
       const res = await getClawHubSkills(search, category);
-      setSkills(res.data);
+      setSkills(res.data || []);
     } catch { toast.error('Failed to load ClawHub'); }
     finally { setLoading(false); }
   };
@@ -138,7 +139,7 @@ export default function ClawHubPage() {
 
                 {/* Stats */}
                 <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-600">
-                  <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {skill.downloads.toLocaleString()}</span>
+                  <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {(skill.downloads ?? 0).toLocaleString()}</span>
                   <span className="flex items-center gap-1"><Star className="w-3 h-3" /> {skill.stars}</span>
                   <span>v{skill.version}</span>
                 </div>
@@ -158,19 +159,23 @@ export default function ClawHubPage() {
                     <span className="flex items-center gap-1 text-xs text-emerald-500 font-mono">
                       <CheckCircle className="w-3.5 h-3.5" /> Installed v{skill.installed_version}
                     </span>
-                    <Button data-testid={`uninstall-${skill.slug}`} variant="ghost" size="sm" onClick={() => handleUninstall(skill)}
-                      className="text-zinc-500 hover:text-red-500 hover:bg-red-500/10">
-                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Uninstall
-                    </Button>
+                    {canEdit() && (
+                      <Button data-testid={`uninstall-${skill.slug}`} variant="ghost" size="sm" onClick={() => handleUninstall(skill)}
+                        className="text-zinc-500 hover:text-red-500 hover:bg-red-500/10">
+                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Uninstall
+                      </Button>
+                    )}
                   </>
                 ) : (
                   <>
                     <span className="text-xs text-zinc-600 font-mono">Not installed</span>
-                    <Button data-testid={`install-${skill.slug}`} size="sm" onClick={() => handleInstall(skill)}
-                      disabled={installing[skill.id]}
-                      className="bg-orange-600 hover:bg-orange-700 text-white text-xs shadow-[0_0_10px_rgba(249,115,22,0.2)]">
-                      <Download className="w-3.5 h-3.5 mr-1" /> {installing[skill.id] ? 'Installing...' : 'Install'}
-                    </Button>
+                    {canEdit() && (
+                      <Button data-testid={`install-${skill.slug}`} size="sm" onClick={() => handleInstall(skill)}
+                        disabled={installing[skill.id]}
+                        className="bg-orange-600 hover:bg-orange-700 text-white text-xs shadow-[0_0_10px_rgba(249,115,22,0.2)]">
+                        <Download className="w-3.5 h-3.5 mr-1" /> {installing[skill.id] ? 'Installing...' : 'Install'}
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
