@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,6 +11,9 @@ import uuid
 from datetime import datetime, timezone
 
 from gateway_cli import gateway
+from auth import get_current_user, require_role
+from routes.auth_routes import auth_router
+from routes.user_routes import user_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -20,7 +23,15 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+async def set_db():
+    app.state.db = db
+
 api_router = APIRouter(prefix="/api")
+api_router.include_router(auth_router)
+api_router.include_router(user_router)
 
 
 # ===== HELPER =====
@@ -38,7 +49,7 @@ async def log_activity(action: str, entity_type: str, entity_id: str = "", detai
 
 # ===== DASHBOARD =====
 @api_router.get("/dashboard")
-async def get_dashboard():
+async def get_dashboard(user=Depends(get_current_user)):
     health = await gateway.health()
     agents = await gateway.agents()
     sessions = await gateway.sessions()
@@ -62,7 +73,7 @@ async def get_dashboard():
 
 # ===== AGENTS (read-only from CLI) =====
 @api_router.get("/agents")
-async def list_agents():
+async def list_agents(user=Depends(get_current_user)):
     raw = await gateway.agents()
     return [
         {
@@ -81,7 +92,7 @@ async def list_agents():
 
 
 @api_router.get("/agents/{agent_id}")
-async def get_agent(agent_id: str):
+async def get_agent(agent_id: str, user=Depends(get_current_user)):
     raw = await gateway.agents()
     for a in raw:
         if a.get("id") == agent_id:
@@ -101,7 +112,7 @@ async def get_agent(agent_id: str):
 
 # ===== SKILLS (read-only from CLI) =====
 @api_router.get("/skills")
-async def list_skills():
+async def list_skills(user=Depends(get_current_user)):
     raw = await gateway.skills()
     return [
         {
@@ -118,7 +129,7 @@ async def list_skills():
 
 
 @api_router.get("/skills/{skill_id}")
-async def get_skill(skill_id: str):
+async def get_skill(skill_id: str, user=Depends(get_current_user)):
     raw = await gateway.skills()
     for s in raw.get("skills", []):
         if s["name"] == skill_id:
@@ -136,7 +147,7 @@ async def get_skill(skill_id: str):
 
 # ===== TOOLS (from config) =====
 @api_router.get("/tools")
-async def list_tools():
+async def list_tools(user=Depends(get_current_user)):
     config = await gateway.config_read()
     tools_config = config.get("tools", {})
     sandbox = tools_config.get("sandbox", {}).get("tools", {})
@@ -173,7 +184,7 @@ async def list_tools():
 
 # ===== MODELS (from CLI - includes env-based providers) =====
 @api_router.get("/models")
-async def list_models():
+async def list_models(user=Depends(get_current_user)):
     raw = await gateway.models()
     return [
         {
@@ -192,7 +203,7 @@ async def list_models():
 
 
 @api_router.get("/models/providers")
-async def list_providers():
+async def list_providers(user=Depends(get_current_user)):
     config = await gateway.config_read()
     providers = config.get("models", {}).get("providers", {})
     result = []
@@ -208,7 +219,7 @@ async def list_providers():
 
 
 @api_router.post("/models/providers")
-async def create_provider(body: dict):
+async def create_provider(body: dict, user=Depends(require_role("admin", "editor"))):
     config = await gateway.config_read()
     if "models" not in config:
         config["models"] = {"mode": "merge", "providers": {}}
@@ -231,7 +242,7 @@ async def create_provider(body: dict):
 
 
 @api_router.put("/models/providers/{provider_id}")
-async def update_provider(provider_id: str, body: dict):
+async def update_provider(provider_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
     config = await gateway.config_read()
     providers = config.get("models", {}).get("providers", {})
     if provider_id not in providers:
@@ -248,7 +259,7 @@ async def update_provider(provider_id: str, body: dict):
 
 
 @api_router.delete("/models/providers/{provider_id}")
-async def delete_provider(provider_id: str):
+async def delete_provider(provider_id: str, user=Depends(require_role("admin", "editor"))):
     config = await gateway.config_read()
     providers = config.get("models", {}).get("providers", {})
     if provider_id not in providers:
@@ -262,7 +273,7 @@ async def delete_provider(provider_id: str):
 
 # ===== CHANNELS (from health probe) =====
 @api_router.get("/channels")
-async def list_channels():
+async def list_channels(user=Depends(get_current_user)):
     health = await gateway.health()
     channels = health.get("channels", {})
     result = []
@@ -284,7 +295,7 @@ async def list_channels():
 
 # ===== SESSIONS (from CLI) =====
 @api_router.get("/sessions")
-async def list_sessions(limit: int = Query(50, le=200)):
+async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current_user)):
     raw = await gateway.sessions()
     sessions = raw.get("sessions", [])[:limit]
     return [
@@ -307,7 +318,7 @@ async def list_sessions(limit: int = Query(50, le=200)):
 
 # ===== CRON JOBS (from CLI) =====
 @api_router.get("/cron")
-async def list_cron_jobs():
+async def list_cron_jobs(user=Depends(get_current_user)):
     raw = await gateway.cron_jobs()
     return [
         {
@@ -330,7 +341,7 @@ async def list_cron_jobs():
 
 # ===== GATEWAY CONFIG =====
 @api_router.get("/config")
-async def get_config():
+async def get_config(user=Depends(get_current_user)):
     config = await gateway.config_read()
     gw = config.get("gateway", {})
     return {
@@ -343,7 +354,7 @@ async def get_config():
 
 
 @api_router.put("/config")
-async def update_config(body: dict):
+async def update_config(body: dict, user=Depends(require_role("admin", "editor"))):
     try:
         new_config = json.loads(body.get("raw", "{}"))
         await gateway.config_write(new_config)
@@ -353,7 +364,7 @@ async def update_config(body: dict):
 
 
 @api_router.post("/config/validate")
-async def validate_config(body: dict):
+async def validate_config(body: dict, user=Depends(require_role("admin", "editor"))):
     try:
         json.loads(body.get("raw", "{}"))
         return {"valid": True, "errors": [], "warnings": []}
@@ -363,7 +374,7 @@ async def validate_config(body: dict):
 
 # ===== GATEWAY STATUS =====
 @api_router.get("/gateway/status")
-async def get_gateway_status():
+async def get_gateway_status(user=Depends(get_current_user)):
     health = await gateway.health()
     config = await gateway.config_read()
     gw = config.get("gateway", {})
@@ -377,7 +388,7 @@ async def get_gateway_status():
 
 
 @api_router.post("/gateway/restart")
-async def gateway_restart_endpoint():
+async def gateway_restart_endpoint(user=Depends(require_role("admin"))):
     await gateway.gateway_restart()
     await log_activity("restart", "gateway", "", "Gateway restart requested")
     return {"status": "restart_initiated", "message": "Gateway restart signal sent"}
@@ -385,7 +396,7 @@ async def gateway_restart_endpoint():
 
 # ===== HOOKS (from config) =====
 @api_router.get("/hooks/config")
-async def get_hooks_config():
+async def get_hooks_config(user=Depends(get_current_user)):
     config = await gateway.config_read()
     hooks = config.get("hooks", {})
     gw = config.get("gateway", {})
@@ -399,7 +410,7 @@ async def get_hooks_config():
 
 
 @api_router.get("/hooks/mappings")
-async def get_hook_mappings():
+async def get_hook_mappings(user=Depends(get_current_user)):
     config = await gateway.config_read()
     mappings = config.get("hooks", {}).get("mappings", [])
     return [
@@ -419,7 +430,7 @@ async def get_hook_mappings():
 
 # ===== ACTIVITY LOGS =====
 @api_router.get("/logs")
-async def get_logs(limit: int = Query(50, le=500)):
+async def get_logs(limit: int = Query(50, le=500), user=Depends(get_current_user)):
     return await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
 
 
@@ -431,6 +442,7 @@ async def list_system_logs(
     search: str = Query("", max_length=200),
     limit: int = Query(200, le=1000),
     since_id: str = Query("", max_length=100),
+    user=Depends(get_current_user),
 ):
     query = {}
     if level:
@@ -448,7 +460,7 @@ async def list_system_logs(
 
 
 @api_router.get("/system-logs/stats")
-async def system_logs_stats():
+async def system_logs_stats(user=Depends(get_current_user)):
     total = await db.system_logs.count_documents({})
     errors = await db.system_logs.count_documents({"level": "ERROR"})
     warns = await db.system_logs.count_documents({"level": "WARN"})
@@ -471,6 +483,7 @@ async def list_activities(
     status: str = Query("", max_length=20),
     limit: int = Query(100, le=500),
     since_id: str = Query("", max_length=100),
+    user=Depends(get_current_user),
 ):
     query = {}
     if agent_id:
@@ -488,7 +501,7 @@ async def list_activities(
 
 
 @api_router.get("/activities/stats")
-async def activities_stats():
+async def activities_stats(user=Depends(get_current_user)):
     pipeline_agent = [
         {"$group": {"_id": "$agent_name", "count": {"$sum": 1}, "errors": {"$sum": {"$cond": [{"$eq": ["$status", "error"]}, 1, 0]}}}},
         {"$sort": {"count": -1}}
@@ -520,7 +533,7 @@ async def activities_stats():
 
 
 @api_router.get("/activities/{activity_id}")
-async def get_activity(activity_id: str):
+async def get_activity(activity_id: str, user=Depends(get_current_user)):
     act = await db.agent_activities.find_one({"id": activity_id}, {"_id": 0})
     if not act:
         raise HTTPException(404, "Activity not found")
@@ -529,7 +542,7 @@ async def get_activity(activity_id: str):
 
 # ===== CLAWHUB MARKETPLACE (kept with MongoDB) =====
 @api_router.get("/clawhub")
-async def list_clawhub_skills(search: str = Query("", max_length=100), category: str = Query("all")):
+async def list_clawhub_skills(search: str = Query("", max_length=100), category: str = Query("all"), user=Depends(get_current_user)):
     query = {}
     if search:
         query["$or"] = [
@@ -544,7 +557,7 @@ async def list_clawhub_skills(search: str = Query("", max_length=100), category:
 
 
 @api_router.post("/clawhub/install/{skill_id}")
-async def install_clawhub_skill(skill_id: str):
+async def install_clawhub_skill(skill_id: str, user=Depends(require_role("admin", "editor"))):
     skill = await db.clawhub_skills.find_one({"id": skill_id}, {"_id": 0})
     if not skill:
         raise HTTPException(404, "Skill not found")
@@ -554,7 +567,7 @@ async def install_clawhub_skill(skill_id: str):
 
 
 @api_router.post("/clawhub/uninstall/{skill_id}")
-async def uninstall_clawhub_skill(skill_id: str):
+async def uninstall_clawhub_skill(skill_id: str, user=Depends(require_role("admin", "editor"))):
     skill = await db.clawhub_skills.find_one({"id": skill_id}, {"_id": 0})
     if not skill:
         raise HTTPException(404, "Skill not found")
@@ -570,6 +583,19 @@ app.include_router(api_router)
 @app.websocket("/api/ws/logs")
 async def ws_logs(websocket: WebSocket):
     await websocket.accept()
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008, reason="Missing token")
+        return
+    try:
+        from auth import decode_token
+        payload = decode_token(token)
+        if payload.get("type") != "access":
+            await websocket.close(code=1008, reason="Invalid token")
+            return
+    except Exception:
+        await websocket.close(code=1008, reason="Invalid token")
+        return
     proc = None
     try:
         proc = await gateway.logs_stream()
@@ -626,6 +652,19 @@ async def ws_logs(websocket: WebSocket):
 @app.websocket("/api/ws/activities")
 async def ws_activities(websocket: WebSocket):
     await websocket.accept()
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008, reason="Missing token")
+        return
+    try:
+        from auth import decode_token
+        payload = decode_token(token)
+        if payload.get("type") != "access":
+            await websocket.close(code=1008, reason="Invalid token")
+            return
+    except Exception:
+        await websocket.close(code=1008, reason="Invalid token")
+        return
     proc = None
     try:
         proc = await gateway.logs_stream()
