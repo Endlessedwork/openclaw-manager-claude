@@ -1,13 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { getModels, getProviders, createProvider, updateProvider, deleteProvider } from '../lib/api';
-import { Cpu, Plus, Pencil, Trash2, Star, AlertTriangle, CheckCircle2, Server, X } from 'lucide-react';
+import { getModels, getProviders, createProvider, updateProvider, deleteProvider, getFallbacks, updateFallbacks, updateAgentFallbacks } from '../lib/api';
+import { Cpu, Plus, Pencil, Trash2, Star, AlertTriangle, CheckCircle2, Server, X, Save, Image } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import SortableFallbackList from '../components/SortableFallbackList';
 
 const EMPTY_PROVIDER = { id: '', base_url: '', api: 'openai-completions' };
 const EMPTY_MODEL_ROW = { id: '', name: '', contextWindow: '' };
@@ -28,12 +31,26 @@ export default function ModelsPage() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_PROVIDER);
   const [modelRows, setModelRows] = useState([{ ...EMPTY_MODEL_ROW }]);
+  const [fallbackConfig, setFallbackConfig] = useState(null);
+  const [editModel, setEditModel] = useState({ primary: '', fallbacks: [] });
+  const [editImage, setEditImage] = useState({ primary: '', fallbacks: [] });
+  const [editAgents, setEditAgents] = useState([]);
+  const [fallbackDirty, setFallbackDirty] = useState(false);
+  const [agentDialogOpen, setAgentDialogOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState(null);
+  const [agentForm, setAgentForm] = useState({ model: '', fallbacks: [] });
 
   const load = useCallback(async () => {
     try {
-      const [mRes, pRes] = await Promise.all([getModels(), getProviders()]);
+      const [mRes, pRes, fRes] = await Promise.all([getModels(), getProviders(), getFallbacks()]);
       setModels(mRes.data);
       setProviders(pRes.data);
+      const fb = fRes.data;
+      setFallbackConfig(fb);
+      setEditModel(fb.model);
+      setEditImage(fb.imageModel);
+      setEditAgents(fb.agents);
+      setFallbackDirty(false);
     } catch { toast.error('Failed to load models'); }
     finally { setLoading(false); }
   }, []);
@@ -96,6 +113,43 @@ export default function ModelsPage() {
       toast.success('Provider deleted');
       setTimeout(load, 2000);
     } catch { toast.error('Failed to delete'); }
+  };
+
+  const handleFallbackSave = async () => {
+    try {
+      await updateFallbacks({ model: editModel, imageModel: editImage });
+      toast.success('Fallback order saved — gateway reloading');
+      setFallbackDirty(false);
+      setTimeout(load, 2000);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to save fallbacks');
+    }
+  };
+
+  const addFallback = (type, modelId) => {
+    if (type === 'model') {
+      setEditModel(prev => ({ ...prev, fallbacks: [...prev.fallbacks, modelId] }));
+    } else {
+      setEditImage(prev => ({ ...prev, fallbacks: [...prev.fallbacks, modelId] }));
+    }
+    setFallbackDirty(true);
+  };
+
+  const openAgentEdit = (agent) => {
+    setEditingAgent(agent);
+    setAgentForm({ model: agent.model || '', fallbacks: agent.fallbacks || [] });
+    setAgentDialogOpen(true);
+  };
+
+  const handleAgentSave = async () => {
+    try {
+      await updateAgentFallbacks(editingAgent.id, agentForm);
+      toast.success(`Fallbacks updated for ${editingAgent.name} — gateway reloading`);
+      setAgentDialogOpen(false);
+      setTimeout(load, 2000);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to save agent fallbacks');
+    }
   };
 
   return (
@@ -171,6 +225,125 @@ export default function ModelsPage() {
             </div>
           )}
 
+          {/* === Fallback Priority === */}
+          {fallbackConfig && (
+            <div className="pt-4 border-t border-zinc-800/40">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Fallback Priority</h2>
+                  <p className="text-sm text-zinc-500 mt-1">Drag to reorder — if the primary model is unavailable, fallbacks are tried in order</p>
+                </div>
+                {canEdit() && fallbackDirty && (
+                  <Button onClick={handleFallbackSave} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+                    <Save className="w-4 h-4 mr-2" /> Save Order
+                  </Button>
+                )}
+              </div>
+
+              <Tabs defaultValue="text" className="w-full">
+                <TabsList className="bg-zinc-900/50 border border-zinc-800/60 mb-4">
+                  <TabsTrigger value="text" className="data-[state=active]:bg-orange-500/10 data-[state=active]:text-orange-400">
+                    <Cpu className="w-3.5 h-3.5 mr-1.5" /> Text Model
+                  </TabsTrigger>
+                  <TabsTrigger value="image" className="data-[state=active]:bg-orange-500/10 data-[state=active]:text-orange-400">
+                    <Image className="w-3.5 h-3.5 mr-1.5" /> Image Model
+                  </TabsTrigger>
+                </TabsList>
+
+                {['text', 'image'].map(type => {
+                  const cfg = type === 'text' ? editModel : editImage;
+                  const setCfg = type === 'text' ? setEditModel : setEditImage;
+                  const usedModels = [cfg.primary, ...cfg.fallbacks];
+                  const availableToAdd = models.filter(m => !usedModels.includes(m.key));
+                  return (
+                    <TabsContent key={type} value={type} className="space-y-4">
+                      {/* Primary */}
+                      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-orange-500/30 bg-orange-500/5">
+                        <Star className="w-4 h-4 text-orange-500 fill-orange-500 shrink-0" />
+                        <span className="text-xs text-orange-400 font-medium w-14">Primary</span>
+                        <Select value={cfg.primary} onValueChange={v => { setCfg(prev => ({ ...prev, primary: v })); setFallbackDirty(true); }}>
+                          <SelectTrigger className="bg-[#050505] border-zinc-800 text-sm flex-1 h-8 font-mono">
+                            <SelectValue placeholder="Select primary model" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-zinc-800">
+                            {models.map(m => (
+                              <SelectItem key={m.key} value={m.key}>{m.name} ({m.key})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Fallback list */}
+                      <SortableFallbackList
+                        items={cfg.fallbacks}
+                        onReorder={newOrder => { setCfg(prev => ({ ...prev, fallbacks: newOrder })); setFallbackDirty(true); }}
+                        onRemove={id => { setCfg(prev => ({ ...prev, fallbacks: prev.fallbacks.filter(f => f !== id) })); setFallbackDirty(true); }}
+                        canEdit={canEdit()}
+                      />
+
+                      {/* Add fallback */}
+                      {canEdit() && availableToAdd.length > 0 && (
+                        <Select onValueChange={v => addFallback(type === 'text' ? 'model' : 'image', v)}>
+                          <SelectTrigger className="bg-[#050505] border-zinc-800 border-dashed text-sm h-9 text-zinc-500">
+                            <Plus className="w-3.5 h-3.5 mr-2" />
+                            <SelectValue placeholder="Add fallback model..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-zinc-800">
+                            {availableToAdd.map(m => (
+                              <SelectItem key={m.key} value={m.key}>{m.name} ({m.key})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </TabsContent>
+                  );
+                })}
+              </Tabs>
+
+              {/* Per-Agent Overrides */}
+              {editAgents.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-zinc-300 mb-3" style={{ fontFamily: 'Manrope, sans-serif' }}>Per-Agent Overrides</h3>
+                  <Accordion type="single" collapsible className="space-y-2">
+                    {editAgents.map(agent => (
+                      <AccordionItem key={agent.id} value={agent.id} className="border border-zinc-800/60 rounded-lg bg-[#0c0c0e] px-4">
+                        <AccordionTrigger className="text-sm text-zinc-300 hover:text-orange-400 py-3">
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold">{agent.name || agent.id}</span>
+                            <span className="font-mono text-[10px] text-zinc-500">{agent.model || '(uses default)'}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-3">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-zinc-500">Model</span>
+                              <span className="font-mono text-zinc-300">{agent.model || '(default)'}</span>
+                            </div>
+                            {agent.fallbacks?.length > 0 ? (
+                              <div className="space-y-1">
+                                <span className="text-xs text-zinc-500">Fallbacks</span>
+                                {agent.fallbacks.map((f, i) => (
+                                  <div key={f} className="text-xs font-mono text-zinc-400 pl-4">#{i + 1} {f}</div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-zinc-600">No agent-specific fallbacks (uses default list)</div>
+                            )}
+                            {canEdit() && (
+                              <Button variant="ghost" size="sm" onClick={() => openAgentEdit(agent)} className="text-orange-500 hover:bg-orange-500/10 mt-1 h-7 text-xs">
+                                <Pencil className="w-3 h-3 mr-1.5" /> Edit Fallbacks
+                              </Button>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* === Config Providers (CRUD) === */}
           <div className="pt-4 border-t border-zinc-800/40">
             <div className="flex items-center justify-between mb-4">
@@ -234,6 +407,62 @@ export default function ModelsPage() {
           </div>
         </>
       )}
+
+      {/* === Agent Fallback Dialog === */}
+      <Dialog open={agentDialogOpen} onOpenChange={setAgentDialogOpen}>
+        <DialogContent className="bg-[#0c0c0e] border-zinc-800 max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Edit Fallbacks: {editingAgent?.name || editingAgent?.id}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label className="text-zinc-400 text-xs">Model</Label>
+              <Select value={agentForm.model} onValueChange={v => setAgentForm(prev => ({ ...prev, model: v }))}>
+                <SelectTrigger className="bg-[#050505] border-zinc-800 text-sm mt-1 font-mono">
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
+                  {models.map(m => (
+                    <SelectItem key={m.key} value={m.key}>{m.name} ({m.key})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-zinc-400 text-xs mb-2 block">Fallbacks</Label>
+              <SortableFallbackList
+                items={agentForm.fallbacks}
+                onReorder={newOrder => setAgentForm(prev => ({ ...prev, fallbacks: newOrder }))}
+                onRemove={id => setAgentForm(prev => ({ ...prev, fallbacks: prev.fallbacks.filter(f => f !== id) }))}
+                canEdit={true}
+              />
+              {(() => {
+                const used = [agentForm.model, ...agentForm.fallbacks];
+                const available = models.filter(m => !used.includes(m.key));
+                return available.length > 0 ? (
+                  <Select onValueChange={v => setAgentForm(prev => ({ ...prev, fallbacks: [...prev.fallbacks, v] }))}>
+                    <SelectTrigger className="bg-[#050505] border-zinc-800 border-dashed text-sm h-9 text-zinc-500 mt-2">
+                      <Plus className="w-3.5 h-3.5 mr-2" />
+                      <SelectValue placeholder="Add fallback..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-900 border-zinc-800">
+                      {available.map(m => (
+                        <SelectItem key={m.key} value={m.key}>{m.name} ({m.key})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null;
+              })()}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-zinc-800/60">
+            <Button variant="outline" onClick={() => setAgentDialogOpen(false)} className="border-zinc-700 text-zinc-400">Cancel</Button>
+            <Button onClick={handleAgentSave} className="bg-orange-600 hover:bg-orange-700 text-white">Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* === Provider Dialog === */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
