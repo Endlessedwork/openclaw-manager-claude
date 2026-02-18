@@ -155,7 +155,7 @@ export default function LogsPage() {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (pingTimer) clearInterval(pingTimer);
     };
-  }, []);
+  }, [token]);
 
   // Flush buffer when unpaused
   useEffect(() => {

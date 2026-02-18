@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { getClawHubSkills, installClawHubSkill, uninstallClawHubSkill } from '../lib/api';
 import { Store, Search, Download, Trash2, Star, ExternalLink, Package, CheckCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -17,29 +17,21 @@ export default function ClawHubPage() {
   const [category, setCategory] = useState('all');
   const [installing, setInstalling] = useState({});
 
-  const load = async () => {
+  const load = useCallback(async (s = search, c = category) => {
+    setLoading(true);
     try {
-      const res = await getClawHubSkills(search, category);
+      const res = await getClawHubSkills(s, c);
       setSkills(res.data || []);
     } catch { toast.error('Failed to load ClawHub'); }
     finally { setLoading(false); }
-  };
+  }, [search, category]);
 
-  useEffect(() => { load(); }, []);
-
-  const handleSearch = async () => {
-    setLoading(true);
-    try {
-      const res = await getClawHubSkills(search, category);
-      setSkills(res.data);
-    } catch { toast.error('Search failed'); }
-    finally { setLoading(false); }
-  };
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    const timer = setTimeout(() => { if (!loading) handleSearch(); }, 300);
+    const timer = setTimeout(() => { load(); }, 300);
     return () => clearTimeout(timer);
-  }, [search, category]);
+  }, [search, category, load]);
 
   const handleInstall = async (skill) => {
     setInstalling(prev => ({ ...prev, [skill.id]: true }));

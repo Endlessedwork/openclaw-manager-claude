@@ -312,7 +312,7 @@ export default function ActivitiesPage() {
 
     connect();
     return () => { if (ws) ws.close(); if (reconnectTimer) clearTimeout(reconnectTimer); if (pingTimer) clearInterval(pingTimer); };
-  }, [autoRefresh]);
+  }, [autoRefresh, token]);
 
   const toggleExpand = (id) => {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
