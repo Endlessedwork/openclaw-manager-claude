@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Create the first admin user for OpenClaw Manager."""
 import asyncio
+import getpass
 import os
 import sys
 from pathlib import Path
@@ -27,7 +28,7 @@ async def seed():
 
     email = input("Admin email: ").strip()
     name = input("Admin name: ").strip() or "Admin"
-    password = input("Admin password: ").strip()
+    password = getpass.getpass("Admin password: ").strip()
 
     if not email or not password:
         print("Email and password are required")

@@ -13,7 +13,7 @@ VALID_ROLES = {"admin", "editor", "viewer"}
 
 class CreateUserRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str  # min 8 chars enforced below
     name: str
     role: str = "viewer"
 
@@ -46,6 +46,8 @@ async def list_users(request: Request, user=Depends(require_role("admin"))):
 @user_router.post("")
 async def create_user(body: CreateUserRequest, request: Request, user=Depends(require_role("admin"))):
     db = request.app.state.db
+    if len(body.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
     if body.role not in VALID_ROLES:
         raise HTTPException(400, f"Role must be one of: {', '.join(VALID_ROLES)}")
     existing = await db.users.find_one({"email": body.email})
@@ -76,6 +78,13 @@ async def update_user(user_id: str, body: UpdateUserRequest, request: Request, u
     target = await db.users.find_one({"_id": oid})
     if not target:
         raise HTTPException(404, "User not found")
+
+    # Prevent admin from locking themselves out
+    if user_id == user["id"]:
+        if body.role is not None and body.role != "admin":
+            raise HTTPException(400, "Cannot demote your own admin account")
+        if body.is_active is not None and not body.is_active:
+            raise HTTPException(400, "Cannot deactivate your own account")
 
     updates = {"updated_at": datetime.now(timezone.utc)}
     if body.name is not None:

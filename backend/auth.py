@@ -6,7 +6,9 @@ from passlib.context import CryptContext
 import jwt
 import os
 
-SECRET_KEY = os.environ.get("JWT_SECRET", "change-me-in-production-use-openssl-rand-hex-32")
+SECRET_KEY = os.environ.get("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable must be set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
