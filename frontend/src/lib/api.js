@@ -91,4 +91,16 @@ export const getWsUrl = (path) => {
   return `${base}/api/ws/${path}`;
 };
 
+// Auth
+export const loginUser = (data) => api.post('/auth/login', data, { withCredentials: true });
+export const refreshToken = () => api.post('/auth/refresh', {}, { withCredentials: true });
+export const logoutUser = () => api.post('/auth/logout', {}, { withCredentials: true });
+export const getMe = () => api.get('/auth/me');
+
+// Users (Admin)
+export const getUsers = () => api.get('/users');
+export const createUser = (data) => api.post('/users', data);
+export const updateUser = (id, data) => api.put(`/users/${id}`, data);
+export const deleteUser = (id) => api.delete(`/users/${id}`);
+
 export default api;
