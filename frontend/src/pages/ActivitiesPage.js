@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { getActivitiesStats, getAgents, getWsUrl } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Activity, Wrench, MessageSquare, Cpu, Zap,
   ChevronDown, ChevronRight,
@@ -232,6 +233,7 @@ function ActivityRow({ act, isExpanded, onToggle }) {
 }
 
 export default function ActivitiesPage() {
+  const { token } = useAuth();
   const [activities, setActivities] = useState([]);
   const [stats, setStats] = useState(null);
   const [agents, setAgents] = useState([]);
@@ -279,7 +281,7 @@ export default function ActivitiesPage() {
     let pingTimer = null;
 
     const connect = () => {
-      ws = new WebSocket(getWsUrl('activities'));
+      ws = new WebSocket(getWsUrl('activities', token));
       wsRef.current = ws;
 
       ws.onopen = () => {

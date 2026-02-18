@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { getSystemLogsStats, getWsUrl } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Terminal, Search, Trash2, ArrowDown, ArrowUp,
   Filter, X, Wifi, WifiOff
@@ -59,6 +60,7 @@ function LogLine({ log, searchTerm }) {
 }
 
 export default function LogsPage() {
+  const { token } = useAuth();
   const [logs, setLogs] = useState([]);
   const [stats, setStats] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
@@ -96,7 +98,7 @@ export default function LogsPage() {
     let pingTimer = null;
 
     const connect = () => {
-      const url = getWsUrl('logs');
+      const url = getWsUrl('logs', token);
       ws = new WebSocket(url);
       wsRef.current = ws;
 
