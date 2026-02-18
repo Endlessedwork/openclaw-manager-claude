@@ -1,0 +1,87 @@
+import React, { useState } from 'react';
+import { useNavigate, Navigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { Activity } from 'lucide-react';
+
+export default function LoginPage() {
+  const { login, user } = useAuth();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  if (user) return <Navigate to="/" replace />;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await login(email, password);
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#09090b]">
+      <div className="w-full max-w-sm mx-4">
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center shadow-[0_0_20px_rgba(249,115,22,0.4)]">
+            <Activity className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-2xl font-semibold tracking-tight text-zinc-100" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            OpenClaw
+          </span>
+        </div>
+
+        <form onSubmit={handleSubmit} className="bg-[#0c0c0e] border border-white/5 rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-medium text-zinc-200 text-center">Sign in to your account</h2>
+
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-400 mb-1.5">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+              className="w-full px-3 py-2 bg-[#09090b] border border-white/10 rounded-lg text-zinc-200 text-sm placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
+              placeholder="admin@example.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-400 mb-1.5">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full px-3 py-2 bg-[#09090b] border border-white/10 rounded-lg text-zinc-200 text-sm placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2.5 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white transition-colors"
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
