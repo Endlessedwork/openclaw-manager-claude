@@ -326,6 +326,82 @@ async def delete_provider(provider_id: str, user=Depends(require_role("admin", "
     return {"status": "ok"}
 
 
+# ===== MODEL FALLBACKS (from config) =====
+@api_router.get("/models/fallbacks")
+async def get_fallbacks(user=Depends(get_current_user)):
+    config = await gateway.config_read()
+    defaults = config.get("agents", {}).get("defaults", {})
+    model_cfg = defaults.get("model", {})
+    image_cfg = defaults.get("imageModel", {})
+    agents_list = config.get("agents", {}).get("list", [])
+    return {
+        "model": {
+            "primary": model_cfg.get("primary", ""),
+            "fallbacks": model_cfg.get("fallbacks", []),
+        },
+        "imageModel": {
+            "primary": image_cfg.get("primary", ""),
+            "fallbacks": image_cfg.get("fallbacks", []),
+        },
+        "agents": [
+            {
+                "id": a["id"],
+                "name": a.get("name", a["id"]),
+                "model": a.get("model", ""),
+                "fallbacks": a.get("fallbacks", []),
+            }
+            for a in agents_list
+        ],
+    }
+
+
+@api_router.put("/models/fallbacks")
+async def update_fallbacks(body: dict, user=Depends(require_role("admin", "editor"))):
+    config = await gateway.config_read()
+    if "agents" not in config:
+        config["agents"] = {}
+    if "defaults" not in config["agents"]:
+        config["agents"]["defaults"] = {}
+
+    if "model" in body:
+        config["agents"]["defaults"]["model"] = {
+            **config["agents"]["defaults"].get("model", {}),
+            "primary": body["model"].get("primary", ""),
+            "fallbacks": body["model"].get("fallbacks", []),
+        }
+    if "imageModel" in body:
+        config["agents"]["defaults"]["imageModel"] = {
+            **config["agents"]["defaults"].get("imageModel", {}),
+            "primary": body["imageModel"].get("primary", ""),
+            "fallbacks": body["imageModel"].get("fallbacks", []),
+        }
+
+    await gateway.config_write(config)
+    await log_activity("update", "fallbacks", "defaults", "Updated default model fallbacks")
+    return {"status": "ok"}
+
+
+@api_router.put("/models/fallbacks/agent/{agent_id}")
+async def update_agent_fallbacks(agent_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
+    config = await gateway.config_read()
+    agents_list = config.get("agents", {}).get("list", [])
+    agent = next((a for a in agents_list if a["id"] == agent_id), None)
+    if not agent:
+        raise HTTPException(404, f"Agent '{agent_id}' not found")
+
+    if "model" in body:
+        agent["model"] = body["model"]
+    if "fallbacks" in body:
+        if body["fallbacks"]:
+            agent["fallbacks"] = body["fallbacks"]
+        elif "fallbacks" in agent:
+            del agent["fallbacks"]
+
+    await gateway.config_write(config)
+    await log_activity("update", "fallbacks", agent_id, f"Updated fallbacks for agent {agent_id}")
+    return {"status": "ok"}
+
+
 # ===== CHANNELS (from health probe) =====
 @api_router.get("/channels")
 async def list_channels(user=Depends(get_current_user)):
