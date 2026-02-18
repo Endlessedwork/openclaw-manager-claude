@@ -32,6 +32,11 @@ export const createProvider = (data) => api.post('/models/providers', data);
 export const updateProvider = (id, data) => api.put(`/models/providers/${id}`, data);
 export const deleteProvider = (id) => api.delete(`/models/providers/${id}`);
 
+// Model Fallbacks
+export const getFallbacks = () => api.get('/models/fallbacks');
+export const updateFallbacks = (data) => api.put('/models/fallbacks', data);
+export const updateAgentFallbacks = (id, data) => api.put(`/models/fallbacks/agent/${id}`, data);
+
 // Channels (read-only)
 export const getChannels = () => api.get('/channels');
 
