@@ -3,7 +3,10 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api`;
 
-const api = axios.create({ baseURL: API });
+const api = axios.create({
+  baseURL: API,
+  withCredentials: true,
+});
 
 // Dashboard
 export const getDashboard = () => api.get('/dashboard');
@@ -86,9 +89,11 @@ export const getSystemLogs = (params = {}) => {
 export const getSystemLogsStats = () => api.get('/system-logs/stats');
 
 // WebSocket URL helper
-export const getWsUrl = (path) => {
-  const base = BACKEND_URL.replace(/^http/, 'ws');
-  return `${base}/api/ws/${path}`;
+export const getWsUrl = (path, token) => {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = BACKEND_URL ? new URL(BACKEND_URL).host : window.location.host;
+  const tokenParam = token ? `?token=${token}` : '';
+  return `${proto}//${host}/api/ws/${path}${tokenParam}`;
 };
 
 // Auth
