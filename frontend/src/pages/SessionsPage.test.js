@@ -6,63 +6,33 @@ jest.mock('sonner', () => ({ toast: { error: jest.fn(), success: jest.fn() } }))
 
 jest.mock('lucide-react', () => {
   const icon = (name) => (props) => <svg data-testid={`icon-${name}`} {...props} />;
-  return { MessageSquare: icon('msg'), Trash2: icon('trash'), RefreshCw: icon('refresh'), Eye: icon('eye'), X: icon('x'), User: icon('user'), Bot: icon('bot'), Wrench: icon('wrench') };
+  return { MessageSquare: icon('msg'), RefreshCw: icon('refresh'), Clock: icon('clock'), Cpu: icon('cpu') };
 });
 
 jest.mock('../components/ui/button', () => ({
   Button: ({ children, onClick, ...props }) => <button onClick={onClick} {...props}>{children}</button>,
 }));
-jest.mock('../components/ui/dialog', () => ({
-  Dialog: ({ children, open }) => open ? <div data-testid="dialog">{children}</div> : null,
-  DialogContent: ({ children }) => <div data-testid="dialog-content">{children}</div>,
-  DialogHeader: ({ children }) => <div>{children}</div>,
-  DialogTitle: ({ children }) => <h2>{children}</h2>,
-}));
-jest.mock('../components/ui/scroll-area', () => ({
-  ScrollArea: ({ children }) => <div>{children}</div>,
-}));
 
-let mockGetSessions, mockDeleteSession, mockGetSessionMessages;
+let mockGetSessions;
 jest.mock('../lib/api', () => ({
   getSessions: (...args) => mockGetSessions(...args),
-  deleteSession: (...args) => mockDeleteSession(...args),
-  getSessionMessages: (...args) => mockGetSessionMessages(...args),
 }));
 
 const mockSessions = [
   {
-    id: 'sess-1', session_key: 'whatsapp:+1234:agent-1', status: 'active',
-    agent_id: 'agent-1', channel: 'whatsapp', peer: '+1234567890',
-    message_count: 15, last_message_at: '2026-02-17T10:00:00Z',
+    id: 'sess-1', session_key: 'direct:main:telegram:user1', kind: 'direct',
+    agent: 'main', channel: 'telegram', model: 'claude-sonnet-4-5',
+    total_tokens: 15000, context_tokens: 5000, age_ms: 120000,
   },
   {
-    id: 'sess-2', session_key: 'discord:user123:agent-2', status: 'ended',
-    agent_id: 'agent-2', channel: 'discord', peer: 'user123',
-    message_count: 8, last_message_at: '2026-02-17T09:00:00Z',
+    id: 'sess-2', session_key: 'group:coder:discord:chan1', kind: 'group',
+    agent: 'coder', channel: 'discord', model: '',
+    total_tokens: 500, context_tokens: 200, age_ms: 7200000,
   },
 ];
 
-const mockTranscript1 = {
-  session: { channel: 'whatsapp', peer: '+1234567890', message_count: 3 },
-  messages: [
-    { id: 'msg-1', role: 'user', content: 'Hello bot', timestamp: '2026-02-17T10:00:00Z' },
-    { id: 'msg-2', role: 'assistant', content: 'Hi there!', timestamp: '2026-02-17T10:00:01Z' },
-    { id: 'msg-3', role: 'user', content: 'How are you?', timestamp: '2026-02-17T10:00:02Z' },
-  ],
-};
-
-const mockTranscript2 = {
-  session: { channel: 'discord', peer: 'user123', message_count: 1 },
-  messages: [
-    { id: 'msg-4', role: 'user', content: 'Different session message', timestamp: '2026-02-17T09:00:00Z' },
-  ],
-};
-
 beforeEach(() => {
   mockGetSessions = jest.fn().mockResolvedValue({ data: mockSessions });
-  mockDeleteSession = jest.fn().mockResolvedValue({ data: {} });
-  mockGetSessionMessages = jest.fn().mockResolvedValue({ data: mockTranscript1 });
-  window.confirm = jest.fn(() => true);
 });
 
 describe('SessionsPage', () => {
@@ -72,8 +42,14 @@ describe('SessionsPage', () => {
       expect(screen.getByTestId('session-row-sess-1')).toBeInTheDocument();
     });
     expect(screen.getByTestId('session-row-sess-2')).toBeInTheDocument();
-    expect(screen.getByText('whatsapp:+1234:agent-1')).toBeInTheDocument();
-    expect(screen.getByText('discord:user123:agent-2')).toBeInTheDocument();
+  });
+
+  it('displays session keys', async () => {
+    render(<SessionsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('direct:main:telegram:user1')).toBeInTheDocument();
+    });
+    expect(screen.getByText('group:coder:discord:chan1')).toBeInTheDocument();
   });
 
   it('shows empty state when no sessions', async () => {
@@ -84,124 +60,42 @@ describe('SessionsPage', () => {
     });
   });
 
-  it('displays session details (agent, channel, peer, message count)', async () => {
+  it('shows loading spinner initially', () => {
+    mockGetSessions.mockReturnValue(new Promise(() => {}));
     render(<SessionsPage />);
-    await waitFor(() => {
-      expect(screen.getByText('active')).toBeInTheDocument();
-    });
-    expect(screen.getByText('ended')).toBeInTheDocument();
-    expect(screen.getByText('15')).toBeInTheDocument();
-    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
   });
 
-  it('opens transcript viewer and loads messages', async () => {
+  it('displays kind badges', async () => {
     render(<SessionsPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('view-transcript-sess-1')).toBeInTheDocument();
+      expect(screen.getByText('direct')).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByTestId('view-transcript-sess-1'));
-
-    await waitFor(() => {
-      expect(mockGetSessionMessages).toHaveBeenCalledWith('sess-1');
-    });
-    await waitFor(() => {
-      expect(screen.getByText('Hello bot')).toBeInTheDocument();
-    });
-    expect(screen.getByText('Hi there!')).toBeInTheDocument();
-    expect(screen.getByText('How are you?')).toBeInTheDocument();
+    expect(screen.getByText('group')).toBeInTheDocument();
   });
 
-  it('shows role labels in transcript', async () => {
-    render(<SessionsPage />);
-    await waitFor(() => {
-      expect(screen.getByTestId('view-transcript-sess-1')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('view-transcript-sess-1'));
-
-    await waitFor(() => {
-      expect(screen.getAllByText('user')).toHaveLength(2);
-      expect(screen.getByText('assistant')).toBeInTheDocument();
-    });
-  });
-
-  it('clears previous transcript when switching sessions (bug regression)', async () => {
-    render(<SessionsPage />);
-    await waitFor(() => {
-      expect(screen.getByTestId('view-transcript-sess-1')).toBeInTheDocument();
-    });
-
-    // View first session transcript
-    fireEvent.click(screen.getByTestId('view-transcript-sess-1'));
-    await waitFor(() => {
-      expect(screen.getByText('Hello bot')).toBeInTheDocument();
-    });
-
-    // Close dialog by re-rendering without it (simulate onOpenChange)
-    // Now set up for second session
-    mockGetSessionMessages.mockResolvedValue({ data: mockTranscript2 });
-
-    // View second session transcript
-    fireEvent.click(screen.getByTestId('view-transcript-sess-2'));
-
-    // The old transcript messages should be cleared immediately (setTranscript(null))
-    // and new ones should load
-    await waitFor(() => {
-      expect(screen.getByText('Different session message')).toBeInTheDocument();
-    });
-    // Old messages should NOT be present
-    expect(screen.queryByText('Hello bot')).not.toBeInTheDocument();
-    expect(screen.queryByText('Hi there!')).not.toBeInTheDocument();
-  });
-
-  it('shows "No messages" for empty transcript', async () => {
-    mockGetSessionMessages.mockResolvedValue({
-      data: { session: {}, messages: [] },
-    });
-    render(<SessionsPage />);
-    await waitFor(() => {
-      expect(screen.getByTestId('view-transcript-sess-1')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('view-transcript-sess-1'));
-
-    await waitFor(() => {
-      expect(screen.getByText('No messages in this session')).toBeInTheDocument();
-    });
-  });
-
-  it('deletes session on confirm', async () => {
-    const { toast } = require('sonner');
+  it('displays agent and channel info', async () => {
     render(<SessionsPage />);
     await waitFor(() => {
       expect(screen.getByTestId('session-row-sess-1')).toBeInTheDocument();
     });
-
-    // Find the delete button within the first session row
-    const row = screen.getByTestId('session-row-sess-1');
-    const deleteBtn = row.querySelectorAll('button')[1]; // second button is delete
-    fireEvent.click(deleteBtn);
-
-    expect(window.confirm).toHaveBeenCalledWith('Delete this session?');
-    await waitFor(() => {
-      expect(mockDeleteSession).toHaveBeenCalledWith('sess-1');
-      expect(toast.success).toHaveBeenCalledWith('Session deleted');
-    });
+    // Agent info
+    expect(screen.getByText('main')).toBeInTheDocument();
+    expect(screen.getByText('coder')).toBeInTheDocument();
+    // Channel info
+    expect(screen.getByText('telegram')).toBeInTheDocument();
+    expect(screen.getByText('discord')).toBeInTheDocument();
   });
 
-  it('does not delete when confirm is cancelled', async () => {
-    window.confirm = jest.fn(() => false);
+  it('displays token counts', async () => {
     render(<SessionsPage />);
     await waitFor(() => {
       expect(screen.getByTestId('session-row-sess-1')).toBeInTheDocument();
     });
-
-    const row = screen.getByTestId('session-row-sess-1');
-    const deleteBtn = row.querySelectorAll('button')[1];
-    fireEvent.click(deleteBtn);
-
-    expect(mockDeleteSession).not.toHaveBeenCalled();
+    // 15000 tokens → "15.0k", 5000 → "5.0k ctx"
+    const row1 = screen.getByTestId('session-row-sess-1');
+    expect(row1.textContent).toContain('15.0k');
+    expect(row1.textContent).toContain('5.0k');
   });
 
   it('refreshes sessions on Refresh button click', async () => {
@@ -218,18 +112,27 @@ describe('SessionsPage', () => {
     });
   });
 
-  it('shows error toast when transcript load fails', async () => {
+  it('shows error toast when load fails', async () => {
     const { toast } = require('sonner');
-    mockGetSessionMessages.mockRejectedValue(new Error('fail'));
+    mockGetSessions.mockRejectedValue(new Error('fail'));
     render(<SessionsPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('view-transcript-sess-1')).toBeInTheDocument();
+      expect(toast.error).toHaveBeenCalledWith('Failed to load sessions');
     });
+  });
 
-    fireEvent.click(screen.getByTestId('view-transcript-sess-1'));
-
+  it('renders page title with session count', async () => {
+    render(<SessionsPage />);
+    expect(screen.getByText('Sessions')).toBeInTheDocument();
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Failed to load transcript');
+      expect(screen.getByText(/2 total/)).toBeInTheDocument();
+    });
+  });
+
+  it('shows model for sessions that have one', async () => {
+    render(<SessionsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('claude-sonnet-4-5')).toBeInTheDocument();
     });
   });
 });

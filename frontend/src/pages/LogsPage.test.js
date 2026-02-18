@@ -2,10 +2,8 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import LogsPage from './LogsPage';
 
-// Mock sonner
 jest.mock('sonner', () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
 
-// Mock lucide-react icons
 jest.mock('lucide-react', () => ({
   Terminal: (props) => <svg {...props} />,
   Search: (props) => <svg {...props} />,
@@ -18,7 +16,10 @@ jest.mock('lucide-react', () => ({
   WifiOff: (props) => <svg {...props} />,
 }));
 
-// Mock UI components
+jest.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({ token: 'test-token' }),
+}));
+
 jest.mock('../components/ui/button', () => ({
   Button: ({ children, onClick, ...props }) => <button onClick={onClick} {...props}>{children}</button>,
 }));
@@ -34,13 +35,10 @@ jest.mock('../components/ui/label', () => ({
   Label: ({ children, htmlFor, className }) => <label htmlFor={htmlFor} className={className}>{children}</label>,
 }));
 
-// Mock API
-let mockGetSystemLogsStats, mockClearSystemLogs;
+let mockGetSystemLogsStats;
 jest.mock('../lib/api', () => ({
-  getSystemLogs: jest.fn().mockResolvedValue({ data: [] }),
   getSystemLogsStats: (...args) => mockGetSystemLogsStats(...args),
-  clearSystemLogs: (...args) => mockClearSystemLogs(...args),
-  getWsUrl: (path) => `ws://localhost:8001/api/ws/${path}`,
+  getWsUrl: (path, token) => `ws://localhost:8001/api/ws/${path}`,
 }));
 
 // Mock WebSocket
@@ -50,7 +48,7 @@ let wsOnOpen, wsOnMessage, wsOnClose, wsOnError;
 class MockWebSocket {
   constructor(url) {
     this.url = url;
-    this.readyState = WebSocket.OPEN;
+    this.readyState = 1;
     this.sent = [];
     mockWsInstance = this;
   }
@@ -59,7 +57,7 @@ class MockWebSocket {
   set onclose(fn) { wsOnClose = fn; }
   set onerror(fn) { wsOnError = fn; }
   send(data) { this.sent.push(data); }
-  close() { this.readyState = WebSocket.CLOSED; }
+  close() { this.readyState = 3; }
 }
 
 const originalWebSocket = global.WebSocket;
@@ -71,9 +69,7 @@ beforeEach(() => {
   mockGetSystemLogsStats = jest.fn().mockResolvedValue({
     data: { total: 50, errors: 3, warnings: 7, by_source: [] },
   });
-  mockClearSystemLogs = jest.fn().mockResolvedValue({});
   window.confirm = jest.fn(() => true);
-  // Mock scrollIntoView (not available in jsdom)
   Element.prototype.scrollIntoView = jest.fn();
   jest.useFakeTimers();
 });
@@ -91,7 +87,7 @@ const mockLogs = [
 ];
 
 describe('LogsPage', () => {
-  it('renders with "Connecting to WebSocket..." before connection', () => {
+  it('renders with waiting message before connection', () => {
     render(<LogsPage />);
     expect(screen.getByTestId('logs-page')).toBeInTheDocument();
     expect(screen.getByText('Logs')).toBeInTheDocument();
@@ -166,26 +162,6 @@ describe('LogsPage', () => {
     });
   });
 
-  it('clears logs when clear button is clicked', async () => {
-    render(<LogsPage />);
-
-    act(() => {
-      wsOnOpen();
-      wsOnMessage({ data: JSON.stringify({ type: 'init', data: mockLogs }) });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText('Gateway started')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('clear-logs-btn'));
-
-    expect(window.confirm).toHaveBeenCalledWith('Clear all logs?');
-    await waitFor(() => {
-      expect(mockClearSystemLogs).toHaveBeenCalled();
-    });
-  });
-
   it('filters logs by level when filter buttons are toggled', async () => {
     render(<LogsPage />);
 
@@ -245,7 +221,6 @@ describe('LogsPage', () => {
       wsOnMessage({ data: JSON.stringify({ type: 'pong' }) });
     });
 
-    // Should still show waiting message since no real logs came in
     expect(screen.getByText('Waiting for log entries...')).toBeInTheDocument();
   });
 
@@ -258,10 +233,19 @@ describe('LogsPage', () => {
       wsOnMessage({ data: JSON.stringify({ type: 'init', data: mockLogs }) });
     });
 
-    // Verify all 4 log messages are rendered
     expect(screen.getByText('Gateway started')).toBeInTheDocument();
     expect(screen.getByText('Connection failed')).toBeInTheDocument();
     expect(screen.getByText('Rate limited')).toBeInTheDocument();
     expect(screen.getByText('Session cleanup')).toBeInTheDocument();
+  });
+
+  it('connects WebSocket to correct URL', async () => {
+    jest.useRealTimers();
+    render(<LogsPage />);
+
+    await waitFor(() => {
+      expect(mockWsInstance).toBeDefined();
+    });
+    expect(mockWsInstance.url).toBe('ws://localhost:8001/api/ws/logs');
   });
 });

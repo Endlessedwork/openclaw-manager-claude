@@ -2,10 +2,8 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import ActivitiesPage from './ActivitiesPage';
 
-// Mock sonner
 jest.mock('sonner', () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
 
-// Mock lucide-react icons
 jest.mock('lucide-react', () => {
   const icon = (name) => (props) => <svg data-testid={`icon-${name}`} {...props} />;
   return {
@@ -20,7 +18,10 @@ jest.mock('lucide-react', () => {
   };
 });
 
-// Mock UI components
+jest.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({ token: 'test-token' }),
+}));
+
 jest.mock('../components/ui/button', () => ({
   Button: ({ children, onClick, ...props }) => <button onClick={onClick} {...props}>{children}</button>,
 }));
@@ -43,15 +44,11 @@ jest.mock('../components/ui/label', () => ({
   Label: ({ children, htmlFor, className }) => <label htmlFor={htmlFor} className={className}>{children}</label>,
 }));
 
-// Mock API
-let mockGetAgents, mockGetActivitiesStats, mockSimulateActivities, mockClearActivities;
+let mockGetAgents, mockGetActivitiesStats;
 jest.mock('../lib/api', () => ({
-  getActivities: jest.fn().mockResolvedValue({ data: [] }),
   getActivitiesStats: (...args) => mockGetActivitiesStats(...args),
-  simulateActivities: (...args) => mockSimulateActivities(...args),
-  clearActivities: (...args) => mockClearActivities(...args),
   getAgents: (...args) => mockGetAgents(...args),
-  getWsUrl: (path) => `ws://localhost:8001/api/ws/${path}`,
+  getWsUrl: (path, token) => `ws://localhost:8001/api/ws/${path}`,
 }));
 
 // Mock WebSocket
@@ -112,9 +109,6 @@ beforeEach(() => {
   MockWebSocket.CLOSED = 3;
   mockGetAgents = jest.fn().mockResolvedValue({ data: mockAgentsList });
   mockGetActivitiesStats = jest.fn().mockResolvedValue({ data: mockStats });
-  mockSimulateActivities = jest.fn().mockResolvedValue({});
-  mockClearActivities = jest.fn().mockResolvedValue({});
-  window.confirm = jest.fn(() => true);
   Element.prototype.scrollIntoView = jest.fn();
   jest.useFakeTimers();
 });
@@ -135,8 +129,6 @@ describe('ActivitiesPage', () => {
     expect(screen.getByText('Activities')).toBeInTheDocument();
     expect(screen.getByText('Real-time agent behavior monitoring')).toBeInTheDocument();
     expect(screen.getByTestId('live-toggle')).toBeInTheDocument();
-    expect(screen.getByTestId('simulate-btn')).toBeInTheDocument();
-    expect(screen.getByTestId('clear-activities-btn')).toBeInTheDocument();
   });
 
   it('shows empty state when no activities', async () => {
@@ -146,7 +138,7 @@ describe('ActivitiesPage', () => {
     await waitFor(() => {
       expect(screen.getByText('No activities yet')).toBeInTheDocument();
     });
-    expect(screen.getByText('Turn on Live mode or click Simulate to generate demo data')).toBeInTheDocument();
+    expect(screen.getByText('Turn on Live mode to stream real-time gateway activities')).toBeInTheDocument();
   });
 
   it('shows LIVE indicator after WebSocket connects', async () => {
@@ -186,7 +178,6 @@ describe('ActivitiesPage', () => {
     expect(screen.getByTestId('activity-row-act-2')).toBeInTheDocument();
     expect(screen.getByTestId('activity-row-act-3')).toBeInTheDocument();
 
-    // Check activity details
     expect(screen.getAllByText('web-search').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('claude-sonnet-4-5')).toBeInTheDocument();
     expect(screen.getByText('Connection timeout')).toBeInTheDocument();
@@ -222,7 +213,6 @@ describe('ActivitiesPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('activity-row-act-4')).toBeInTheDocument();
     });
-    // Original activity should still be there
     expect(screen.getByTestId('activity-row-act-1')).toBeInTheDocument();
   });
 
@@ -269,7 +259,6 @@ describe('ActivitiesPage', () => {
       expect(screen.getByTestId('activity-row-act-1')).toBeInTheDocument();
     });
 
-    // Click to expand
     fireEvent.click(screen.getByTestId('activity-row-act-1').querySelector('.cursor-pointer'));
 
     await waitFor(() => {
@@ -289,44 +278,6 @@ describe('ActivitiesPage', () => {
     expect(screen.getByText('3')).toBeInTheDocument(); // errors
   });
 
-  it('calls clearActivities on clear button click', async () => {
-    jest.useRealTimers();
-    render(<ActivitiesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('clear-activities-btn')).toBeInTheDocument();
-    });
-
-    act(() => {
-      wsOnOpen();
-      wsOnMessage({ data: JSON.stringify({ type: 'init', data: mockActivities }) });
-    });
-
-    fireEvent.click(screen.getByTestId('clear-activities-btn'));
-
-    expect(window.confirm).toHaveBeenCalledWith('Clear all activity history?');
-    await waitFor(() => {
-      expect(mockClearActivities).toHaveBeenCalled();
-    });
-  });
-
-  it('calls simulateActivities on simulate button click', async () => {
-    jest.useRealTimers();
-    const { toast } = require('sonner');
-    render(<ActivitiesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('simulate-btn')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('simulate-btn'));
-
-    await waitFor(() => {
-      expect(mockSimulateActivities).toHaveBeenCalled();
-      expect(toast.success).toHaveBeenCalledWith('Simulation started');
-    });
-  });
-
   it('ignores pong messages from WebSocket', async () => {
     jest.useRealTimers();
     render(<ActivitiesPage />);
@@ -340,7 +291,6 @@ describe('ActivitiesPage', () => {
       wsOnMessage({ data: JSON.stringify({ type: 'pong' }) });
     });
 
-    // Should still show empty state since no real data arrived
     expect(screen.getByText('No activities yet')).toBeInTheDocument();
   });
 

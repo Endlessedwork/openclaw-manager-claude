@@ -9,6 +9,10 @@ jest.mock('lucide-react', () => {
   return { FileCode: icon('file'), Save: icon('save'), RotateCcw: icon('reset'), CheckCircle: icon('check'), AlertTriangle: icon('alert'), XCircle: icon('xcircle') };
 });
 
+jest.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({ canEdit: () => true }),
+}));
+
 jest.mock('../components/ui/button', () => ({
   Button: ({ children, onClick, disabled, ...props }) => (
     <button onClick={onClick} disabled={disabled} {...props}>{children}</button>
@@ -39,11 +43,9 @@ beforeEach(() => {
 describe('ConfigPage', () => {
   it('renders config settings after loading', async () => {
     render(<ConfigPage />);
-    // Wait for config to load - editor should show raw config
     await waitFor(() => {
       expect(screen.getByTestId('config-editor')).toBeInTheDocument();
     });
-    // Config settings cards should render
     expect(screen.getByText('Port')).toBeInTheDocument();
     expect(screen.getByText('Bind Host')).toBeInTheDocument();
     expect(screen.getByText('Reload Mode')).toBeInTheDocument();
@@ -106,10 +108,6 @@ describe('ConfigPage', () => {
   });
 
   it('handles validation response with missing errors array (bug regression)', async () => {
-    const { toast } = require('sonner');
-    // Previously crashed when errors was undefined/null
-    // The code accesses res.data.errors.length in handleValidate, which crashes
-    // The fix uses optional chaining: validation.errors?.length ?? 0
     mockValidateConfig.mockResolvedValue({
       data: { valid: false, errors: [] },
     });
@@ -123,7 +121,6 @@ describe('ConfigPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('validation-results')).toBeInTheDocument();
     });
-    // Should display error count gracefully even with empty errors array
     expect(screen.getByText(/Error/)).toBeInTheDocument();
   });
 
@@ -146,7 +143,6 @@ describe('ConfigPage', () => {
   it('saves config successfully', async () => {
     const { toast } = require('sonner');
     render(<ConfigPage />);
-    // Wait for config to load (settings cards visible)
     await waitFor(() => {
       expect(screen.getByText('18789')).toBeInTheDocument();
     });
@@ -165,13 +161,11 @@ describe('ConfigPage', () => {
       expect(screen.getByTestId('validate-config-btn')).toBeInTheDocument();
     });
 
-    // First validate
     fireEvent.click(screen.getByTestId('validate-config-btn'));
     await waitFor(() => {
       expect(screen.getByTestId('validation-results')).toBeInTheDocument();
     });
 
-    // Then edit - validation should disappear
     fireEvent.change(screen.getByTestId('config-editor'), { target: { value: '{}' } });
     expect(screen.queryByTestId('validation-results')).not.toBeInTheDocument();
   });
