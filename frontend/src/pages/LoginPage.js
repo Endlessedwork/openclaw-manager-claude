@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to="/dashboard" replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,7 +19,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(username, password);
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed');
     } finally {

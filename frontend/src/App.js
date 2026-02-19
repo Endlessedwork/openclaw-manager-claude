@@ -5,6 +5,7 @@ import { Toaster } from "./components/ui/sonner";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./layout/MainLayout";
+import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import AgentsPage from "./pages/AgentsPage";
@@ -28,9 +29,10 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-              <Route index element={<DashboardPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/agents" element={<AgentsPage />} />
               <Route path="/skills" element={<SkillsPage />} />
               <Route path="/tools" element={<ToolsPage />} />
