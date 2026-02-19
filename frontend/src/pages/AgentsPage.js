@@ -117,9 +117,16 @@ export default function AgentsPage() {
                 </div>
                 <p className="text-xs text-zinc-500 mb-3 line-clamp-2">{agent.description || 'No description'}</p>
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-zinc-600">Model</span>
-                    <span className="font-mono text-zinc-400">{agent.model_primary}</span>
+                  <div className="flex items-center justify-between text-xs min-w-0">
+                    <span className="text-zinc-600 shrink-0">Model</span>
+                    <span className="font-mono text-zinc-400 text-right min-w-0 ml-2">
+                      {agent.model_primary?.includes('/') ? (
+                        <span className="flex flex-col items-end leading-tight">
+                          <span className="text-zinc-500 text-xs">{agent.model_primary.split('/')[0]}</span>
+                          <span className="truncate max-w-full text-zinc-300">{agent.model_primary.split('/').slice(1).join('/')}</span>
+                        </span>
+                      ) : <span className="truncate block max-w-full">{agent.model_primary}</span>}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-zinc-600">Tools</span>
