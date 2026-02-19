@@ -55,7 +55,7 @@ function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir })
   return (
     <div>
       <button
-        data-testid={`tree-node-${node.name}`}
+        data-testid={`tree-node-${node.path}`}
         onClick={handleClick}
         className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-md transition-colors text-left ${
           isSelected
@@ -293,7 +293,16 @@ export default function FilesPage() {
         {breadcrumbParts.map((part, i) => (
           <React.Fragment key={i}>
             <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
-            <span className="text-sm text-zinc-400 font-mono">{part}</span>
+            {i === 0 ? (
+              <button
+                onClick={() => { setSelectedPath(null); setFileData(null); setEditing(false); }}
+                className={`text-sm font-mono transition-colors ${selectedPath ? 'text-zinc-500 hover:text-orange-400 cursor-pointer' : 'text-zinc-300'}`}
+              >
+                {part}
+              </button>
+            ) : (
+              <span className="text-sm text-zinc-300 font-mono">{part}</span>
+            )}
           </React.Fragment>
         ))}
       </div>

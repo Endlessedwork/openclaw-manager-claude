@@ -26,11 +26,16 @@ TEXT_EXTENSIONS = {
 _ROOT_CONFIGS = "__root_configs__"
 
 CATEGORIES = [
-    {"id": "config", "name": "Config", "description": "Root configuration files", "icon": "settings", "path": _ROOT_CONFIGS},
-    {"id": "skills", "name": "Skills", "description": "Installed skills", "icon": "zap", "path": "skills"},
-    {"id": "workspaces", "name": "Workspaces", "description": "Agent workspaces", "icon": "folder", "path": "workspaces"},
-    {"id": "logs", "name": "Logs", "description": "Gateway log files", "icon": "file-text", "path": "logs"},
-    {"id": "data", "name": "Data", "description": "Data and state files", "icon": "database", "path": "data"},
+    {"id": "agents", "name": "Agents", "icon": "bot", "path": "agents", "description": "Agent workspaces & configs"},
+    {"id": "skills", "name": "Skills", "icon": "sparkles", "path": "skills", "description": "Installed skill files"},
+    {"id": "config", "name": "Config", "icon": "settings", "path": _ROOT_CONFIGS, "description": "Config files"},
+    {"id": "media", "name": "Media", "icon": "image", "path": "media", "description": "Images, audio, uploads"},
+    {"id": "memory", "name": "Memory", "icon": "brain", "path": "memory", "description": "Context & memory storage"},
+    {"id": "credentials", "name": "Credentials", "icon": "key", "path": "credentials", "description": "API keys & secrets"},
+    {"id": "scripts", "name": "Scripts", "icon": "file-code", "path": "scripts", "description": "User scripts"},
+    {"id": "browser", "name": "Browser", "icon": "globe", "path": "browser", "description": "Browser automation data"},
+    {"id": "canvas", "name": "Canvas", "icon": "layout", "path": "canvas", "description": "Canvas node data"},
+    {"id": "workspace", "name": "Workspace", "icon": "folder-open", "path": "workspace", "description": "Default agent workspace"},
 ]
 
 # Credentials pattern: 20+ alphanumeric chars
@@ -43,7 +48,7 @@ def _safe_path(relative_path: str) -> Path:
         raise HTTPException(400, "Path is required")
     resolved = (OPENCLAW_ROOT / relative_path).resolve()
     root_resolved = OPENCLAW_ROOT.resolve()
-    if not str(resolved).startswith(str(root_resolved)):
+    if not resolved.is_relative_to(root_resolved):
         raise HTTPException(403, "Access denied: path outside allowed directory")
     return resolved
 
@@ -94,7 +99,7 @@ def _root_config_stats():
         return 0, 0
     try:
         for item in OPENCLAW_ROOT.iterdir():
-            if item.is_file() and item.suffix in (".json", ".env"):
+            if item.is_file() and (item.suffix in (".json", ".env") or item.name == ".env"):
                 file_count += 1
                 try:
                     total_size += item.stat().st_size
@@ -134,9 +139,7 @@ async def list_tree(path: str = Query(""), user=Depends(get_current_user)):
         items = []
         if OPENCLAW_ROOT.is_dir():
             for item in sorted(OPENCLAW_ROOT.iterdir(), key=lambda p: p.name.lower()):
-                if item.name.startswith(".") and item.name != ".env":
-                    continue
-                if item.is_file() and item.suffix in (".json", ".env"):
+                if item.is_file() and (item.suffix in (".json", ".env") or item.name == ".env"):
                     try:
                         stat = item.stat()
                         items.append({
@@ -242,8 +245,9 @@ async def get_file_content(path: str = Query(...), user=Depends(get_current_user
     except OSError as e:
         raise HTTPException(500, f"Cannot read file: {e}")
 
-    # Mask credentials in .env files and other sensitive files
-    if target.suffix in (".env",) or target.name == ".env":
+    # Mask credentials in .env files and files under credentials/ directory
+    rel_str = str(target.relative_to(OPENCLAW_ROOT.resolve()))
+    if target.suffix == ".env" or target.name == ".env" or rel_str.startswith("credentials"):
         content = _mask_credentials(content)
 
     return {**meta, "content": content}
@@ -262,8 +266,9 @@ async def save_file_content(
     """Save text file content. Blocks editing credential files."""
     target = _safe_path(path)
 
-    # Block direct editing of credential/env files
-    if target.suffix == ".env" or target.name == ".env":
+    # Block direct editing of credential files
+    rel_str = str(target.relative_to(OPENCLAW_ROOT.resolve()))
+    if target.suffix == ".env" or target.name == ".env" or rel_str.startswith("credentials"):
         raise HTTPException(403, "Editing credential files is not allowed through this interface")
 
     if not target.is_file():
