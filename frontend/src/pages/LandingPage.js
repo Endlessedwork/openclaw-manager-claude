@@ -425,7 +425,7 @@ export default function LandingPage() {
           }} />
           <div className="absolute inset-0 border border-orange-500/15 rounded-2xl" />
 
-          <div className="relative px-8 py-16 text-center">
+          <div className="relative px-8 py-14 text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-orange-500/15 bg-orange-500/[0.04] mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-orange-500" style={{ animation: 'landing-glow-pulse 2s ease-in-out infinite' }} />
               <span className="text-[10px] font-mono text-orange-400 tracking-widest uppercase">Ready to proceed</span>
@@ -434,9 +434,25 @@ export default function LandingPage() {
             <h2 className="text-2xl md:text-3xl font-bold text-zinc-100 mb-3" style={{ fontFamily: 'Manrope, sans-serif' }}>
               Access the control center
             </h2>
-            <p className="text-sm text-zinc-400 mb-8 max-w-sm mx-auto">
+            <p className="text-sm text-zinc-400 mb-8 max-w-md mx-auto">
               Sign in with your operator credentials to begin managing your AI gateway.
             </p>
+
+            {/* Quick highlights */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-2xl mx-auto mb-10">
+              {[
+                { icon: Bot, label: 'Agent Management', desc: '5 agents configured' },
+                { icon: Cpu, label: 'Multi-model AI', desc: 'Fallback priority chains' },
+                { icon: ScrollText, label: 'Live Monitoring', desc: 'Real-time log streams' },
+                { icon: Shield, label: 'Secure Access', desc: 'JWT + role-based auth' },
+              ].map(({ icon: Icon, label, desc }) => (
+                <div key={label} className="text-left px-3.5 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                  <Icon className="w-4 h-4 text-orange-500/70 mb-2" />
+                  <p className="text-[11px] font-medium text-zinc-300">{label}</p>
+                  <p className="text-[10px] text-zinc-500">{desc}</p>
+                </div>
+              ))}
+            </div>
 
             <button
               data-testid="cta-sign-in"
@@ -444,7 +460,7 @@ export default function LandingPage() {
               className="group inline-flex items-center gap-2.5 px-7 py-3.5 bg-orange-600 hover:bg-orange-500 text-white font-semibold text-sm rounded-xl transition-all duration-300 hover:-translate-y-0.5"
               style={{ boxShadow: '0 0 30px rgba(249,115,22,0.3), 0 4px 20px rgba(0,0,0,0.4)' }}
             >
-              Sign In
+              Sign In to Dashboard
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
