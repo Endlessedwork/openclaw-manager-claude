@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -118,38 +118,6 @@ const CAPABILITIES = [
   { icon: Store, label: 'Skill Marketplace' },
 ];
 
-/* ─── Scroll reveal hook ─── */
-function useScrollReveal() {
-  const ref = useRef(null);
-  const observerRef = useRef(null);
-
-  const setRef = useCallback((node) => {
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
-    if (node) {
-      observerRef.current = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add('visible');
-              observerRef.current?.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
-      );
-
-      node.querySelectorAll('.landing-reveal').forEach((el) => {
-        observerRef.current.observe(el);
-      });
-    }
-    ref.current = node;
-  }, []);
-
-  return setRef;
-}
-
 /* ─── Feature card ─── */
 function ModuleCard({ icon: Icon, title, tag, description, color, span, delay = 0 }) {
   const c = COLOR[color];
@@ -195,8 +163,6 @@ function ModuleCard({ icon: Icon, title, tag, description, color, span, delay = 
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const containerRef = useScrollReveal();
-
   useEffect(() => {
     if (!loading && user) navigate('/dashboard', { replace: true });
   }, [user, loading, navigate]);
@@ -210,7 +176,7 @@ export default function LandingPage() {
   }
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-[#07070a] text-zinc-100 overflow-x-hidden" style={{ fontFamily: 'Inter, sans-serif' }}>
+    <div className="min-h-screen bg-[#07070a] text-zinc-100 overflow-x-hidden" style={{ fontFamily: 'Inter, sans-serif' }}>
 
       {/* ── Background layers ── */}
       <div className="fixed inset-0 pointer-events-none z-0">
