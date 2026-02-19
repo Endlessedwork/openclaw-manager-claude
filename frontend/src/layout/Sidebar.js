@@ -53,7 +53,7 @@ export default function Sidebar() {
           {!collapsed && (
             <div className="flex flex-col leading-tight">
               <span className="font-bold text-base tracking-widest" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
-              <span className="text-[10px] text-zinc-500 tracking-wider">Operation</span>
+              <span className="text-[10px] text-zinc-500 tracking-wider">Operation Control</span>
             </div>
           )}
         </div>

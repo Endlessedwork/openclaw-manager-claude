@@ -31,12 +31,13 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#09090b]">
       <div className="w-full max-w-sm mx-4">
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center shadow-[0_0_20px_rgba(249,115,22,0.4)]">
+          <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center shadow-[0_0_15px_rgba(249,115,22,0.4)]">
             <Activity className="w-5 h-5 text-white" />
           </div>
-          <span className="text-2xl font-semibold tracking-tight text-zinc-100" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            OpenClaw
-          </span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-2xl font-bold tracking-widest text-zinc-100" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
+            <span className="text-xs text-zinc-500 tracking-wider">Operation Control</span>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-[#0c0c0e] border border-white/5 rounded-xl p-6 space-y-4">

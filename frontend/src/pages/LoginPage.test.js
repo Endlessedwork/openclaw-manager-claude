@@ -35,9 +35,9 @@ describe('LoginPage', () => {
     expect(screen.getByText('Sign in')).toBeInTheDocument();
   });
 
-  it('renders OpenClaw branding', () => {
+  it('renders W.I.N.E branding', () => {
     render(<LoginPage />);
-    expect(screen.getByText('OpenClaw')).toBeInTheDocument();
+    expect(screen.getByText('W.I.N.E')).toBeInTheDocument();
   });
 
   it('calls login on form submit', async () => {
