@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>W.I.N.E Operation Control</title>
+  <meta name="description" content="Intelligent gateway management platform for autonomous AI systems." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background: #07070a;
+      color: #f4f4f5;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4, h5, h6 { font-family: 'Manrope', sans-serif; }
+    code, pre, .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    a { text-decoration: none; color: inherit; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #09090b; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+    /* Animations */
+    @keyframes landing-scan {
+      0% { transform: translateY(-100vh); }
+      100% { transform: translateY(100vh); }
+    }
+    @keyframes landing-reveal {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes landing-glow-pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+    @keyframes landing-border-glow {
+      0%, 100% { border-color: rgba(249, 115, 22, 0.15); }
+      50% { border-color: rgba(249, 115, 22, 0.4); }
+    }
+    @keyframes landing-type-cursor {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    @keyframes landing-marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    @keyframes ping {
+      75%, 100% { transform: scale(2); opacity: 0; }
+    }
+
+    .landing-reveal {
+      animation: landing-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    /* Utility classes */
+    .flex { display: flex; }
+    .inline-flex { display: inline-flex; }
+    .grid { display: grid; }
+    .block { display: block; }
+    .relative { position: relative; }
+    .absolute { position: absolute; }
+    .fixed { position: fixed; }
+    .sticky { position: sticky; }
+    .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+    .items-center { align-items: center; }
+    .items-start { align-items: start; }
+    .justify-center { justify-content: center; }
+    .justify-between { justify-content: space-between; }
+    .flex-col { flex-direction: column; }
+    .flex-wrap { flex-wrap: wrap; }
+    .gap-1 { gap: 0.25rem; }
+    .gap-1\.5 { gap: 0.375rem; }
+    .gap-2 { gap: 0.5rem; }
+    .gap-2\.5 { gap: 0.625rem; }
+    .gap-3 { gap: 0.75rem; }
+    .gap-3\.5 { gap: 0.875rem; }
+    .gap-6 { gap: 1.5rem; }
+    .gap-10 { gap: 2.5rem; }
+    .text-center { text-align: center; }
+    .text-left { text-align: left; }
+    .pointer-events-none { pointer-events: none; }
+    .overflow-hidden { overflow: hidden; }
+    .whitespace-nowrap { white-space: nowrap; }
+    .shrink-0 { flex-shrink: 0; }
+    .leading-none { line-height: 1; }
+    .leading-tight { line-height: 1.25; }
+    .leading-relaxed { line-height: 1.625; }
+    .tracking-tight { letter-spacing: -0.025em; }
+    .tracking-wider { letter-spacing: 0.05em; }
+    .tracking-widest { letter-spacing: 0.1em; }
+    .uppercase { text-transform: uppercase; }
+    .font-medium { font-weight: 500; }
+    .font-semibold { font-weight: 600; }
+    .font-bold { font-weight: 700; }
+    .cursor-default { cursor: default; }
+    .transition-all { transition: all 0.3s; }
+    .transition-colors { transition: color 0.3s, background-color 0.3s, border-color 0.3s; }
+    .transition-transform { transition: transform 0.3s; }
+    .transition-opacity { transition: opacity 0.5s; }
+    .rounded-full { border-radius: 9999px; }
+    .rounded-lg { border-radius: 0.5rem; }
+    .rounded-xl { border-radius: 0.75rem; }
+    .rounded-2xl { border-radius: 1rem; }
+    .rounded-md { border-radius: 0.375rem; }
+    .border { border: 1px solid; }
+    .border-b { border-bottom: 1px solid; }
+    .border-t { border-top: 1px solid; }
+    .border-y { border-top: 1px solid; border-bottom: 1px solid; }
+    .z-0 { z-index: 0; }
+    .z-10 { z-index: 10; }
+    .z-50 { z-index: 50; }
+
+    /* Sizing */
+    .w-full { width: 100%; }
+    .max-w-6xl { max-width: 72rem; }
+    .max-w-3xl { max-width: 48rem; }
+    .max-w-2xl { max-width: 42rem; }
+    .max-w-lg { max-width: 32rem; }
+    .max-w-md { max-width: 28rem; }
+    .mx-auto { margin-left: auto; margin-right: auto; }
+
+    /* Spacing */
+    .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+    .px-2\.5 { padding-left: 0.625rem; padding-right: 0.625rem; }
+    .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .px-3\.5 { padding-left: 0.875rem; padding-right: 0.875rem; }
+    .px-4 { padding-left: 1rem; padding-right: 1rem; }
+    .px-5 { padding-left: 1.25rem; padding-right: 1.25rem; }
+    .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+    .px-7 { padding-left: 1.75rem; padding-right: 1.75rem; }
+    .px-8 { padding-left: 2rem; padding-right: 2rem; }
+    .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+    .py-1\.5 { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+    .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+    .py-2\.5 { padding-top: 0.625rem; padding-bottom: 0.625rem; }
+    .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+    .py-3\.5 { padding-top: 0.875rem; padding-bottom: 0.875rem; }
+    .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+    .py-14 { padding-top: 3.5rem; padding-bottom: 3.5rem; }
+    .p-5 { padding: 1.25rem; }
+    .p-6 { padding: 1.5rem; }
+    .pt-16 { padding-top: 4rem; }
+    .pt-28 { padding-top: 7rem; }
+    .pb-8 { padding-bottom: 2rem; }
+    .pb-24 { padding-bottom: 6rem; }
+    .mb-3 { margin-bottom: 0.75rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .mb-6 { margin-bottom: 1.5rem; }
+    .mb-8 { margin-bottom: 2rem; }
+    .mb-10 { margin-bottom: 2.5rem; }
+    .mb-12 { margin-bottom: 3rem; }
+    .mt-0\.5 { margin-top: 0.125rem; }
+    .mt-1 { margin-top: 0.25rem; }
+    .mt-1\.5 { margin-top: 0.375rem; }
+    .mt-3 { margin-top: 0.75rem; }
+    .mt-20 { margin-top: 5rem; }
+    .ml-2 { margin-left: 0.5rem; }
+    .mr-2 { margin-right: 0.5rem; }
+    .mx-6 { margin-left: 1.5rem; margin-right: 1.5rem; }
+    .h-14 { height: 3.5rem; }
+
+    /* Colors */
+    .text-white { color: #fff; }
+    .text-zinc-50 { color: #fafafa; }
+    .text-zinc-100 { color: #f4f4f5; }
+    .text-zinc-200 { color: #e4e4e7; }
+    .text-zinc-300 { color: #d4d4d8; }
+    .text-zinc-400 { color: #a1a1aa; }
+    .text-zinc-500 { color: #71717a; }
+    .text-zinc-600 { color: #52525b; }
+    .text-orange-400 { color: #fb923c; }
+    .text-sky-400 { color: #38bdf8; }
+    .text-emerald-400 { color: #34d399; }
+    .text-amber-400 { color: #fbbf24; }
+    .text-violet-400 { color: #a78bfa; }
+
+    /* SVG Icons - using inline SVGs */
+    .icon { width: 1em; height: 1em; display: inline-block; vertical-align: middle; }
+
+    /* Cards */
+    .module-card {
+      position: relative;
+      background: #0a0a0c;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      transition: all 0.5s;
+    }
+    .module-card:hover .dot-red { background: rgba(239, 68, 68, 0.6); }
+    .module-card:hover .dot-yellow { background: rgba(234, 179, 8, 0.6); }
+    .module-card:hover .dot-green { background: rgba(34, 197, 94, 0.6); }
+    .module-card:hover .hover-glow { opacity: 1; }
+    .module-card.span-2 { grid-column: span 2; }
+
+    /* Hover effects */
+    .hover-glow {
+      position: absolute; inset: 0;
+      opacity: 0; transition: opacity 0.5s;
+      pointer-events: none; border-radius: 0.75rem;
+      box-shadow: inset 0 0 30px rgba(249,115,22,0.03);
+    }
+
+    /* Button hover */
+    .btn-primary:hover {
+      background: #f97316;
+      transform: translateY(-2px);
+    }
+    .btn-nav:hover {
+      background: #ea580c;
+      border-color: #f97316;
+      color: #fff;
+    }
+    .btn-nav:hover .arrow { transform: translateX(2px); }
+    .btn-primary:hover .arrow { transform: translateX(2px); }
+
+    /* Card border hover */
+    .module-card.border-orange:hover { border-color: rgba(249, 115, 22, 0.5); }
+    .module-card.border-blue:hover { border-color: rgba(56, 189, 248, 0.5); }
+    .module-card.border-green:hover { border-color: rgba(52, 211, 153, 0.5); }
+    .module-card.border-yellow:hover { border-color: rgba(251, 191, 19, 0.5); }
+    .module-card.border-purple:hover { border-color: rgba(167, 139, 250, 0.5); }
+
+    /* Responsive */
+    @media (min-width: 640px) {
+      .sm\:col-span-2 { grid-column: span 2; }
+      .sm\:flex-row { flex-direction: row; }
+    }
+    @media (min-width: 768px) {
+      .md\:grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+      .md\:grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+      .md\:col-span-1 { grid-column: span 1; }
+      .md\:text-7xl { font-size: 4.5rem; line-height: 1; }
+      .md\:text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
+      .md\:text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+      .md\:text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+      .md\:pt-36 { padding-top: 9rem; }
+      .md\:p-10 { padding: 2.5rem; }
+    }
+    @media (min-width: 1024px) {
+      .lg\:grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+      .lg\:col-span-2 { grid-column: span 2; }
+    }
+
+    /* Text sizes */
+    .text-5xl { font-size: 3rem; line-height: 1; }
+    .text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+    .text-2xl { font-size: 1.5rem; line-height: 2rem; }
+    .text-base { font-size: 1rem; line-height: 1.5rem; }
+    .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+    .text-xs { font-size: 0.75rem; line-height: 1rem; }
+
+    /* Grid */
+    .grid-cols-1 { grid-template-columns: repeat(1, 1fr); }
+    .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+    /* backdrop blur */
+    .backdrop-blur-2xl { backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); }
+
+    /* Footer link hover */
+    .footer-link:hover { color: #d4d4d8; }
+
+    /* Ping animation */
+    .animate-ping {
+      animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background layers -->
+  <div class="fixed inset-0 pointer-events-none z-0">
+    <div class="absolute inset-0" style="background-image:radial-gradient(rgba(255,255,255,0.04) 1px,transparent 1px);background-size:32px 32px;"></div>
+    <div class="absolute" style="top:-8rem;left:-8rem;width:600px;height:600px;background:radial-gradient(circle,rgba(249,115,22,0.07) 0%,transparent 60%);"></div>
+    <div class="absolute" style="bottom:-8rem;right:-8rem;width:500px;height:500px;background:radial-gradient(circle,rgba(14,165,233,0.05) 0%,transparent 60%);"></div>
+    <div class="absolute" style="left:0;right:0;height:1px;background:linear-gradient(to right,transparent,rgba(249,115,22,0.2),transparent);animation:landing-scan 8s linear infinite;"></div>
+  </div>
+
+  <!-- Navbar -->
+  <nav class="sticky z-50 backdrop-blur-2xl" style="top:0;border-bottom:1px solid rgba(255,255,255,0.04);background:rgba(7,7,10,0.7);">
+    <div class="max-w-6xl mx-auto px-6 flex items-center justify-between h-14">
+      <div class="flex items-center gap-3">
+        <div class="flex items-center justify-center" style="width:32px;height:32px;border-radius:0.5rem;background:#ea580c;box-shadow:0 0 20px rgba(249,115,22,0.35);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="flex flex-col leading-tight">
+          <span class="font-bold text-zinc-100" style="font-size:0.875rem;letter-spacing:0.2em;font-family:Manrope,sans-serif;">W.I.N.E</span>
+          <span class="text-zinc-500 uppercase" style="font-size:9px;letter-spacing:0.1em;">Operation Control</span>
+        </div>
+      </div>
+      <a href="https://control.winecore.work/login" class="btn-nav flex items-center gap-2 text-zinc-300 font-medium" style="padding:0.5rem 1rem;font-size:0.75rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:0.5rem;transition:all 0.3s;">
+        Sign In
+        <svg class="arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.3s;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="relative z-10 max-w-6xl mx-auto px-6 pb-24 pt-28 md\:pt-36" style="padding-top:7rem;">
+    <div class="max-w-3xl mx-auto text-center">
+      <!-- System status -->
+      <div class="landing-reveal inline-flex items-center gap-2 rounded-full mb-10" style="padding:0.375rem 0.75rem;border:1px solid rgba(16,185,129,0.15);background:rgba(16,185,129,0.04);">
+        <span class="relative" style="width:8px;height:8px;">
+          <span class="absolute inset-0 rounded-full animate-ping" style="background:#34d399;opacity:0.5;"></span>
+          <span class="absolute inset-0 rounded-full" style="background:#22c55e;"></span>
+        </span>
+        <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:rgba(52,211,153,0.8);letter-spacing:0.05em;">ALL SYSTEMS OPERATIONAL</span>
+      </div>
+
+      <!-- Heading -->
+      <h1 class="landing-reveal font-bold tracking-tight text-zinc-50 text-5xl md\:text-7xl" style="animation-delay:100ms;line-height:1.05;margin-bottom:1.5rem;font-family:Manrope,sans-serif;">
+        <span class="block">W.I.N.E</span>
+        <span class="block mt-1" style="color:transparent;background:linear-gradient(135deg,#f97316 0%,#fb923c 40%,#fbbf24 100%);-webkit-background-clip:text;background-clip:text;">
+          Operation Control
+        </span>
+      </h1>
+
+      <!-- Subtitle -->
+      <p class="landing-reveal text-base text-zinc-400 max-w-lg mx-auto mb-4 leading-relaxed" style="animation-delay:200ms;">
+        Intelligent gateway management platform for autonomous AI systems.
+      </p>
+
+      <!-- Terminal tagline -->
+      <div class="landing-reveal inline-flex items-center gap-2 rounded-lg mb-10" style="animation-delay:300ms;padding:0.5rem 1rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+        <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#71717a;">$</span>
+        <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#d4d4d8;">manage agents · models · channels · sessions</span>
+        <span style="width:1px;height:14px;background:#f97316;animation:landing-type-cursor 1s step-end infinite;"></span>
+      </div>
+
+      <!-- CTA -->
+      <div class="landing-reveal flex flex-col items-center justify-center gap-3 sm\:flex-row" style="animation-delay:400ms;">
+        <a href="https://control.winecore.work/login" class="btn-primary inline-flex items-center gap-2 text-white font-semibold rounded-xl" style="padding:0.875rem 1.75rem;font-size:0.875rem;background:#ea580c;box-shadow:0 0 30px rgba(249,115,22,0.3),0 4px 20px rgba(0,0,0,0.4);transition:all 0.3s;">
+          Enter Control Center
+          <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.3s;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+        <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#71717a;">v2.0 · 14 modules</span>
+      </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="landing-reveal grid grid-cols-2 gap-3 mt-20" style="animation-delay:500ms;">
+      <div class="flex items-center gap-3 rounded-xl" style="padding:0.75rem 1rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+        <div class="flex items-center justify-center" style="width:32px;height:32px;border-radius:0.5rem;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.1);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(249,115,22,0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        </div>
+        <div>
+          <p class="font-bold text-zinc-200" style="font-size:0.875rem;font-family:'JetBrains Mono',monospace;line-height:1;">14</p>
+          <p class="text-zinc-500" style="font-size:10px;margin-top:0.125rem;">Modules</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 rounded-xl" style="padding:0.75rem 1rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+        <div class="flex items-center justify-center" style="width:32px;height:32px;border-radius:0.5rem;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.1);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(249,115,22,0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div>
+          <p class="font-bold text-zinc-200" style="font-size:0.875rem;font-family:'JetBrains Mono',monospace;line-height:1;">3</p>
+          <p class="text-zinc-500" style="font-size:10px;margin-top:0.125rem;">Access Roles</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 rounded-xl" style="padding:0.75rem 1rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+        <div class="flex items-center justify-center" style="width:32px;height:32px;border-radius:0.5rem;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.1);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(249,115,22,0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div>
+          <p class="font-bold text-zinc-200" style="font-size:0.875rem;font-family:'JetBrains Mono',monospace;line-height:1;">Live</p>
+          <p class="text-zinc-500" style="font-size:10px;margin-top:0.125rem;">Log Streaming</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 rounded-xl" style="padding:0.75rem 1rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+        <div class="flex items-center justify-center" style="width:32px;height:32px;border-radius:0.5rem;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.1);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(249,115,22,0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+        </div>
+        <div>
+          <p class="font-bold text-zinc-200" style="font-size:0.875rem;font-family:'JetBrains Mono',monospace;line-height:1;">N+1</p>
+          <p class="text-zinc-500" style="font-size:10px;margin-top:0.125rem;">Model Fallback</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capabilities marquee -->
+  <div class="relative z-10 overflow-hidden" style="border-top:1px solid rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.01);padding:1rem 0;">
+    <div class="flex whitespace-nowrap" style="animation:landing-marquee 30s linear infinite;">
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">14 Integrated Modules</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Role-based Access Control</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Real-time Log Streaming</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Multi-model Fallback</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">JWT Authentication</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">CLI Gateway Bridge</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Live Session Monitoring</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">System Health Metrics</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Activity Analytics</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Skill Marketplace</span>
+      <!-- Duplicate for seamless loop -->
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">14 Integrated Modules</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Role-based Access Control</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Real-time Log Streaming</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Multi-model Fallback</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">JWT Authentication</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">CLI Gateway Bridge</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Live Session Monitoring</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">System Health Metrics</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Activity Analytics</span>
+      <span class="inline-flex items-center gap-2 mx-6" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">Skill Marketplace</span>
+    </div>
+  </div>
+
+  <!-- Features / System Modules -->
+  <section class="relative z-10 max-w-6xl mx-auto px-6" style="padding:6rem 1.5rem;">
+    <div class="text-center mb-12" style="margin-bottom:4rem;">
+      <p class="landing-reveal uppercase" style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#f97316;letter-spacing:0.3em;margin-bottom:1rem;">System Modules</p>
+      <h2 class="landing-reveal text-3xl font-bold text-zinc-100 tracking-tight" style="font-family:Manrope,sans-serif;animation-delay:100ms;">
+        Full-spectrum gateway control
+      </h2>
+      <p class="landing-reveal text-sm text-zinc-400 max-w-md mx-auto" style="margin-top:0.75rem;animation-delay:200ms;">
+        14 integrated modules covering the complete lifecycle of autonomous agent operations.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 gap-3" style="grid-template-columns:repeat(1,1fr);" id="features-grid">
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section class="relative z-10 max-w-6xl mx-auto px-6 pb-24">
+    <div class="landing-reveal rounded-2xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.04);background:#0a0a0c;">
+      <div class="flex items-center gap-2" style="padding:0.75rem 1.25rem;border-bottom:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.01);">
+        <div class="flex gap-1" style="gap:0.375rem;">
+          <span style="width:10px;height:10px;border-radius:9999px;background:#27272a;"></span>
+          <span style="width:10px;height:10px;border-radius:9999px;background:#27272a;"></span>
+          <span style="width:10px;height:10px;border-radius:9999px;background:#27272a;"></span>
+        </div>
+        <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#71717a;margin-left:0.5rem;letter-spacing:0.05em;">SYSTEM ARCHITECTURE</span>
+      </div>
+      <div class="p-6" id="arch-content" style="padding:1.5rem;">
+        <div class="grid gap-6" style="grid-template-columns:repeat(1,1fr);">
+          <div class="landing-reveal">
+            <div class="flex items-center gap-2 mb-3" style="gap:0.625rem;">
+              <span style="width:8px;height:8px;border-radius:9999px;background:rgba(249,115,22,0.08);box-shadow:0 0 20px rgba(249,115,22,0.12);"></span>
+              <h3 class="text-sm font-semibold text-zinc-200" style="font-family:Manrope,sans-serif;">Gateway Layer</h3>
+            </div>
+            <p class="text-xs text-zinc-400 leading-relaxed mb-4">Core runtime engine bridging the CLI tool with the management interface. Handles process lifecycle, config hot-reload, and health monitoring.</p>
+            <div class="flex flex-wrap gap-1" style="gap:0.375rem;">
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);color:rgba(249,115,22,0.7);">Gateway Control</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);color:rgba(249,115,22,0.7);">Config Editor</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);color:rgba(249,115,22,0.7);">Health Metrics</span>
+            </div>
+          </div>
+          <div class="landing-reveal">
+            <div class="flex items-center gap-2 mb-3" style="gap:0.625rem;">
+              <span style="width:8px;height:8px;border-radius:9999px;background:rgba(14,165,233,0.08);box-shadow:0 0 20px rgba(14,165,233,0.10);"></span>
+              <h3 class="text-sm font-semibold text-zinc-200" style="font-family:Manrope,sans-serif;">Agent Layer</h3>
+            </div>
+            <p class="text-xs text-zinc-400 leading-relaxed mb-4">Agent orchestration with model bindings, skill deployment, tool permissions, and session management across multiple channels.</p>
+            <div class="flex flex-wrap gap-1" style="gap:0.375rem;">
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(14,165,233,0.08);border:1px solid rgba(14,165,233,0.2);color:rgba(56,189,248,0.7);">Agents</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(14,165,233,0.08);border:1px solid rgba(14,165,233,0.2);color:rgba(56,189,248,0.7);">Skills</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(14,165,233,0.08);border:1px solid rgba(14,165,233,0.2);color:rgba(56,189,248,0.7);">Tools</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(14,165,233,0.08);border:1px solid rgba(14,165,233,0.2);color:rgba(56,189,248,0.7);">Models</span>
+            </div>
+          </div>
+          <div class="landing-reveal">
+            <div class="flex items-center gap-2 mb-3" style="gap:0.625rem;">
+              <span style="width:8px;height:8px;border-radius:9999px;background:rgba(16,185,129,0.08);box-shadow:0 0 20px rgba(16,185,129,0.10);"></span>
+              <h3 class="text-sm font-semibold text-zinc-200" style="font-family:Manrope,sans-serif;">Operations Layer</h3>
+            </div>
+            <p class="text-xs text-zinc-400 leading-relaxed mb-4">Monitoring and automation through real-time logs, activity streams, scheduled tasks, webhooks, and role-based access control.</p>
+            <div class="flex flex-wrap gap-1" style="gap:0.375rem;">
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);color:rgba(52,211,153,0.7);">Logs</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);color:rgba(52,211,153,0.7);">Activities</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);color:rgba(52,211,153,0.7);">Cron</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:0.25rem 0.5rem;border-radius:0.375rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);color:rgba(52,211,153,0.7);">Hooks</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="relative z-10 max-w-6xl mx-auto px-6 pb-24">
+    <div class="landing-reveal relative rounded-2xl overflow-hidden" style="animation:landing-border-glow 4s ease-in-out infinite;">
+      <div class="absolute inset-0" style="background:radial-gradient(ellipse at center,rgba(249,115,22,0.06) 0%,transparent 65%);"></div>
+      <div class="absolute inset-0 rounded-2xl" style="border:1px solid rgba(249,115,22,0.15);"></div>
+      <div class="relative text-center" style="padding:3.5rem 2rem;">
+        <div class="inline-flex items-center gap-2 rounded-full mb-6" style="padding:0.375rem 0.75rem;border:1px solid rgba(249,115,22,0.15);background:rgba(249,115,22,0.04);">
+          <span style="width:6px;height:6px;border-radius:9999px;background:#f97316;animation:landing-glow-pulse 2s ease-in-out infinite;"></span>
+          <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#fb923c;letter-spacing:0.1em;text-transform:uppercase;">Ready to proceed</span>
+        </div>
+        <h2 class="text-2xl font-bold text-zinc-100 mb-3" style="font-family:Manrope,sans-serif;">Access the control center</h2>
+        <p class="text-sm text-zinc-400 max-w-md mx-auto" style="margin-bottom:2rem;">Sign in with your operator credentials to begin managing your AI gateway.</p>
+
+        <!-- Quick highlights -->
+        <div class="grid grid-cols-2 gap-3 max-w-2xl mx-auto" style="margin-bottom:2.5rem;">
+          <div class="text-left rounded-xl" style="padding:0.75rem 0.875rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(249,115,22,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:0.5rem;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+            <p style="font-size:11px;font-weight:500;color:#d4d4d8;">Agent Management</p>
+            <p style="font-size:10px;color:#71717a;">5 agents configured</p>
+          </div>
+          <div class="text-left rounded-xl" style="padding:0.75rem 0.875rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(249,115,22,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:0.5rem;"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+            <p style="font-size:11px;font-weight:500;color:#d4d4d8;">Multi-model AI</p>
+            <p style="font-size:10px;color:#71717a;">Fallback priority chains</p>
+          </div>
+          <div class="text-left rounded-xl" style="padding:0.75rem 0.875rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(249,115,22,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:0.5rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <p style="font-size:11px;font-weight:500;color:#d4d4d8;">Live Monitoring</p>
+            <p style="font-size:10px;color:#71717a;">Real-time log streams</p>
+          </div>
+          <div class="text-left rounded-xl" style="padding:0.75rem 0.875rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(249,115,22,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:0.5rem;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <p style="font-size:11px;font-weight:500;color:#d4d4d8;">Secure Access</p>
+            <p style="font-size:10px;color:#71717a;">JWT + role-based auth</p>
+          </div>
+        </div>
+
+        <a href="https://control.winecore.work/login" class="btn-primary inline-flex items-center gap-2 text-white font-semibold rounded-xl" style="padding:0.875rem 1.75rem;font-size:0.875rem;background:#ea580c;box-shadow:0 0 30px rgba(249,115,22,0.3),0 4px 20px rgba(0,0,0,0.4);transition:all 0.3s;">
+          Sign In to Dashboard
+          <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.3s;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="relative z-10" style="border-top:1px solid rgba(255,255,255,0.06);background:#060608;">
+    <div class="max-w-6xl mx-auto px-6 pt-16 pb-8">
+      <div class="grid grid-cols-1 gap-10 mb-12" style="grid-template-columns:repeat(1,1fr);">
+        <!-- Brand -->
+        <div>
+          <div class="flex items-center gap-2 mb-4" style="gap:0.625rem;">
+            <div class="flex items-center justify-center" style="width:28px;height:28px;border-radius:0.5rem;background:#ea580c;box-shadow:0 0 12px rgba(249,115,22,0.3);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div class="flex flex-col leading-tight">
+              <span class="font-bold text-zinc-200" style="font-size:0.75rem;letter-spacing:0.2em;font-family:Manrope,sans-serif;">W.I.N.E</span>
+              <span class="text-zinc-500 uppercase" style="font-size:8px;letter-spacing:0.1em;">Operation Control</span>
+            </div>
+          </div>
+          <p class="text-xs text-zinc-500 leading-relaxed">Intelligent gateway management for autonomous AI agent systems.</p>
+        </div>
+
+        <!-- Modules -->
+        <div>
+          <h4 class="uppercase mb-4" style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.1em;">Core Modules</h4>
+          <ul style="list-style:none;display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;">
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Dashboard</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Agents</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Skills</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Tools</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Models</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Channels</li>
+          </ul>
+        </div>
+
+        <!-- Operations -->
+        <div>
+          <h4 class="uppercase mb-4" style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.1em;">Operations</h4>
+          <ul style="list-style:none;display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;">
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Sessions</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Cron Jobs</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Hooks</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Gateway</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Logs</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Activities</li>
+          </ul>
+        </div>
+
+        <!-- Platform -->
+        <div>
+          <h4 class="uppercase mb-4" style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#a1a1aa;letter-spacing:0.1em;">Platform</h4>
+          <ul style="list-style:none;display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;">
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Config Editor</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">User Management</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">ClawHub Marketplace</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Role-based Access</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Real-time Streaming</li>
+            <li class="footer-link text-xs text-zinc-500 cursor-default transition-colors">Model Fallback</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Tech stack -->
+      <div class="flex flex-wrap items-center gap-2 mb-8" style="padding-bottom:2rem;border-bottom:1px solid rgba(255,255,255,0.04);">
+        <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#52525b;margin-right:0.5rem;">Built with</span>
+        <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#71717a;padding:0.25rem 0.625rem;border-radius:0.375rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">React</span>
+        <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#71717a;padding:0.25rem 0.625rem;border-radius:0.375rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">FastAPI</span>
+        <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#71717a;padding:0.25rem 0.625rem;border-radius:0.375rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">MongoDB</span>
+        <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#71717a;padding:0.25rem 0.625rem;border-radius:0.375rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">Tailwind CSS</span>
+        <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#71717a;padding:0.25rem 0.625rem;border-radius:0.375rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">WebSocket</span>
+      </div>
+
+      <!-- Bottom -->
+      <div class="flex flex-col items-center justify-between gap-3" style="flex-direction:row;">
+        <span style="font-size:10px;color:#52525b;font-family:'JetBrains Mono',monospace;">&copy; 2026 W.I.N.E Operation Control</span>
+        <div class="flex items-center gap-1" style="gap:0.375rem;">
+          <span style="width:6px;height:6px;border-radius:9999px;background:#22c55e;box-shadow:0 0 6px rgba(16,185,129,0.5);"></span>
+          <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#71717a;">All systems operational</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Feature cards via JS (cleaner than duplicating all SVG icons) -->
+  <script>
+    const FEATURES = [
+      { title: 'Dashboard', tag: 'OVERVIEW', description: 'Real-time system overview with gateway health indicators, active agent counts, session graphs, and live metric streams.', color: 'orange', span: true,
+        icon: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>' },
+      { title: 'Agents', tag: 'CORE', description: 'Configure autonomous AI agents with model bindings, tool permissions, sandbox modes, and workspace isolation.', color: 'blue', span: true,
+        icon: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>' },
+      { title: 'Models', tag: 'AI ENGINE', description: 'Multi-provider LLM management with API key rotation and drag-and-drop fallback priority chains.', color: 'green', span: true,
+        icon: '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>' },
+      { title: 'Skills', tag: 'MODULES', description: 'Deploy and version-control agent capabilities. Install from ClawHub or build custom skill packages.', color: 'yellow',
+        icon: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>' },
+      { title: 'Tools', tag: 'PERMISSIONS', description: 'Granular tool access control — filesystem, web, runtime, messaging — grouped per agent.', color: 'purple',
+        icon: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>' },
+      { title: 'Channels', tag: 'ROUTING', description: 'Route messages across Discord, Slack, Telegram, LINE, and custom integrations.', color: 'blue',
+        icon: '<path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>' },
+      { title: 'Sessions', tag: 'MONITOR', description: 'Inspect active conversations with full context state and message history.', color: 'orange',
+        icon: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' },
+      { title: 'Cron', tag: 'SCHEDULER', description: 'Automate recurring agent tasks with cron expressions on any cadence.', color: 'yellow',
+        icon: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' },
+      { title: 'Hooks', tag: 'EVENTS', description: 'Inbound HTTP webhooks with payload mapping and conditional agent triggers.', color: 'purple',
+        icon: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>' },
+      { title: 'ClawHub', tag: 'MARKETPLACE', description: 'Community skill marketplace with one-click install and automatic dependency resolution.', color: 'green',
+        icon: '<line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>' },
+      { title: 'Gateway', tag: 'RUNTIME', description: 'Monitor process health, hot-reload configuration, and control the core bot runtime.', color: 'orange', span: true,
+        icon: '<rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>' },
+      { title: 'Logs', tag: 'STREAM', description: 'Real-time log streaming with live filtering, regex search, and multi-source selection.', color: 'blue',
+        icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>' },
+      { title: 'Config', tag: 'EDITOR', description: 'Direct JSON config editing with syntax highlighting and live validation.', color: 'yellow',
+        icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
+      { title: 'Users', tag: 'ACCESS', description: 'Role-based operator management — Admin, Editor, and Viewer with scoped permissions.', color: 'purple',
+        icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
+    ];
+
+    const COLORS = {
+      orange: { icon: '#fb923c', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.2)', glow: '0 0 20px rgba(249,115,22,0.12)', tag: 'rgba(249,115,22,0.7)' },
+      blue:   { icon: '#38bdf8', bg: 'rgba(14,165,233,0.08)', border: 'rgba(14,165,233,0.2)', glow: '0 0 20px rgba(14,165,233,0.10)', tag: 'rgba(56,189,248,0.7)' },
+      green:  { icon: '#34d399', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)', glow: '0 0 20px rgba(16,185,129,0.10)', tag: 'rgba(52,211,153,0.7)' },
+      yellow: { icon: '#fbbf24', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', glow: '0 0 20px rgba(245,158,11,0.10)', tag: 'rgba(251,191,19,0.7)' },
+      purple: { icon: '#a78bfa', bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.2)', glow: '0 0 20px rgba(139,92,246,0.10)', tag: 'rgba(167,139,250,0.7)' },
+    };
+
+    const grid = document.getElementById('features-grid');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+    grid.style.gap = '0.75rem';
+
+    FEATURES.forEach((f, i) => {
+      const c = COLORS[f.color];
+      const card = document.createElement('div');
+      card.className = `module-card border-${f.color}`;
+      if (f.span) card.style.gridColumn = 'span 2';
+      card.style.borderColor = c.border;
+      card.style.animationDelay = `${i * 60}ms`;
+
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0.625rem 1rem;border-bottom:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.01);">
+          <div style="display:flex;align-items:center;gap:0.625rem;">
+            <div style="display:flex;gap:0.25rem;">
+              <span class="dot-red" style="width:8px;height:8px;border-radius:9999px;background:#3f3f46;transition:background 0.3s;"></span>
+              <span class="dot-yellow" style="width:8px;height:8px;border-radius:9999px;background:#3f3f46;transition:background 0.3s;"></span>
+              <span class="dot-green" style="width:8px;height:8px;border-radius:9999px;background:#3f3f46;transition:background 0.3s;"></span>
+            </div>
+            <span style="font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:0.1em;text-transform:uppercase;color:${c.tag};">${f.tag}</span>
+          </div>
+          <div style="width:6px;height:6px;border-radius:9999px;background:${c.bg};box-shadow:${c.glow};animation:landing-glow-pulse 3s ease-in-out infinite;"></div>
+        </div>
+        <div style="padding:1.25rem;">
+          <div style="display:flex;align-items:start;gap:0.875rem;margin-bottom:0.75rem;">
+            <div style="width:36px;height:36px;border-radius:0.5rem;display:flex;align-items:center;justify-content:center;background:${c.bg};border:1px solid ${c.border};box-shadow:${c.glow};flex-shrink:0;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c.icon}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${f.icon}</svg>
+            </div>
+            <div>
+              <h3 style="font-size:0.875rem;font-weight:600;color:#f4f4f5;line-height:1;font-family:Manrope,sans-serif;">${f.title}</h3>
+              <p style="font-size:0.75rem;color:#a1a1aa;line-height:1.625;margin-top:0.375rem;">${f.description}</p>
+            </div>
+          </div>
+        </div>
+        <div class="hover-glow"></div>
+      `;
+      grid.appendChild(card);
+    });
+
+    // Responsive grid
+    function updateGrid() {
+      const w = window.innerWidth;
+      if (w >= 1024) grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+      else if (w >= 640) grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+      else grid.style.gridTemplateColumns = '1fr';
+
+      // Architecture grid
+      const arch = document.querySelector('#arch-content .grid');
+      if (arch) arch.style.gridTemplateColumns = w >= 768 ? 'repeat(3, 1fr)' : '1fr';
+
+      // Footer grid
+      const footer = document.querySelector('footer .grid');
+      if (footer) footer.style.gridTemplateColumns = w >= 768 ? 'repeat(4, 1fr)' : '1fr';
+
+      // Stats grid
+      const stats = document.querySelector('.mt-20.grid');
+      if (stats) stats.style.gridTemplateColumns = w >= 768 ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)';
+
+      // CTA highlights grid
+      const cta = document.querySelector('.grid.grid-cols-2.max-w-2xl');
+      if (cta) cta.style.gridTemplateColumns = w >= 768 ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)';
+
+      // Hero responsive
+      const h1 = document.querySelector('h1');
+      if (h1) h1.style.fontSize = w >= 768 ? '4.5rem' : '3rem';
+
+      // Hero padding
+      const hero = document.querySelector('section.pt-28');
+      if (hero) hero.style.paddingTop = w >= 768 ? '9rem' : '7rem';
+    }
+    updateGrid();
+    window.addEventListener('resize', updateGrid);
+  </script>
+
+</body>
+</html>

@@ -1,11 +1,10 @@
 import React from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./layout/MainLayout";
-import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import AgentsPage from "./pages/AgentsPage";
@@ -22,6 +21,7 @@ import HooksPage from "./pages/HooksPage";
 import ActivitiesPage from "./pages/ActivitiesPage";
 import LogsPage from "./pages/LogsPage";
 import UsersPage from "./pages/UsersPage";
+import HealthPage from "./pages/HealthPage";
 
 function App() {
   return (
@@ -29,7 +29,7 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<DashboardPage />} />
@@ -42,6 +42,7 @@ function App() {
               <Route path="/cron" element={<CronPage />} />
               <Route path="/config" element={<ConfigPage />} />
               <Route path="/gateway" element={<GatewayPage />} />
+              <Route path="/health" element={<HealthPage />} />
               <Route path="/activities" element={<ActivitiesPage />} />
               <Route path="/logs" element={<LogsPage />} />
               <Route path="/clawhub" element={<ClawHubPage />} />

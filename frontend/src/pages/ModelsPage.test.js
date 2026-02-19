@@ -18,6 +18,8 @@ jest.mock('lucide-react', () => ({
   ChevronDown: (props) => <svg data-testid="icon-chevron" {...props} />,
   Save: (props) => <svg data-testid="icon-save" {...props} />,
   Image: (props) => <svg data-testid="icon-image" {...props} />,
+  LayoutGrid: (props) => <svg data-testid="icon-layout-grid" {...props} />,
+  List: (props) => <svg data-testid="icon-list" {...props} />,
 }));
 
 const mockModels = [
@@ -223,5 +225,29 @@ describe('ModelsPage', () => {
       expect(screen.getByTestId('tab-text')).toBeInTheDocument();
       expect(screen.getByTestId('tab-image')).toBeInTheDocument();
     });
+  });
+
+  it('renders view toggle buttons', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('view-toggle')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Grid view')).toBeInTheDocument();
+    expect(screen.getByLabelText('List view')).toBeInTheDocument();
+  });
+
+  it('switches to list view showing compact model rows', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Claude Sonnet')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByLabelText('List view'));
+    const listView = screen.getByTestId('models-list-view');
+    expect(listView).toBeInTheDocument();
+    // List view shows model names, rank numbers, and providers
+    expect(screen.getByText('Claude Sonnet')).toBeInTheDocument();
+    expect(screen.getByText('GPT-4o')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
   });
 });

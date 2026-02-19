@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getModels, getProviders, createProvider, updateProvider, deleteProvider, getFallbacks, updateFallbacks, updateAgentFallbacks } from '../lib/api';
-import { Cpu, Plus, Pencil, Trash2, Star, AlertTriangle, CheckCircle2, Server, X, Save, Image } from 'lucide-react';
+import { Cpu, Plus, Pencil, Trash2, Star, AlertTriangle, CheckCircle2, Server, X, Save, Image, LayoutGrid, List } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -39,6 +39,7 @@ export default function ModelsPage() {
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null);
   const [agentForm, setAgentForm] = useState({ model: '', fallbacks: [] });
+  const [viewMode, setViewMode] = useState('grid');
 
   const load = useCallback(async () => {
     try {
@@ -155,9 +156,27 @@ export default function ModelsPage() {
   return (
     <div data-testid="models-page" className="space-y-8">
       {/* === Active Models from CLI === */}
-      <div>
-        <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Models</h1>
-        <p className="text-sm text-zinc-500 mt-1">Active models from gateway (config + environment)</p>
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Models</h1>
+          <p className="text-sm text-zinc-500 mt-1">Active models from gateway (config + environment)</p>
+        </div>
+        <div className="flex items-center gap-1" data-testid="view-toggle">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`p-1.5 rounded transition-colors ${viewMode === 'grid' ? 'bg-orange-500/15 text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+            aria-label="Grid view"
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`p-1.5 rounded transition-colors ${viewMode === 'list' ? 'bg-orange-500/15 text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+            aria-label="List view"
+          >
+            <List className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -166,6 +185,54 @@ export default function ModelsPage() {
         <>
           {models.length === 0 ? (
             <div className="text-center py-12 text-zinc-500">No models available</div>
+          ) : viewMode === 'list' ? (
+            <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg overflow-hidden" data-testid="models-list-view">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 border-b border-zinc-800/60">
+                    <th className="text-left py-2 pl-4 pr-2 w-10">#</th>
+                    <th className="w-6"></th>
+                    <th className="text-left py-2 px-2">Model</th>
+                    <th className="text-left py-2 px-2">Provider</th>
+                    <th className="text-right py-2 px-2">Context</th>
+                    <th className="text-left py-2 pl-2 pr-4">Tags</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {models.map((m, index) => (
+                    <tr
+                      key={m.id}
+                      className={`hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/30 last:border-b-0 ${m.is_primary ? 'border-l-2 border-l-orange-500' : 'border-l-2 border-l-transparent'}`}
+                    >
+                      <td className="py-2 pl-4 pr-2 font-mono text-zinc-500 align-middle">{index + 1}</td>
+                      <td className="align-middle">
+                        {m.enabled ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        ) : (
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                        )}
+                      </td>
+                      <td className="py-2 px-2 align-middle">
+                        <div className="font-semibold text-zinc-200 leading-tight">{m.name}</div>
+                        <div className="font-mono text-[10px] text-zinc-500 leading-tight">{m.key}</div>
+                      </td>
+                      <td className="py-2 px-2 font-mono text-zinc-400 align-middle">{m.provider_id || '—'}</td>
+                      <td className="py-2 px-2 font-mono text-zinc-400 text-right align-middle whitespace-nowrap">{m.context_window ? `${Number(m.context_window).toLocaleString()}` : '—'}</td>
+                      <td className="py-2 pl-2 pr-4 align-middle">
+                        <div className="flex flex-wrap gap-1">
+                          {m.is_primary && <Star className="w-3.5 h-3.5 text-orange-500 fill-orange-500 shrink-0" />}
+                          {m.tags?.map(tag => (
+                            <span key={tag} className={`text-[10px] px-1.5 py-0.5 rounded font-mono whitespace-nowrap ${tag === 'default' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-zinc-800 text-zinc-400 border border-zinc-700'}`}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {models.map(m => (

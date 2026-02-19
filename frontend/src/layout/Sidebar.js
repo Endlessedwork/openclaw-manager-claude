@@ -25,6 +25,7 @@ const navItems = [
   { path: '/cron', label: 'Cron Jobs', icon: Clock },
   { path: '/config', label: 'Config', icon: FileCode },
   { path: '/gateway', label: 'Gateway', icon: Server },
+  { path: '/health', label: 'Health', icon: Activity },
 ];
 
 export default function Sidebar() {

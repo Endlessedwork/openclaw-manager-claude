@@ -62,6 +62,9 @@ export const getClawHubSkills = (search = '', category = 'all') => api.get(`/cla
 export const installClawHubSkill = (id, envVars = {}) => api.post(`/clawhub/install/${id}`, { env_vars: envVars });
 export const uninstallClawHubSkill = (id) => api.post(`/clawhub/uninstall/${id}`);
 
+// System Health
+export const getSystemHealth = () => api.get('/health/system');
+
 // Hooks/Webhooks
 export const getHooksConfig = () => api.get('/hooks/config');
 export const getHookMappings = () => api.get('/hooks/mappings');

@@ -722,6 +722,137 @@ async def uninstall_clawhub_skill(skill_id: str, user=Depends(require_role("admi
     return {"status": "uninstalled"}
 
 
+# ===== SYSTEM HEALTH (psutil) =====
+def _collect_system_health():
+    import psutil
+    import time
+
+    # CPU
+    cpu_percent_per_core = psutil.cpu_percent(interval=0.1, percpu=True)
+    cpu_freq = psutil.cpu_freq()
+    try:
+        load_avg = list(os.getloadavg())
+    except (OSError, AttributeError):
+        load_avg = [0.0, 0.0, 0.0]
+
+    cpu = {
+        "percent_total": sum(cpu_percent_per_core) / len(cpu_percent_per_core) if cpu_percent_per_core else 0,
+        "percent_per_core": cpu_percent_per_core,
+        "count_logical": psutil.cpu_count(logical=True),
+        "count_physical": psutil.cpu_count(logical=False),
+        "frequency_mhz": {
+            "current": round(cpu_freq.current, 1) if cpu_freq else 0,
+            "min": round(cpu_freq.min, 1) if cpu_freq else 0,
+            "max": round(cpu_freq.max, 1) if cpu_freq else 0,
+        },
+        "load_avg": [round(x, 2) for x in load_avg],
+    }
+
+    # Memory
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    memory = {
+        "total_bytes": mem.total,
+        "available_bytes": mem.available,
+        "used_bytes": mem.used,
+        "percent": mem.percent,
+        "swap_total_bytes": swap.total,
+        "swap_used_bytes": swap.used,
+        "swap_percent": swap.percent,
+    }
+
+    # Disk — filter out virtual/snap partitions
+    skip_fstypes = {"squashfs", "tmpfs", "devtmpfs", "overlay", "aufs"}
+    skip_mountpoint_prefixes = ("/snap", "/sys", "/proc", "/dev", "/run")
+    partitions = []
+    for p in psutil.disk_partitions(all=False):
+        if p.fstype in skip_fstypes:
+            continue
+        if any(p.mountpoint.startswith(prefix) for prefix in skip_mountpoint_prefixes):
+            continue
+        try:
+            usage = psutil.disk_usage(p.mountpoint)
+            partitions.append({
+                "device": p.device,
+                "mountpoint": p.mountpoint,
+                "fstype": p.fstype,
+                "total_bytes": usage.total,
+                "used_bytes": usage.used,
+                "free_bytes": usage.free,
+                "percent": usage.percent,
+            })
+        except PermissionError:
+            continue
+    disk = {"partitions": partitions}
+
+    # Network
+    net_io = psutil.net_io_counters()
+    net_per_nic = psutil.net_io_counters(pernic=True)
+    interfaces = {}
+    for name, counters in net_per_nic.items():
+        if name == "lo":
+            continue
+        interfaces[name] = {
+            "bytes_sent": counters.bytes_sent,
+            "bytes_recv": counters.bytes_recv,
+        }
+    network = {
+        "bytes_sent": net_io.bytes_sent,
+        "bytes_recv": net_io.bytes_recv,
+        "packets_sent": net_io.packets_sent,
+        "packets_recv": net_io.packets_recv,
+        "interfaces": interfaces,
+    }
+
+    # Processes
+    proc_statuses = {"total": 0, "running": 0, "sleeping": 0, "zombie": 0}
+    for proc in psutil.process_iter(["status"]):
+        proc_statuses["total"] += 1
+        st = proc.info["status"]
+        if st == psutil.STATUS_RUNNING:
+            proc_statuses["running"] += 1
+        elif st == psutil.STATUS_SLEEPING:
+            proc_statuses["sleeping"] += 1
+        elif st == psutil.STATUS_ZOMBIE:
+            proc_statuses["zombie"] += 1
+    processes = proc_statuses
+
+    # Uptime & boot time
+    boot_time_ts = psutil.boot_time()
+    uptime_seconds = round(time.time() - boot_time_ts)
+    boot_time_iso = datetime.fromtimestamp(boot_time_ts, tz=timezone.utc).isoformat()
+
+    # Temperatures (not available on all systems)
+    temperatures = None
+    try:
+        temps = psutil.sensors_temperatures()
+        if temps:
+            temperatures = {}
+            for chip, entries in temps.items():
+                temperatures[chip] = [
+                    {"label": e.label or "unknown", "current": e.current, "high": e.high, "critical": e.critical}
+                    for e in entries
+                ]
+    except (AttributeError, NotImplementedError):
+        pass
+
+    return {
+        "cpu": cpu,
+        "memory": memory,
+        "disk": disk,
+        "network": network,
+        "processes": processes,
+        "uptime_seconds": uptime_seconds,
+        "boot_time": boot_time_iso,
+        "temperatures": temperatures,
+    }
+
+
+@api_router.get("/health/system")
+async def get_system_health(user=Depends(get_current_user)):
+    return await asyncio.to_thread(_collect_system_health)
+
+
 app.include_router(api_router)
 
 
