@@ -108,6 +108,51 @@ code, pre, .font-mono {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* Landing page animations */
+@keyframes landing-scan {
+  0% { transform: translateY(-100vh); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes landing-reveal {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes landing-border-glow {
+  0%, 100% { border-color: rgba(249, 115, 22, 0.15); }
+  50% { border-color: rgba(249, 115, 22, 0.4); }
+}
+
+@keyframes landing-type-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes landing-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+.landing-reveal.visible {
+  animation: landing-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 @layer base {
   [data-debug-wrapper="true"] {
     display: contents !important;

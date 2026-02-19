@@ -11,7 +11,7 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
 const navItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/activities', label: 'Activities', icon: MonitorDot },
   { path: '/logs', label: 'Logs', icon: ScrollText },
   { path: '/agents', label: 'Agents', icon: Bot },
@@ -62,7 +62,7 @@ export default function Sidebar() {
         <ScrollArea className="flex-1 py-3">
           <nav className="flex flex-col gap-0.5 px-2">
             {allNavItems.map(({ path, label, icon: Icon }) => {
-              const isActive = path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
+              const isActive = location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(path));
               const link = (
                 <NavLink
                   key={path}
