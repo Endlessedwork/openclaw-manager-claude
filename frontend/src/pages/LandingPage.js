@@ -179,7 +179,7 @@ function ModuleCard({ icon: Icon, title, tag, description, color, span, delay = 
           </div>
           <div>
             <h3 className="text-sm font-semibold text-zinc-100 leading-none" style={{ fontFamily: 'Manrope, sans-serif' }}>{title}</h3>
-            <p className="text-xs text-zinc-500 leading-relaxed mt-1.5">{description}</p>
+            <p className="text-xs text-zinc-400 leading-relaxed mt-1.5">{description}</p>
           </div>
         </div>
       </div>
@@ -242,7 +242,7 @@ export default function LandingPage() {
             </div>
             <div className="flex flex-col leading-tight">
               <span className="text-sm font-bold tracking-[0.2em] text-zinc-100" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
-              <span className="text-[9px] text-zinc-600 tracking-widest uppercase">Operation Control</span>
+              <span className="text-[9px] text-zinc-500 tracking-widest uppercase">Operation Control</span>
             </div>
           </div>
           <button
@@ -279,15 +279,15 @@ export default function LandingPage() {
           </h1>
 
           {/* Subtitle */}
-          <p className="landing-reveal text-base md:text-lg text-zinc-500 max-w-lg mx-auto mb-4 leading-relaxed" style={{ animationDelay: '200ms' }}>
+          <p className="landing-reveal text-base md:text-lg text-zinc-400 max-w-lg mx-auto mb-4 leading-relaxed" style={{ animationDelay: '200ms' }}>
             Intelligent gateway management platform for
             autonomous AI systems.
           </p>
 
           {/* Terminal-style tagline */}
           <div className="landing-reveal inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/[0.02] border border-white/[0.05] mb-10" style={{ animationDelay: '300ms' }}>
-            <span className="text-[11px] font-mono text-zinc-600">$</span>
-            <span className="text-[11px] font-mono text-zinc-400">manage agents · models · channels · sessions</span>
+            <span className="text-[11px] font-mono text-zinc-500">$</span>
+            <span className="text-[11px] font-mono text-zinc-300">manage agents · models · channels · sessions</span>
             <span className="w-px h-3.5 bg-orange-500" style={{ animation: 'landing-type-cursor 1s step-end infinite' }} />
           </div>
 
@@ -302,7 +302,7 @@ export default function LandingPage() {
               Enter Control Center
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
-            <span className="text-[11px] text-zinc-700 font-mono">v2.0 · 14 modules</span>
+            <span className="text-[11px] text-zinc-500 font-mono">v2.0 · 14 modules</span>
           </div>
         </div>
 
@@ -320,7 +320,7 @@ export default function LandingPage() {
               </div>
               <div>
                 <p className="text-sm font-bold text-zinc-200 font-mono leading-none">{value}</p>
-                <p className="text-[10px] text-zinc-600 mt-0.5">{label}</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5">{label}</p>
               </div>
             </div>
           ))}
@@ -332,8 +332,8 @@ export default function LandingPage() {
         <div className="flex whitespace-nowrap" style={{ animation: 'landing-marquee 30s linear infinite' }}>
           {[...CAPABILITIES, ...CAPABILITIES].map(({ icon: Icon, label }, i) => (
             <div key={i} className="inline-flex items-center gap-2 mx-6">
-              <Icon className="w-3 h-3 text-zinc-600" />
-              <span className="text-[11px] font-mono text-zinc-500 tracking-wider uppercase">{label}</span>
+              <Icon className="w-3 h-3 text-zinc-500" />
+              <span className="text-[11px] font-mono text-zinc-400 tracking-wider uppercase">{label}</span>
             </div>
           ))}
         </div>
@@ -342,11 +342,11 @@ export default function LandingPage() {
       {/* ── Features ── */}
       <section className="relative z-10 max-w-6xl mx-auto px-6 py-24">
         <div className="text-center mb-16">
-          <p className="landing-reveal text-[10px] font-mono text-orange-500/70 tracking-[0.3em] uppercase mb-4">System Modules</p>
+          <p className="landing-reveal text-[10px] font-mono text-orange-500 tracking-[0.3em] uppercase mb-4">System Modules</p>
           <h2 className="landing-reveal text-3xl md:text-4xl font-bold text-zinc-100 tracking-tight" style={{ fontFamily: 'Manrope, sans-serif', animationDelay: '100ms' }}>
             Full-spectrum gateway control
           </h2>
-          <p className="landing-reveal text-sm text-zinc-600 mt-3 max-w-md mx-auto" style={{ animationDelay: '200ms' }}>
+          <p className="landing-reveal text-sm text-zinc-400 mt-3 max-w-md mx-auto" style={{ animationDelay: '200ms' }}>
             14 integrated modules covering the complete lifecycle of autonomous agent operations.
           </p>
         </div>
@@ -368,7 +368,7 @@ export default function LandingPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-zinc-800" />
               <span className="w-2.5 h-2.5 rounded-full bg-zinc-800" />
             </div>
-            <span className="text-[10px] font-mono text-zinc-600 ml-2 tracking-wider">SYSTEM ARCHITECTURE</span>
+            <span className="text-[10px] font-mono text-zinc-500 ml-2 tracking-wider">SYSTEM ARCHITECTURE</span>
           </div>
 
           <div className="p-6 md:p-10">
@@ -400,7 +400,7 @@ export default function LandingPage() {
                       <div className={`w-2 h-2 rounded-full ${c.bg} ${c.icon}`} style={{ boxShadow: c.glow }} />
                       <h3 className="text-sm font-semibold text-zinc-200" style={{ fontFamily: 'Manrope, sans-serif' }}>{title}</h3>
                     </div>
-                    <p className="text-xs text-zinc-600 leading-relaxed mb-4">{desc}</p>
+                    <p className="text-xs text-zinc-400 leading-relaxed mb-4">{desc}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {items.map((item) => (
                         <span key={item} className={`text-[10px] font-mono px-2 py-1 rounded-md ${c.bg} border ${c.border} ${c.tag}`}>
@@ -428,13 +428,13 @@ export default function LandingPage() {
           <div className="relative px-8 py-16 text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-orange-500/15 bg-orange-500/[0.04] mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-orange-500" style={{ animation: 'landing-glow-pulse 2s ease-in-out infinite' }} />
-              <span className="text-[10px] font-mono text-orange-400/70 tracking-widest uppercase">Ready to proceed</span>
+              <span className="text-[10px] font-mono text-orange-400 tracking-widest uppercase">Ready to proceed</span>
             </div>
 
             <h2 className="text-2xl md:text-3xl font-bold text-zinc-100 mb-3" style={{ fontFamily: 'Manrope, sans-serif' }}>
               Access the control center
             </h2>
-            <p className="text-sm text-zinc-600 mb-8 max-w-sm mx-auto">
+            <p className="text-sm text-zinc-400 mb-8 max-w-sm mx-auto">
               Sign in with your operator credentials to begin managing your AI gateway.
             </p>
 
@@ -452,15 +452,75 @@ export default function LandingPage() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="relative z-10 border-t border-white/[0.04]">
-        <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-5 h-5 rounded-md bg-orange-600/60 flex items-center justify-center">
-              <Activity className="w-2.5 h-2.5 text-white/80" />
+      <footer className="relative z-10 border-t border-white/[0.06] bg-[#060608]">
+        <div className="max-w-6xl mx-auto px-6 pt-16 pb-8">
+          {/* Footer grid */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
+            {/* Brand */}
+            <div className="md:col-span-1">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-orange-600 flex items-center justify-center" style={{ boxShadow: '0 0 12px rgba(249,115,22,0.3)' }}>
+                  <Activity className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div className="flex flex-col leading-tight">
+                  <span className="text-xs font-bold tracking-[0.2em] text-zinc-200" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
+                  <span className="text-[8px] text-zinc-500 tracking-widest uppercase">Operation Control</span>
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500 leading-relaxed">
+                Intelligent gateway management for autonomous AI agent systems.
+              </p>
             </div>
-            <span className="text-[10px] text-zinc-700 font-mono tracking-wider">W.I.N.E Operation Control</span>
+
+            {/* Modules */}
+            <div>
+              <h4 className="text-[10px] font-mono text-zinc-400 tracking-widest uppercase mb-4">Core Modules</h4>
+              <ul className="space-y-2">
+                {['Dashboard', 'Agents', 'Skills', 'Tools', 'Models', 'Channels'].map((item) => (
+                  <li key={item} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-default">{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Operations */}
+            <div>
+              <h4 className="text-[10px] font-mono text-zinc-400 tracking-widest uppercase mb-4">Operations</h4>
+              <ul className="space-y-2">
+                {['Sessions', 'Cron Jobs', 'Hooks', 'Gateway', 'Logs', 'Activities'].map((item) => (
+                  <li key={item} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-default">{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Platform */}
+            <div>
+              <h4 className="text-[10px] font-mono text-zinc-400 tracking-widest uppercase mb-4">Platform</h4>
+              <ul className="space-y-2">
+                {['Config Editor', 'User Management', 'ClawHub Marketplace', 'Role-based Access', 'Real-time Streaming', 'Model Fallback'].map((item) => (
+                  <li key={item} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-default">{item}</li>
+                ))}
+              </ul>
+            </div>
           </div>
-          <span className="text-[10px] text-zinc-800 font-mono">&copy; 2026</span>
+
+          {/* Tech stack badges */}
+          <div className="flex flex-wrap items-center gap-2 mb-8 pb-8 border-b border-white/[0.04]">
+            <span className="text-[10px] font-mono text-zinc-600 mr-2">Built with</span>
+            {['React', 'FastAPI', 'MongoDB', 'Tailwind CSS', 'WebSocket'].map((tech) => (
+              <span key={tech} className="text-[10px] font-mono text-zinc-500 px-2.5 py-1 rounded-md bg-white/[0.03] border border-white/[0.06]">
+                {tech}
+              </span>
+            ))}
+          </div>
+
+          {/* Bottom bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span className="text-[10px] text-zinc-600 font-mono">&copy; 2026 W.I.N.E Operation Control</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ boxShadow: '0 0 6px rgba(16,185,129,0.5)' }} />
+              <span className="text-[10px] font-mono text-zinc-500">All systems operational</span>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
