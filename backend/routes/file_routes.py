@@ -1,5 +1,4 @@
 import re
-import os
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
