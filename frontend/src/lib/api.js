@@ -65,6 +65,12 @@ export const uninstallClawHubSkill = (id) => api.post(`/clawhub/uninstall/${id}`
 // System Health
 export const getSystemHealth = () => api.get('/health/system');
 
+// Files
+export const getFileCategories = () => api.get('/files/categories');
+export const getFileTree = (path) => api.get(`/files/tree?path=${encodeURIComponent(path)}`);
+export const getFileContent = (path) => api.get(`/files/content?path=${encodeURIComponent(path)}`);
+export const updateFileContent = (path, content) => api.put(`/files/content?path=${encodeURIComponent(path)}`, { content });
+
 // Hooks/Webhooks
 export const getHooksConfig = () => api.get('/hooks/config');
 export const getHookMappings = () => api.get('/hooks/mappings');

@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Bot, Zap, Wrench, Cpu, Radio, MessageSquare,
   Clock, FileCode, Server, ChevronLeft, ChevronRight, Activity, Menu,
-  Store, Webhook, MonitorDot, ScrollText, LogOut, Users
+  Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -24,6 +24,7 @@ const navItems = [
   { path: '/sessions', label: 'Sessions', icon: MessageSquare },
   { path: '/cron', label: 'Cron Jobs', icon: Clock },
   { path: '/config', label: 'Config', icon: FileCode },
+  { path: '/files', label: 'Files', icon: FolderOpen },
   { path: '/gateway', label: 'Gateway', icon: Server },
   { path: '/health', label: 'Health', icon: Activity },
 ];

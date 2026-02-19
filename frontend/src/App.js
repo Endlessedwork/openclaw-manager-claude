@@ -22,6 +22,7 @@ import ActivitiesPage from "./pages/ActivitiesPage";
 import LogsPage from "./pages/LogsPage";
 import UsersPage from "./pages/UsersPage";
 import HealthPage from "./pages/HealthPage";
+import FilesPage from "./pages/FilesPage";
 
 function App() {
   return (
@@ -43,6 +44,7 @@ function App() {
               <Route path="/config" element={<ConfigPage />} />
               <Route path="/gateway" element={<GatewayPage />} />
               <Route path="/health" element={<HealthPage />} />
+              <Route path="/files" element={<FilesPage />} />
               <Route path="/activities" element={<ActivitiesPage />} />
               <Route path="/logs" element={<LogsPage />} />
               <Route path="/clawhub" element={<ClawHubPage />} />
