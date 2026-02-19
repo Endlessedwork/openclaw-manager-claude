@@ -84,7 +84,7 @@ export default function AgentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Agents</h1>
-          <p className="text-sm text-zinc-500 mt-1">Manage OpenClaw agent configurations</p>
+          <p className="text-sm text-zinc-500 mt-1">Manage agent configurations</p>
         </div>
         <Button data-testid="create-agent-btn" onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
           <Plus className="w-4 h-4 mr-2" /> New Agent

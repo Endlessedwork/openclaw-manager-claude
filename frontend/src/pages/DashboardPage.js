@@ -56,7 +56,7 @@ export default function DashboardPage() {
         <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>
           Dashboard
         </h1>
-        <p className="text-sm text-zinc-500 mt-1">OpenClaw Gateway Management System</p>
+        <p className="text-sm text-zinc-500 mt-1">W.I.N.E Operation Control</p>
       </div>
 
       {/* Gateway Status Banner */}

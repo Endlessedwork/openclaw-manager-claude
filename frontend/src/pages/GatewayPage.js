@@ -34,7 +34,7 @@ export default function GatewayPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Gateway</h1>
-          <p className="text-sm text-zinc-500 mt-1">Monitor and control the OpenClaw gateway</p>
+          <p className="text-sm text-zinc-500 mt-1">Monitor and control the gateway</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={load} className="border-zinc-700 text-zinc-400 hover:bg-zinc-800">

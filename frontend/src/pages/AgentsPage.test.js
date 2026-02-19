@@ -166,6 +166,6 @@ describe('AgentsPage', () => {
   it('renders page title and subtitle', () => {
     render(<AgentsPage />);
     expect(screen.getByText('Agents')).toBeInTheDocument();
-    expect(screen.getByText('Manage OpenClaw agent configurations')).toBeInTheDocument();
+    expect(screen.getByText('Manage agent configurations')).toBeInTheDocument();
   });
 });
