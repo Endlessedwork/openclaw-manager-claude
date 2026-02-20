@@ -9,6 +9,9 @@ import asyncio
 from pathlib import Path
 import uuid
 from datetime import datetime, timezone
+from urllib.request import urlopen, Request
+from urllib.error import URLError, HTTPError
+import ssl
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -261,17 +264,67 @@ async def list_models(user=Depends(get_current_user)):
 
 @api_router.get("/models/providers")
 async def list_providers(user=Depends(get_current_user)):
-    config = await gateway.config_read()
-    providers = config.get("models", {}).get("providers", {})
-    result = []
-    for pid, pdata in providers.items():
-        result.append({
-            "id": pid,
-            "name": pid,
-            "base_url": pdata.get("baseUrl", ""),
-            "api": pdata.get("api", ""),
-            "models": pdata.get("models", []),
+    raw_models, config = await asyncio.gather(gateway.models(), gateway.config_read())
+    custom_providers = config.get("models", {}).get("providers", {})
+
+    # Group CLI models by provider_id to discover all providers (built-in + custom)
+    cli_by_provider = {}
+    for m in raw_models.get("models", []):
+        pid = m["key"].split("/")[0] if "/" in m["key"] else ""
+        if not pid:
+            continue
+        if pid not in cli_by_provider:
+            cli_by_provider[pid] = []
+        cli_by_provider[pid].append({
+            "id": m["key"].split("/", 1)[1] if "/" in m["key"] else m["key"],
+            "name": m.get("name", ""),
+            "contextWindow": m.get("contextWindow"),
+            "enabled": m.get("available", False) and not m.get("missing", True),
+            "input": m.get("input", ""),
         })
+
+    # Merge: custom providers get their config data, built-in get CLI data
+    all_pids = set(list(cli_by_provider.keys()) + list(custom_providers.keys()))
+    result = []
+    for pid in sorted(all_pids):
+        is_custom = pid in custom_providers
+        if is_custom:
+            pdata = custom_providers[pid]
+            entry = {
+                "id": pid,
+                "name": pid,
+                "base_url": pdata.get("baseUrl", ""),
+                "api": pdata.get("api", ""),
+                "models": pdata.get("models", []),
+                "source": "custom",
+            }
+            # Enrich custom provider models with live status from CLI
+            if pid in cli_by_provider:
+                cli_map = {m["id"]: m for m in cli_by_provider[pid]}
+                for cm in entry["models"]:
+                    live = cli_map.get(cm["id"])
+                    if live:
+                        cm["enabled"] = live["enabled"]
+                        cm["input"] = live.get("input", "")
+                        if not cm.get("name") and live.get("name"):
+                            cm["name"] = live["name"]
+        else:
+            models_list = cli_by_provider.get(pid, [])
+            entry = {
+                "id": pid,
+                "name": pid,
+                "base_url": "",
+                "api": "",
+                "models": models_list,
+                "source": "builtin",
+            }
+        # Count active models
+        entry["active_count"] = sum(1 for m in entry.get("models", []) if m.get("enabled"))
+        entry["total_count"] = len(entry.get("models", []))
+        result.append(entry)
+
+    # Sort: custom first, then built-in, alphabetical within each group
+    result.sort(key=lambda p: (0 if p["source"] == "custom" else 1, p["id"]))
     return result
 
 
@@ -328,6 +381,48 @@ async def delete_provider(provider_id: str, user=Depends(require_role("admin", "
     return {"status": "ok"}
 
 
+@api_router.post("/models/providers/{provider_id}/test")
+async def test_provider_connection(provider_id: str, user=Depends(require_role("admin", "editor"))):
+    config = await gateway.config_read()
+    providers = config.get("models", {}).get("providers", {})
+    if provider_id not in providers:
+        raise HTTPException(404, f"Provider '{provider_id}' not found")
+    pdata = providers[provider_id]
+    base_url = pdata.get("baseUrl", "").rstrip("/")
+    if not base_url:
+        return {"ok": False, "error": "No base URL configured", "latency_ms": 0}
+
+    # Probe the /models endpoint (standard for OpenAI-compatible APIs)
+    test_url = f"{base_url}/models"
+    ctx = ssl.create_default_context()
+
+    def _probe():
+        import time
+        start = time.monotonic()
+        try:
+            req = Request(test_url, method="GET")
+            req.add_header("User-Agent", "openclaw-manager/1.0")
+            with urlopen(req, timeout=10, context=ctx) as resp:
+                latency = int((time.monotonic() - start) * 1000)
+                return {"ok": True, "status": resp.status, "latency_ms": latency}
+        except HTTPError as e:
+            latency = int((time.monotonic() - start) * 1000)
+            # 401/403 means the server is reachable but needs auth — that's a success for connectivity
+            if e.code in (401, 403):
+                return {"ok": True, "status": e.code, "latency_ms": latency, "note": "Reachable (auth required)"}
+            return {"ok": False, "error": f"HTTP {e.code}: {e.reason}", "latency_ms": latency}
+        except URLError as e:
+            latency = int((time.monotonic() - start) * 1000)
+            return {"ok": False, "error": str(e.reason), "latency_ms": latency}
+        except Exception as e:
+            latency = int((time.monotonic() - start) * 1000)
+            return {"ok": False, "error": str(e), "latency_ms": latency}
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _probe)
+    return result
+
+
 # ===== MODEL FALLBACKS (from config) =====
 @api_router.get("/models/fallbacks")
 async def get_fallbacks(user=Depends(get_current_user)):
@@ -336,6 +431,11 @@ async def get_fallbacks(user=Depends(get_current_user)):
     model_cfg = defaults.get("model", {})
     image_cfg = defaults.get("imageModel", {})
     agents_list = config.get("agents", {}).get("list", [])
+
+    # Load agent-specific fallbacks from MongoDB
+    agent_fb_docs = await db.agent_fallbacks.find().to_list(length=100)
+    agent_fb_map = {d["agent_id"]: d.get("fallbacks", []) for d in agent_fb_docs}
+
     return {
         "model": {
             "primary": model_cfg.get("primary", ""),
@@ -350,7 +450,7 @@ async def get_fallbacks(user=Depends(get_current_user)):
                 "id": a["id"],
                 "name": a.get("name", a["id"]),
                 "model": a.get("model", ""),
-                "fallbacks": a.get("fallbacks", []),
+                "fallbacks": agent_fb_map.get(a["id"], []),
             }
             for a in agents_list
         ],
@@ -359,7 +459,7 @@ async def get_fallbacks(user=Depends(get_current_user)):
 
 @api_router.put("/models/fallbacks")
 async def update_fallbacks(body: dict, user=Depends(require_role("admin", "editor"))):
-    config = await gateway.config_read()
+    config = json.loads(json.dumps(await gateway.config_read()))
     if "agents" not in config:
         config["agents"] = {}
     if "defaults" not in config["agents"]:
@@ -385,21 +485,37 @@ async def update_fallbacks(body: dict, user=Depends(require_role("admin", "edito
 
 @api_router.put("/models/fallbacks/agent/{agent_id}")
 async def update_agent_fallbacks(agent_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
-    config = await gateway.config_read()
+    config = json.loads(json.dumps(await gateway.config_read()))
     agents_list = config.get("agents", {}).get("list", [])
     agent = next((a for a in agents_list if a["id"] == agent_id), None)
     if not agent:
         raise HTTPException(404, f"Agent '{agent_id}' not found")
 
+    need_config_write = False
     if "model" in body:
         agent["model"] = body["model"]
-    if "fallbacks" in body:
-        if body["fallbacks"]:
-            agent["fallbacks"] = body["fallbacks"]
-        elif "fallbacks" in agent:
-            del agent["fallbacks"]
+        need_config_write = True
 
-    await gateway.config_write(config)
+    # Strip invalid "fallbacks" key from agent config if present
+    if "fallbacks" in agent:
+        del agent["fallbacks"]
+        need_config_write = True
+
+    if need_config_write:
+        await gateway.config_write(config)
+
+    # Store agent-specific fallbacks in MongoDB (not in openclaw.json)
+    if "fallbacks" in body:
+        fallbacks = body["fallbacks"]
+        if fallbacks:
+            await db.agent_fallbacks.update_one(
+                {"agent_id": agent_id},
+                {"$set": {"agent_id": agent_id, "fallbacks": fallbacks}},
+                upsert=True,
+            )
+        else:
+            await db.agent_fallbacks.delete_one({"agent_id": agent_id})
+
     await log_activity("update", "fallbacks", agent_id, f"Updated fallbacks for agent {agent_id}")
     return {"status": "ok"}
 

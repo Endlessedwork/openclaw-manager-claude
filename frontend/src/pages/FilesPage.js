@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { getFileCategories, getFileTree, getFileContent, updateFileContent } from '../lib/api';
+import { getFileCategories, getFileTree, getFileContent, updateFileContent, getFileRaw } from '../lib/api';
 import {
   Bot, Sparkles, Settings, Image, Brain, Key, FileCode, Globe,
   Layout, FolderOpen, ChevronRight, ChevronDown, Folder, File,
@@ -113,6 +113,9 @@ export default function FilesPage() {
   const [fileData, setFileData] = useState(null);
   const [fileLoading, setFileLoading] = useState(false);
 
+  // Image preview state
+  const [imageUrl, setImageUrl] = useState(null);
+
   // Edit state
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -171,9 +174,16 @@ export default function FilesPage() {
     setSelectedPath(path);
     setFileLoading(true);
     setEditing(false);
+    if (imageUrl) { URL.revokeObjectURL(imageUrl); setImageUrl(null); }
     try {
       const res = await getFileContent(path);
       setFileData(res.data);
+      if (res.data.isImage) {
+        try {
+          const blob = await getFileRaw(path);
+          setImageUrl(URL.createObjectURL(blob.data));
+        } catch { /* image preview not critical */ }
+      }
     } catch {
       toast.error('Failed to load file');
       setFileData(null);
@@ -211,6 +221,7 @@ export default function FilesPage() {
     setSelectedPath(null);
     setFileData(null);
     setEditing(false);
+    if (imageUrl) { URL.revokeObjectURL(imageUrl); setImageUrl(null); }
   };
 
   // Breadcrumb parts
@@ -422,6 +433,15 @@ export default function FilesPage() {
                       {fileData.content}
                     </pre>
                   )
+                ) : fileData.isImage && imageUrl ? (
+                  <div data-testid="image-preview" className="flex flex-col items-center justify-center p-4">
+                    <img
+                      src={imageUrl}
+                      alt={fileData.name}
+                      className="max-w-full max-h-[calc(100vh-300px)] rounded-lg border border-zinc-800/60 object-contain"
+                    />
+                    <p className="text-xs text-zinc-600 mt-3">{fileData.name} — {formatSize(fileData.size)}</p>
+                  </div>
                 ) : (
                   <div data-testid="binary-file-info" className="flex flex-col items-center justify-center py-12 text-zinc-500">
                     <File className="w-16 h-16 mb-4 text-zinc-700" />

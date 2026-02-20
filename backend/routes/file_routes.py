@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from auth import get_current_user, require_role
@@ -9,6 +10,8 @@ file_router = APIRouter(prefix="/files", tags=["files"])
 
 OPENCLAW_ROOT = Path.home() / ".openclaw"
 MAX_FILE_SIZE = 1 * 1024 * 1024  # 1MB
+
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"}
 
 TEXT_EXTENSIONS = {
     ".json", ".env", ".yaml", ".yml", ".toml", ".ini", ".cfg",
@@ -224,16 +227,19 @@ async def get_file_content(path: str = Query(...), user=Depends(get_current_user
     except OSError:
         raise HTTPException(500, "Cannot read file metadata")
 
+    is_image = target.suffix.lower() in IMAGE_EXTENSIONS
+
     meta = {
         "name": target.name,
         "path": path,
         "size": stat.st_size,
         "modified": stat.st_mtime,
         "isText": _is_text_file(target),
+        "isImage": is_image,
     }
 
     if not _is_text_file(target):
-        return {**meta, "content": None, "message": "Binary file — content not displayed"}
+        return {**meta, "content": None, "message": "Binary file — content not displayed" if not is_image else None}
 
     if stat.st_size > MAX_FILE_SIZE:
         return {**meta, "content": None, "message": f"File too large ({stat.st_size} bytes, max {MAX_FILE_SIZE})"}
@@ -286,3 +292,27 @@ async def save_file_content(
         raise HTTPException(500, f"Cannot write file: {e}")
 
     return {"status": "ok", "path": path}
+
+
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
+
+
+@file_router.get("/raw")
+async def get_file_raw(path: str = Query(...), user=Depends(get_current_user)):
+    """Serve a raw file (images only) with proper content type."""
+    target = _safe_path(path)
+    if not target.is_file():
+        raise HTTPException(404, "File not found")
+
+    if target.suffix.lower() not in IMAGE_EXTENSIONS:
+        raise HTTPException(400, "Only image files can be served raw")
+
+    try:
+        stat = target.stat()
+    except OSError:
+        raise HTTPException(500, "Cannot read file metadata")
+
+    if stat.st_size > MAX_IMAGE_SIZE:
+        raise HTTPException(400, f"Image too large ({stat.st_size} bytes)")
+
+    return FileResponse(target, filename=target.name)

@@ -135,7 +135,7 @@ class GatewayCLI:
         async with aiofiles.open(OPENCLAW_CONFIG, 'w') as f:
             await f.write(json.dumps(data, indent=2, ensure_ascii=False))
         self.cache.invalidate("config")
-        await self._run("gateway", "reload", json_output=False, timeout=10)
+        await self._run("gateway", "restart", json_output=False, timeout=10)
 
     async def gateway_restart(self):
         self.cache.invalidate()

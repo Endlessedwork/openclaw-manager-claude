@@ -19,6 +19,7 @@ const navItems = [
   { path: '/clawhub', label: 'ClawHub', icon: Store },
   { path: '/tools', label: 'Tools', icon: Wrench },
   { path: '/models', label: 'Models', icon: Cpu },
+  { path: '/providers', label: 'Providers', icon: Server },
   { path: '/channels', label: 'Channels', icon: Radio },
   { path: '/hooks', label: 'Hooks', icon: Webhook },
   { path: '/sessions', label: 'Sessions', icon: MessageSquare },

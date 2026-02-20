@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { getModels, getProviders, createProvider, updateProvider, deleteProvider, getFallbacks, updateFallbacks, updateAgentFallbacks } from '../lib/api';
-import { Cpu, Plus, Pencil, Trash2, Star, AlertTriangle, CheckCircle2, Server, X, Save, Image, LayoutGrid, List } from 'lucide-react';
+import { getModels, getFallbacks, updateFallbacks, updateAgentFallbacks } from '../lib/api';
+import { Cpu, Plus, Pencil, Star, AlertTriangle, CheckCircle2, Save, Image, LayoutGrid, List } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -12,25 +11,10 @@ import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import SortableFallbackList from '../components/SortableFallbackList';
 
-const EMPTY_PROVIDER = { id: '', base_url: '', api: 'openai-completions' };
-const EMPTY_MODEL_ROW = { id: '', name: '', contextWindow: '' };
-
-const API_TYPES = [
-  { value: 'openai-completions', label: 'OpenAI Completions' },
-  { value: 'openai-responses', label: 'OpenAI Responses' },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'google', label: 'Google Gemini' },
-];
-
 export default function ModelsPage() {
   const { canEdit } = useAuth();
   const [models, setModels] = useState([]);
-  const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(EMPTY_PROVIDER);
-  const [modelRows, setModelRows] = useState([{ ...EMPTY_MODEL_ROW }]);
   const [fallbackConfig, setFallbackConfig] = useState(null);
   const [editModel, setEditModel] = useState({ primary: '', fallbacks: [] });
   const [editImage, setEditImage] = useState({ primary: '', fallbacks: [] });
@@ -43,9 +27,8 @@ export default function ModelsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [mRes, pRes, fRes] = await Promise.all([getModels(), getProviders(), getFallbacks()]);
+      const [mRes, fRes] = await Promise.all([getModels(), getFallbacks()]);
       setModels(mRes.data);
-      setProviders(pRes.data);
       const fb = fRes.data;
       setFallbackConfig(fb);
       setEditModel(fb.model);
@@ -57,64 +40,6 @@ export default function ModelsPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  const openCreate = () => {
-    setEditing(null);
-    setForm(EMPTY_PROVIDER);
-    setModelRows([{ ...EMPTY_MODEL_ROW }]);
-    setDialogOpen(true);
-  };
-  const openEdit = (p) => {
-    setEditing(p);
-    setForm({ id: p.id, base_url: p.base_url, api: p.api });
-    const rows = (p.models || []).map(m => ({
-      id: m.id || '',
-      name: m.name || '',
-      contextWindow: m.contextWindow ? String(m.contextWindow) : '',
-    }));
-    setModelRows(rows.length > 0 ? rows : [{ ...EMPTY_MODEL_ROW }]);
-    setDialogOpen(true);
-  };
-
-  const updateModelRow = (index, field, value) => {
-    setModelRows(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row));
-  };
-  const addModelRow = () => setModelRows(prev => [...prev, { ...EMPTY_MODEL_ROW }]);
-  const removeModelRow = (index) => {
-    setModelRows(prev => prev.length <= 1 ? [{ ...EMPTY_MODEL_ROW }] : prev.filter((_, i) => i !== index));
-  };
-
-  const handleSave = async () => {
-    try {
-      const parsedModels = modelRows.filter(r => r.id.trim()).map(r => {
-        const m = { id: r.id.trim() };
-        if (r.name.trim()) m.name = r.name.trim();
-        if (r.contextWindow && !isNaN(Number(r.contextWindow))) m.contextWindow = Number(r.contextWindow);
-        return m;
-      });
-      const payload = { ...form, models: parsedModels };
-      if (editing) {
-        await updateProvider(editing.id, payload);
-        toast.success('Provider updated — gateway reloading');
-      } else {
-        await createProvider(payload);
-        toast.success('Provider created — gateway reloading');
-      }
-      setDialogOpen(false);
-      setTimeout(load, 2000);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to save');
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm(`Delete provider "${id}"? This will reload the gateway.`)) return;
-    try {
-      await deleteProvider(id);
-      toast.success('Provider deleted');
-      setTimeout(load, 2000);
-    } catch { toast.error('Failed to delete'); }
-  };
 
   const handleFallbackSave = async () => {
     try {
@@ -411,67 +336,6 @@ export default function ModelsPage() {
             </div>
           )}
 
-          {/* === Config Providers (CRUD) === */}
-          <div className="pt-4 border-t border-zinc-800/40">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Config Providers</h2>
-                <p className="text-sm text-zinc-500 mt-1">Manage providers in openclaw.json — changes reload the gateway</p>
-              </div>
-              {canEdit() && (
-                <Button data-testid="create-provider-btn" onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-                  <Plus className="w-4 h-4 mr-2" /> Add Provider
-                </Button>
-              )}
-            </div>
-
-            {providers.length === 0 ? (
-              <div className="text-center py-8 text-zinc-500">No custom providers in config</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {providers.map(p => (
-                  <div key={p.id} className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg hover:border-orange-500/20 transition-all duration-300">
-                    <div className="p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center border bg-violet-500/10 border-violet-500/20">
-                            <Server className="w-4 h-4 text-violet-500" />
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-semibold text-zinc-200">{p.id}</h3>
-                            <span className="text-[10px] font-mono text-zinc-500">{p.api}</span>
-                          </div>
-                        </div>
-                      </div>
-                      {p.base_url && (
-                        <div className="text-[10px] font-mono text-zinc-500 truncate mb-2">{p.base_url}</div>
-                      )}
-                      {p.models?.length > 0 && (
-                        <div className="space-y-1">
-                          {p.models.map((m, i) => (
-                            <div key={i} className="flex items-center justify-between text-xs">
-                              <span className="font-mono text-zinc-400">{m.id}</span>
-                              {m.name && <span className="text-zinc-600">{m.name}</span>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {canEdit() && (
-                      <div className="border-t border-zinc-800/60 px-5 py-3 flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(p)} className="text-zinc-500 hover:text-orange-500 hover:bg-orange-500/10">
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-zinc-500 hover:text-red-500 hover:bg-red-500/10">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </>
       )}
 
@@ -531,69 +395,6 @@ export default function ModelsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* === Provider Dialog === */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-[#0c0c0e] border-zinc-800 max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
-              {editing ? `Edit Provider: ${editing.id}` : 'Add Provider'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            {!editing && (
-              <div>
-                <Label className="text-zinc-400 text-xs">Provider ID</Label>
-                <Input data-testid="provider-id-input" value={form.id} onChange={e => setForm({...form, id: e.target.value})} className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" placeholder="anthropic" />
-              </div>
-            )}
-            <div>
-              <Label className="text-zinc-400 text-xs">Base URL</Label>
-              <Input value={form.base_url} onChange={e => setForm({...form, base_url: e.target.value})} className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" placeholder="https://api.example.com/v1" />
-            </div>
-            <div>
-              <Label className="text-zinc-400 text-xs">API Type</Label>
-              <Select value={form.api} onValueChange={v => setForm({...form, api: v})}>
-                <SelectTrigger className="bg-[#050505] border-zinc-800 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  {API_TYPES.map(t => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-zinc-400 text-xs">Models</Label>
-                <Button type="button" variant="ghost" size="sm" onClick={addModelRow} className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10 h-6 px-2 text-xs">
-                  <Plus className="w-3 h-3 mr-1" /> Add Model
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {modelRows.map((row, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <Input value={row.id} onChange={e => updateModelRow(i, 'id', e.target.value)}
-                      className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm flex-[2]" placeholder="model-id" />
-                    <Input value={row.name} onChange={e => updateModelRow(i, 'name', e.target.value)}
-                      className="bg-[#050505] border-zinc-800 focus:border-orange-500 text-sm flex-[2]" placeholder="Display Name" />
-                    <Input value={row.contextWindow} onChange={e => updateModelRow(i, 'contextWindow', e.target.value)}
-                      className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm flex-1" placeholder="Context" type="number" />
-                    <button type="button" onClick={() => removeModelRow(i)} className="p-1 text-zinc-600 hover:text-red-400 shrink-0">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[10px] text-zinc-600 mt-1">Model ID is required. Display name and context window are optional.</p>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-zinc-800/60">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="border-zinc-700 text-zinc-400">Cancel</Button>
-            <Button data-testid="save-provider-btn" onClick={handleSave} className="bg-orange-600 hover:bg-orange-700 text-white">
-              {editing ? 'Update' : 'Create'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

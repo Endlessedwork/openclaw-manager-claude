@@ -23,6 +23,7 @@ import LogsPage from "./pages/LogsPage";
 import UsersPage from "./pages/UsersPage";
 import HealthPage from "./pages/HealthPage";
 import FilesPage from "./pages/FilesPage";
+import ProvidersPage from "./pages/ProvidersPage";
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
               <Route path="/skills" element={<SkillsPage />} />
               <Route path="/tools" element={<ToolsPage />} />
               <Route path="/models" element={<ModelsPage />} />
+              <Route path="/providers" element={<ProvidersPage />} />
               <Route path="/channels" element={<ChannelsPage />} />
               <Route path="/sessions" element={<SessionsPage />} />
               <Route path="/cron" element={<CronPage />} />

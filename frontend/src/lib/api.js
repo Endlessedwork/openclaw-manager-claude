@@ -31,6 +31,7 @@ export const getProviders = () => api.get('/models/providers');
 export const createProvider = (data) => api.post('/models/providers', data);
 export const updateProvider = (id, data) => api.put(`/models/providers/${id}`, data);
 export const deleteProvider = (id) => api.delete(`/models/providers/${id}`);
+export const testProviderConnection = (id) => api.post(`/models/providers/${id}/test`);
 
 // Model Fallbacks
 export const getFallbacks = () => api.get('/models/fallbacks');
@@ -70,6 +71,7 @@ export const getFileCategories = () => api.get('/files/categories');
 export const getFileTree = (path) => api.get(`/files/tree?path=${encodeURIComponent(path)}`);
 export const getFileContent = (path) => api.get(`/files/content?path=${encodeURIComponent(path)}`);
 export const updateFileContent = (path, content) => api.put(`/files/content?path=${encodeURIComponent(path)}`, { content });
+export const getFileRaw = (path) => api.get(`/files/raw?path=${encodeURIComponent(path)}`, { responseType: 'blob' });
 
 // Hooks/Webhooks
 export const getHooksConfig = () => api.get('/hooks/config');
