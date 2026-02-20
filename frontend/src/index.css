@@ -38,7 +38,7 @@ code, pre, .font-mono {
     --secondary: 0 0% 94%;
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 94%;
-    --muted-foreground: 0 0% 40%;
+    --muted-foreground: 0 0% 32%;
     --accent: 199 89% 48%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
@@ -64,11 +64,11 @@ code, pre, .font-mono {
     --border-subtle: 0 0% 88%;
     --border-strong: 0 0% 78%;
 
-    --text-primary: 0 0% 9%;
-    --text-secondary: 0 0% 35%;
-    --text-muted: 0 0% 52%;
-    --text-faint: 0 0% 65%;
-    --text-dimmed: 0 0% 75%;
+    --text-primary: 0 0% 5%;
+    --text-secondary: 0 0% 25%;
+    --text-muted: 0 0% 38%;
+    --text-faint: 0 0% 48%;
+    --text-dimmed: 0 0% 58%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 0 0% 9%;
