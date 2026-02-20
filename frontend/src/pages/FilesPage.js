@@ -60,29 +60,29 @@ function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir })
         className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-md transition-colors text-left ${
           isSelected
             ? 'bg-orange-500/10 text-orange-400'
-            : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+            : 'text-theme-muted hover:text-theme-primary hover:bg-muted'
         }`}
       >
         {node.isDir ? (
-          expanded ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-zinc-500" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
+          expanded ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-theme-faint" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-theme-faint" />
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
         {node.isDir ? (
           <Folder className="w-4 h-4 shrink-0 text-orange-500/70" />
         ) : (
-          <File className="w-4 h-4 shrink-0 text-zinc-500" />
+          <File className="w-4 h-4 shrink-0 text-theme-faint" />
         )}
         <span className="truncate font-mono text-xs">{node.name}</span>
         {node.isDir && children.length > 0 && (
-          <span className="ml-auto text-[10px] text-zinc-600">{children.length}</span>
+          <span className="ml-auto text-[10px] text-theme-dimmed">{children.length}</span>
         )}
         {!node.isDir && node.size != null && (
-          <span className="ml-auto text-[10px] text-zinc-600">{formatSize(node.size)}</span>
+          <span className="ml-auto text-[10px] text-theme-dimmed">{formatSize(node.size)}</span>
         )}
       </button>
       {node.isDir && expanded && (
-        <div className="ml-3 border-l border-zinc-800/40 pl-1">
+        <div className="ml-3 border-l border-subtle pl-1">
           {sortedChildren.map((child) => (
             <TreeNode
               key={child.path}
@@ -244,7 +244,7 @@ export default function FilesPage() {
       <div data-testid="files-page" className="space-y-6">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Files</h1>
-          <p className="text-sm text-zinc-500 mt-1">Browse and manage gateway configuration files</p>
+          <p className="text-sm text-theme-faint mt-1">Browse and manage gateway configuration files</p>
         </div>
 
         {loading ? (
@@ -260,22 +260,22 @@ export default function FilesPage() {
                   key={cat.id}
                   data-testid={`category-card-${cat.id}`}
                   onClick={() => enterCategory(cat)}
-                  className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-5 text-left hover:border-orange-500/30 transition-all group"
+                  className="bg-surface-card border border-subtle rounded-lg p-5 text-left hover:border-orange-500/30 transition-all group"
                 >
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
                       <IconComp className="w-5 h-5 text-orange-500" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-zinc-200 group-hover:text-orange-400 transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                      <h3 className="text-sm font-semibold text-theme-primary group-hover:text-orange-400 transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>
                         {cat.name}
                       </h3>
                     </div>
                   </div>
-                  <p className="text-xs text-zinc-500 mb-3 line-clamp-2">{cat.description}</p>
-                  <div className="flex items-center gap-3 text-[11px] text-zinc-600">
+                  <p className="text-xs text-theme-faint mb-3 line-clamp-2">{cat.description}</p>
+                  <div className="flex items-center gap-3 text-[11px] text-theme-dimmed">
                     <span>{cat.fileCount} files</span>
-                    <span className="text-zinc-700">|</span>
+                    <span className="text-theme-dimmed">|</span>
                     <span>{formatSize(cat.totalSize)}</span>
                   </div>
                 </button>
@@ -297,22 +297,22 @@ export default function FilesPage() {
           variant="ghost"
           size="sm"
           onClick={goBack}
-          className="text-zinc-400 hover:text-zinc-200 hover:bg-white/5 -ml-2"
+          className="text-theme-muted hover:text-theme-primary hover:bg-muted -ml-2"
         >
           <ArrowLeft className="w-4 h-4 mr-1" /> Files
         </Button>
         {breadcrumbParts.map((part, i) => (
           <React.Fragment key={i}>
-            <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
+            <ChevronRight className="w-3.5 h-3.5 text-theme-dimmed" />
             {i === 0 ? (
               <button
                 onClick={() => { setSelectedPath(null); setFileData(null); setEditing(false); }}
-                className={`text-sm font-mono transition-colors ${selectedPath ? 'text-zinc-500 hover:text-orange-400 cursor-pointer' : 'text-zinc-300'}`}
+                className={`text-sm font-mono transition-colors ${selectedPath ? 'text-theme-faint hover:text-orange-400 cursor-pointer' : 'text-theme-secondary'}`}
               >
                 {part}
               </button>
             ) : (
-              <span className="text-sm text-zinc-300 font-mono">{part}</span>
+              <span className="text-sm text-theme-secondary font-mono">{part}</span>
             )}
           </React.Fragment>
         ))}
@@ -323,10 +323,10 @@ export default function FilesPage() {
         {/* Left panel - tree */}
         <div
           data-testid="file-tree-panel"
-          className="w-72 shrink-0 bg-[#0c0c0e] border border-zinc-800/60 rounded-lg overflow-hidden flex flex-col"
+          className="w-72 shrink-0 bg-surface-card border border-subtle rounded-lg overflow-hidden flex flex-col"
         >
-          <div className="px-3 py-2.5 border-b border-zinc-800/40">
-            <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <div className="px-3 py-2.5 border-b border-subtle">
+            <h2 className="text-xs font-semibold text-theme-muted uppercase tracking-wider" style={{ fontFamily: 'Manrope, sans-serif' }}>
               {activeCategory?.name || 'Files'}
             </h2>
           </div>
@@ -336,7 +336,7 @@ export default function FilesPage() {
                 <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : treeNodes.length === 0 ? (
-              <p className="text-xs text-zinc-600 text-center py-8">No files found</p>
+              <p className="text-xs text-theme-dimmed text-center py-8">No files found</p>
             ) : (
               treeNodes.map((node) => (
                 <TreeNode
@@ -355,24 +355,24 @@ export default function FilesPage() {
         {/* Right panel - content viewer */}
         <div
           data-testid="file-content-panel"
-          className="flex-1 bg-[#0c0c0e] border border-zinc-800/60 rounded-lg overflow-hidden flex flex-col"
+          className="flex-1 bg-surface-card border border-subtle rounded-lg overflow-hidden flex flex-col"
         >
           {fileLoading ? (
             <div className="flex justify-center items-center flex-1">
               <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : !fileData ? (
-            <div className="flex flex-col items-center justify-center flex-1 text-zinc-600">
-              <File className="w-12 h-12 mb-3 text-zinc-700" />
+            <div className="flex flex-col items-center justify-center flex-1 text-theme-dimmed">
+              <File className="w-12 h-12 mb-3 text-theme-dimmed" />
               <p className="text-sm">Select a file to view</p>
             </div>
           ) : (
             <>
               {/* File header */}
-              <div className="px-4 py-3 border-b border-zinc-800/40 flex items-center justify-between">
+              <div className="px-4 py-3 border-b border-subtle flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-medium text-zinc-200 font-mono">{fileData.name}</h3>
-                  <div className="flex items-center gap-3 mt-0.5 text-[11px] text-zinc-500">
+                  <h3 className="text-sm font-medium text-theme-primary font-mono">{fileData.name}</h3>
+                  <div className="flex items-center gap-3 mt-0.5 text-[11px] text-theme-faint">
                     <span>{formatSize(fileData.size)}</span>
                     {fileData.modified && (
                       <span>{new Date(fileData.modified * 1000).toLocaleString()}</span>
@@ -385,7 +385,7 @@ export default function FilesPage() {
                     variant="ghost"
                     size="sm"
                     onClick={startEdit}
-                    className="text-zinc-400 hover:text-orange-500 hover:bg-orange-500/10"
+                    className="text-theme-muted hover:text-orange-500 hover:bg-orange-500/10"
                   >
                     <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
                   </Button>
@@ -397,7 +397,7 @@ export default function FilesPage() {
                       variant="ghost"
                       size="sm"
                       onClick={cancelEdit}
-                      className="text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
+                      className="text-theme-muted hover:text-theme-primary hover:bg-muted"
                     >
                       <X className="w-3.5 h-3.5 mr-1" /> Cancel
                     </Button>
@@ -422,13 +422,13 @@ export default function FilesPage() {
                       data-testid="file-editor"
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full h-full min-h-[400px] bg-[#09090b] border border-zinc-800 rounded-md p-4 font-mono text-sm text-zinc-300 resize-none focus:outline-none focus:border-orange-500/50"
+                      className="w-full h-full min-h-[400px] bg-surface-page border border-subtle rounded-md p-4 font-mono text-sm text-theme-secondary resize-none focus:outline-none focus:border-orange-500/50"
                       spellCheck={false}
                     />
                   ) : (
                     <pre
                       data-testid="file-content"
-                      className="font-mono text-sm text-zinc-300 whitespace-pre-wrap break-words"
+                      className="font-mono text-sm text-theme-secondary whitespace-pre-wrap break-words"
                     >
                       {fileData.content}
                     </pre>
@@ -438,19 +438,19 @@ export default function FilesPage() {
                     <img
                       src={imageUrl}
                       alt={fileData.name}
-                      className="max-w-full max-h-[calc(100vh-300px)] rounded-lg border border-zinc-800/60 object-contain"
+                      className="max-w-full max-h-[calc(100vh-300px)] rounded-lg border border-subtle object-contain"
                     />
-                    <p className="text-xs text-zinc-600 mt-3">{fileData.name} — {formatSize(fileData.size)}</p>
+                    <p className="text-xs text-theme-dimmed mt-3">{fileData.name} — {formatSize(fileData.size)}</p>
                   </div>
                 ) : (
-                  <div data-testid="binary-file-info" className="flex flex-col items-center justify-center py-12 text-zinc-500">
-                    <File className="w-16 h-16 mb-4 text-zinc-700" />
-                    <p className="text-sm font-medium text-zinc-400 mb-2">{fileData.name}</p>
+                  <div data-testid="binary-file-info" className="flex flex-col items-center justify-center py-12 text-theme-faint">
+                    <File className="w-16 h-16 mb-4 text-theme-dimmed" />
+                    <p className="text-sm font-medium text-theme-muted mb-2">{fileData.name}</p>
                     <p className="text-xs">{formatSize(fileData.size)}</p>
                     {fileData.modified && (
                       <p className="text-xs mt-1">{new Date(fileData.modified * 1000).toLocaleString()}</p>
                     )}
-                    <p className="text-xs mt-3 text-zinc-600">{fileData.message || 'Binary file - preview not available'}</p>
+                    <p className="text-xs mt-3 text-theme-dimmed">{fileData.message || 'Binary file - preview not available'}</p>
                   </div>
                 )}
               </div>

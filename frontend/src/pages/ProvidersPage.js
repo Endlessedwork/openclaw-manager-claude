@@ -139,7 +139,7 @@ export default function ProvidersPage() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Providers</h1>
-          <p className="text-sm text-zinc-500 mt-1">All LLM providers powering the gateway — custom and built-in</p>
+          <p className="text-sm text-theme-faint mt-1">All LLM providers powering the gateway — custom and built-in</p>
         </div>
         {canEdit() && (
           <Button onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
@@ -157,15 +157,15 @@ export default function ProvidersPage() {
           {/* Custom Providers */}
           {customProviders.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-zinc-300 mb-3" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              <h2 className="text-lg font-semibold text-theme-secondary mb-3" style={{ fontFamily: 'Manrope, sans-serif' }}>
                 Custom Providers
-                <span className="text-xs font-normal text-zinc-600 ml-2">from openclaw.json</span>
+                <span className="text-xs font-normal text-theme-dimmed ml-2">from openclaw.json</span>
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {customProviders.map(p => {
                   const color = getColor(p.id);
                   return (
-                    <div key={p.id} className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg hover:border-orange-500/20 transition-all duration-300 flex flex-col">
+                    <div key={p.id} className="bg-surface-card border border-subtle rounded-lg hover:border-orange-500/20 transition-all duration-300 flex flex-col">
                       <div className="p-5 flex-1">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3 min-w-0">
@@ -173,8 +173,8 @@ export default function ProvidersPage() {
                               <Server className={`w-4 h-4 ${color.text}`} />
                             </div>
                             <div className="min-w-0">
-                              <h3 className="text-sm font-semibold text-zinc-200 truncate">{p.id}</h3>
-                              <span className="text-[10px] font-mono text-zinc-500">{API_TYPES.find(t => t.value === p.api)?.label || p.api}</span>
+                              <h3 className="text-sm font-semibold text-theme-primary truncate">{p.id}</h3>
+                              <span className="text-[10px] font-mono text-theme-faint">{API_TYPES.find(t => t.value === p.api)?.label || p.api}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -185,14 +185,14 @@ export default function ProvidersPage() {
                         </div>
 
                         {p.base_url && (
-                          <div className="text-[10px] font-mono text-zinc-500 truncate mb-3 px-2 py-1.5 bg-[#050505] rounded border border-zinc-800/40">
+                          <div className="text-[10px] font-mono text-theme-faint truncate mb-3 px-2 py-1.5 bg-surface-sunken rounded border border-subtle">
                             {p.base_url}
                           </div>
                         )}
 
                         {p.models?.length > 0 && (
                           <div className="space-y-1">
-                            <span className="text-[10px] uppercase tracking-wider text-zinc-600 font-medium">
+                            <span className="text-[10px] uppercase tracking-wider text-theme-dimmed font-medium">
                               {p.active_count}/{p.total_count} model{p.total_count !== 1 ? 's' : ''} active
                             </span>
                             {p.models.map((m, i) => (
@@ -202,9 +202,9 @@ export default function ProvidersPage() {
                                     ? <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
                                     : <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
                                   }
-                                  <span className="font-mono text-zinc-400">{m.id}</span>
+                                  <span className="font-mono text-theme-muted">{m.id}</span>
                                 </div>
-                                {m.name && <span className="text-zinc-600 text-[10px]">{m.name}</span>}
+                                {m.name && <span className="text-theme-dimmed text-[10px]">{m.name}</span>}
                               </div>
                             ))}
                           </div>
@@ -212,12 +212,12 @@ export default function ProvidersPage() {
                       </div>
 
                       {canEdit() && (
-                        <div className="border-t border-zinc-800/60 px-5 py-3 flex items-center justify-between">
+                        <div className="border-t border-subtle px-5 py-3 flex items-center justify-between">
                           <Button
                             variant="ghost" size="sm"
                             onClick={() => handleTest(p.id)}
                             disabled={testing[p.id] === 'loading' || !p.base_url}
-                            className="text-zinc-500 hover:text-sky-400 hover:bg-sky-500/10 h-7 px-2 text-xs gap-1.5"
+                            className="text-theme-faint hover:text-sky-400 hover:bg-sky-500/10 h-7 px-2 text-xs gap-1.5"
                           >
                             {testing[p.id] === 'loading'
                               ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -226,10 +226,10 @@ export default function ProvidersPage() {
                             Test
                           </Button>
                           <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(p)} className="text-zinc-500 hover:text-orange-500 hover:bg-orange-500/10 h-7 w-7 p-0">
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(p)} className="text-theme-faint hover:text-orange-500 hover:bg-orange-500/10 h-7 w-7 p-0">
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-zinc-500 hover:text-red-500 hover:bg-red-500/10 h-7 w-7 p-0">
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-theme-faint hover:text-red-500 hover:bg-red-500/10 h-7 w-7 p-0">
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           </div>
@@ -245,15 +245,15 @@ export default function ProvidersPage() {
           {/* Built-in Providers */}
           {builtinProviders.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-zinc-300 mb-3" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              <h2 className="text-lg font-semibold text-theme-secondary mb-3" style={{ fontFamily: 'Manrope, sans-serif' }}>
                 Built-in Providers
-                <span className="text-xs font-normal text-zinc-600 ml-2">from environment &amp; gateway defaults</span>
+                <span className="text-xs font-normal text-theme-dimmed ml-2">from environment &amp; gateway defaults</span>
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {builtinProviders.map(p => {
                   const color = getColor(p.id);
                   return (
-                    <div key={p.id} className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg hover:border-zinc-700/60 transition-all duration-300 flex flex-col">
+                    <div key={p.id} className="bg-surface-card border border-subtle rounded-lg hover:border-strong/60 transition-all duration-300 flex flex-col">
                       <div className="p-5 flex-1">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3 min-w-0">
@@ -261,15 +261,15 @@ export default function ProvidersPage() {
                               <Server className={`w-4 h-4 ${color.text}`} />
                             </div>
                             <div className="min-w-0">
-                              <h3 className="text-sm font-semibold text-zinc-200 truncate">{p.id}</h3>
+                              <h3 className="text-sm font-semibold text-theme-primary truncate">{p.id}</h3>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <Lock className="w-2.5 h-2.5 text-zinc-600" />
-                                <span className="text-[10px] text-zinc-600">Built-in</span>
+                                <Lock className="w-2.5 h-2.5 text-theme-dimmed" />
+                                <span className="text-[10px] text-theme-dimmed">Built-in</span>
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-[10px] font-mono text-zinc-500">
+                            <span className="text-[10px] font-mono text-theme-faint">
                               {p.active_count}/{p.total_count}
                             </span>
                           </div>
@@ -277,7 +277,7 @@ export default function ProvidersPage() {
 
                         {p.models?.length > 0 && (
                           <div className="space-y-1">
-                            <span className="text-[10px] uppercase tracking-wider text-zinc-600 font-medium">
+                            <span className="text-[10px] uppercase tracking-wider text-theme-dimmed font-medium">
                               {p.active_count} of {p.total_count} model{p.total_count !== 1 ? 's' : ''} active
                             </span>
                             {p.models.map((m, i) => (
@@ -287,9 +287,9 @@ export default function ProvidersPage() {
                                     ? <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
                                     : <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
                                   }
-                                  <span className="font-mono text-zinc-400">{m.id}</span>
+                                  <span className="font-mono text-theme-muted">{m.id}</span>
                                 </div>
-                                {m.name && <span className="text-zinc-600 text-[10px] truncate ml-2">{m.name}</span>}
+                                {m.name && <span className="text-theme-dimmed text-[10px] truncate ml-2">{m.name}</span>}
                               </div>
                             ))}
                           </div>
@@ -304,8 +304,8 @@ export default function ProvidersPage() {
 
           {/* Empty state (no providers at all) */}
           {providers.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
-              <Server className="w-10 h-10 mb-3 text-zinc-600" />
+            <div className="flex flex-col items-center justify-center py-20 text-theme-faint">
+              <Server className="w-10 h-10 mb-3 text-theme-dimmed" />
               <p className="text-sm">No providers found</p>
             </div>
           )}
@@ -314,7 +314,7 @@ export default function ProvidersPage() {
 
       {/* Provider Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-[#0c0c0e] border-zinc-800 max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="bg-surface-card border-subtle max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
               {editing ? `Edit Provider: ${editing.id}` : 'Add Provider'}
@@ -323,19 +323,19 @@ export default function ProvidersPage() {
           <div className="space-y-4 mt-2">
             {!editing && (
               <div>
-                <Label className="text-zinc-400 text-xs">Provider ID</Label>
-                <Input value={form.id} onChange={e => setForm({...form, id: e.target.value})} className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" placeholder="anthropic" />
+                <Label className="text-theme-muted text-xs">Provider ID</Label>
+                <Input value={form.id} onChange={e => setForm({...form, id: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" placeholder="anthropic" />
               </div>
             )}
             <div>
-              <Label className="text-zinc-400 text-xs">Base URL</Label>
-              <Input value={form.base_url} onChange={e => setForm({...form, base_url: e.target.value})} className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm mt-1" placeholder="https://api.example.com/v1" />
+              <Label className="text-theme-muted text-xs">Base URL</Label>
+              <Input value={form.base_url} onChange={e => setForm({...form, base_url: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" placeholder="https://api.example.com/v1" />
             </div>
             <div>
-              <Label className="text-zinc-400 text-xs">API Type</Label>
+              <Label className="text-theme-muted text-xs">API Type</Label>
               <Select value={form.api} onValueChange={v => setForm({...form, api: v})}>
-                <SelectTrigger className="bg-[#050505] border-zinc-800 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
+                <SelectTrigger className="bg-surface-sunken border-subtle text-sm mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-surface-card border-subtle">
                   {API_TYPES.map(t => (
                     <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
@@ -344,7 +344,7 @@ export default function ProvidersPage() {
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <Label className="text-zinc-400 text-xs">Models</Label>
+                <Label className="text-theme-muted text-xs">Models</Label>
                 <Button type="button" variant="ghost" size="sm" onClick={addModelRow} className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10 h-6 px-2 text-xs">
                   <Plus className="w-3 h-3 mr-1" /> Add Model
                 </Button>
@@ -353,22 +353,22 @@ export default function ProvidersPage() {
                 {modelRows.map((row, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <Input value={row.id} onChange={e => updateModelRow(i, 'id', e.target.value)}
-                      className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm flex-[2]" placeholder="model-id" />
+                      className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm flex-[2]" placeholder="model-id" />
                     <Input value={row.name} onChange={e => updateModelRow(i, 'name', e.target.value)}
-                      className="bg-[#050505] border-zinc-800 focus:border-orange-500 text-sm flex-[2]" placeholder="Display Name" />
+                      className="bg-surface-sunken border-subtle focus:border-orange-500 text-sm flex-[2]" placeholder="Display Name" />
                     <Input value={row.contextWindow} onChange={e => updateModelRow(i, 'contextWindow', e.target.value)}
-                      className="bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-sm flex-1" placeholder="Context" type="number" />
-                    <button type="button" onClick={() => removeModelRow(i)} className="p-1 text-zinc-600 hover:text-red-400 shrink-0">
+                      className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm flex-1" placeholder="Context" type="number" />
+                    <button type="button" onClick={() => removeModelRow(i)} className="p-1 text-theme-dimmed hover:text-red-400 shrink-0">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-zinc-600 mt-1">Model ID is required. Display name and context window are optional.</p>
+              <p className="text-[10px] text-theme-dimmed mt-1">Model ID is required. Display name and context window are optional.</p>
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-zinc-800/60">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="border-zinc-700 text-zinc-400">Cancel</Button>
+          <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-subtle">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="border-strong text-theme-muted">Cancel</Button>
             <Button onClick={handleSave} className="bg-orange-600 hover:bg-orange-700 text-white">
               {editing ? 'Update' : 'Create'}
             </Button>

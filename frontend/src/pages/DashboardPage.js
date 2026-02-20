@@ -11,15 +11,15 @@ function StatCard({ icon: Icon, label, value, sub, color = 'orange' }) {
     purple: 'text-violet-500 bg-violet-500/10 border-violet-500/20',
   };
   return (
-    <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-5 hover:border-orange-500/20 transition-all duration-300 animate-fade-in">
+    <div className="bg-surface-card border border-subtle rounded-lg p-5 hover:border-orange-500/20 transition-all duration-300 animate-fade-in">
       <div className="flex items-center justify-between mb-3">
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center border ${colors[color]}`}>
           <Icon className="w-4 h-4" />
         </div>
-        {sub && <span className="text-xs font-mono text-zinc-600">{sub}</span>}
+        {sub && <span className="text-xs font-mono text-theme-dimmed">{sub}</span>}
       </div>
       <p className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>{value}</p>
-      <p className="text-xs text-zinc-500 mt-1">{label}</p>
+      <p className="text-xs text-theme-faint mt-1">{label}</p>
     </div>
   );
 }
@@ -56,20 +56,20 @@ export default function DashboardPage() {
         <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>
           Dashboard
         </h1>
-        <p className="text-sm text-zinc-500 mt-1">W.I.N.E Operation Control</p>
+        <p className="text-sm text-theme-faint mt-1">W.I.N.E Operation Control</p>
       </div>
 
       {/* Gateway Status Banner */}
       {(() => {
         const isRunning = data?.gateway_status === 'running';
         return (
-          <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-5 flex items-center justify-between">
+          <div className="bg-surface-card border border-subtle rounded-lg p-5 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className={`w-3 h-3 rounded-full ${isRunning ? 'bg-emerald-500 animate-pulse-glow' : 'bg-red-500'}`}
                 style={{ boxShadow: isRunning ? '0 0 12px rgba(16,185,129,0.6)' : '0 0 12px rgba(239,68,68,0.6)' }} />
               <div>
-                <p className="text-sm font-medium text-zinc-200">Gateway Status</p>
-                <p className="text-xs font-mono text-zinc-500">{isRunning ? 'OPERATIONAL' : 'OFFLINE'} · Port 18789</p>
+                <p className="text-sm font-medium text-theme-primary">Gateway Status</p>
+                <p className="text-xs font-mono text-theme-faint">{isRunning ? 'OPERATIONAL' : 'OFFLINE'} · Port 18789</p>
               </div>
             </div>
             <span className={`text-xs font-mono px-2 py-1 rounded uppercase tracking-wider ${isRunning ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
@@ -92,28 +92,28 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg">
-        <div className="border-b border-zinc-800/60 p-4 bg-[#101012] rounded-t-lg">
+      <div className="bg-surface-card border border-subtle rounded-lg">
+        <div className="border-b border-subtle p-4 bg-surface-header rounded-t-lg">
           <h2 className="text-base font-semibold" style={{ fontFamily: 'Manrope, sans-serif' }}>Recent Activity</h2>
         </div>
-        <div className="divide-y divide-zinc-800/40">
+        <div className="divide-y divide-subtle">
           {data?.recent_activity?.length > 0 ? data.recent_activity.map((log, i) => (
-            <div key={i} className="px-4 py-3 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
+            <div key={i} className="px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
               <div className="flex items-center gap-3">
                 <span className={`text-xs font-mono px-2 py-0.5 rounded uppercase tracking-wider ${
                   log.action === 'create' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
                   log.action === 'delete' ? 'bg-red-500/10 text-red-500 border border-red-500/20' :
                   log.action === 'update' ? 'bg-sky-500/10 text-sky-500 border border-sky-500/20' :
-                  'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                  'bg-muted text-theme-faint border border-strong'
                 }`}>{log.action}</span>
-                <span className="text-sm text-zinc-300">{log.details || `${log.action} ${log.entity_type}`}</span>
+                <span className="text-sm text-theme-secondary">{log.details || `${log.action} ${log.entity_type}`}</span>
               </div>
-              <span className="text-xs font-mono text-zinc-600">
+              <span className="text-xs font-mono text-theme-dimmed">
                 {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''}
               </span>
             </div>
           )) : (
-            <div className="px-4 py-8 text-center text-sm text-zinc-600">No recent activity</div>
+            <div className="px-4 py-8 text-center text-sm text-theme-dimmed">No recent activity</div>
           )}
         </div>
       </div>

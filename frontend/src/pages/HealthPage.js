@@ -91,10 +91,10 @@ function CircularGauge({ percent = 0, size = 'md', label, sublabel }) {
         </div>
       </div>
       {label && (
-        <span className="text-xs text-zinc-500 font-medium text-center leading-tight">{label}</span>
+        <span className="text-xs text-theme-faint font-medium text-center leading-tight">{label}</span>
       )}
       {sublabel && (
-        <span className="text-[10px] text-zinc-600 font-mono text-center">{sublabel}</span>
+        <span className="text-[10px] text-theme-dimmed font-mono text-center">{sublabel}</span>
       )}
     </div>
   );
@@ -106,8 +106,8 @@ function CircularGauge({ percent = 0, size = 'md', label, sublabel }) {
 
 function Section({ icon: Icon, title, children, className = '' }) {
   return (
-    <div className={`bg-[#0c0c0e] border border-zinc-800/60 rounded-lg overflow-hidden hover:border-orange-500/20 transition-all duration-300 ${className}`}>
-      <div className="border-b border-zinc-800/60 px-5 py-3.5 bg-[#101012] flex items-center gap-2.5">
+    <div className={`bg-surface-card border border-subtle rounded-lg overflow-hidden hover:border-orange-500/20 transition-all duration-300 ${className}`}>
+      <div className="border-b border-subtle px-5 py-3.5 bg-surface-header flex items-center gap-2.5">
         <Icon className="w-4 h-4 text-orange-500" />
         <h2 className="text-sm font-semibold tracking-wide" style={{ fontFamily: 'Manrope, sans-serif' }}>{title}</h2>
       </div>
@@ -127,11 +127,11 @@ function UsageBar({ percent, height = 'h-2', showLabel = false, label = '' }) {
     <div className="w-full">
       {showLabel && (
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs text-zinc-500">{label}</span>
+          <span className="text-xs text-theme-faint">{label}</span>
           <span className={`text-xs font-mono font-medium ${color.text}`}>{percent.toFixed(1)}%</span>
         </div>
       )}
-      <div className={`w-full ${height} bg-zinc-800/80 rounded-full overflow-hidden`}>
+      <div className={`w-full ${height} bg-muted/80 rounded-full overflow-hidden`}>
         <div
           className={`${height} bg-gradient-to-r ${gradient} rounded-full`}
           style={{
@@ -158,15 +158,15 @@ function MiniStat({ icon: Icon, label, value, sub, color = 'orange' }) {
     purple: 'text-violet-500 bg-violet-500/10 border-violet-500/20',
   };
   return (
-    <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300">
+    <div className="bg-surface-card border border-subtle rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300">
       <div className="flex items-center gap-2.5 mb-2">
         <div className={`w-7 h-7 rounded-md flex items-center justify-center border ${colors[color]}`}>
           <Icon className="w-3.5 h-3.5" />
         </div>
-        <span className="text-xs text-zinc-500">{label}</span>
+        <span className="text-xs text-theme-faint">{label}</span>
       </div>
       <p className="text-lg font-bold tracking-tight" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{value}</p>
-      {sub && <p className="text-[10px] text-zinc-600 font-mono mt-0.5">{sub}</p>}
+      {sub && <p className="text-[10px] text-theme-dimmed font-mono mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -209,7 +209,7 @@ export default function HealthPage() {
   if (!data) {
     return (
       <div data-testid="health-page" className="flex items-center justify-center h-64">
-        <p className="text-sm text-zinc-500">Unable to load health data.</p>
+        <p className="text-sm text-theme-faint">Unable to load health data.</p>
       </div>
     );
   }
@@ -226,11 +226,11 @@ export default function HealthPage() {
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>
             System Health
           </h1>
-          <p className="text-sm text-zinc-500 mt-1">Real-time infrastructure monitoring</p>
+          <p className="text-sm text-theme-faint mt-1">Real-time infrastructure monitoring</p>
         </div>
         <div className="flex items-center gap-3">
           {lastUpdated && (
-            <span className="text-[11px] font-mono text-zinc-600 hidden sm:block">
+            <span className="text-[11px] font-mono text-theme-dimmed hidden sm:block">
               {lastUpdated.toLocaleTimeString()}
             </span>
           )}
@@ -251,45 +251,45 @@ export default function HealthPage() {
       {/* Quick Stats Bar                                                  */}
       {/* ---------------------------------------------------------------- */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300 flex items-center gap-4">
+        <div className="bg-surface-card border border-subtle rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300 flex items-center gap-4">
           <CircularGauge percent={cpu?.percent_total || 0} size="sm" />
           <div>
-            <p className="text-xs text-zinc-500">CPU</p>
+            <p className="text-xs text-theme-faint">CPU</p>
             <p className="text-sm font-bold font-mono" style={{ transition: 'color 0.5s ease' }}>
               {(cpu?.percent_total || 0).toFixed(1)}%
             </p>
           </div>
         </div>
-        <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300 flex items-center gap-4">
+        <div className="bg-surface-card border border-subtle rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300 flex items-center gap-4">
           <CircularGauge percent={memory?.percent || 0} size="sm" />
           <div>
-            <p className="text-xs text-zinc-500">Memory</p>
+            <p className="text-xs text-theme-faint">Memory</p>
             <p className="text-sm font-bold font-mono">
               {(memory?.percent || 0).toFixed(1)}%
             </p>
           </div>
         </div>
-        <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300 flex items-center gap-4">
+        <div className="bg-surface-card border border-subtle rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300 flex items-center gap-4">
           <CircularGauge percent={disk?.partitions?.[0]?.percent || 0} size="sm" />
           <div>
-            <p className="text-xs text-zinc-500">Disk</p>
+            <p className="text-xs text-theme-faint">Disk</p>
             <p className="text-sm font-bold font-mono">
               {(disk?.partitions?.[0]?.percent || 0).toFixed(1)}%
             </p>
           </div>
         </div>
-        <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300">
+        <div className="bg-surface-card border border-subtle rounded-lg p-4 hover:border-orange-500/20 transition-all duration-300">
           <div className="flex items-center gap-2 mb-1.5">
             <Network className="w-3.5 h-3.5 text-sky-500" />
-            <span className="text-xs text-zinc-500">Network</span>
+            <span className="text-xs text-theme-faint">Network</span>
           </div>
           <div className="flex items-center gap-2 text-xs font-mono">
             <ArrowUp className="w-3 h-3 text-emerald-500" />
-            <span className="text-zinc-300">{formatBytes(network?.bytes_sent)}</span>
+            <span className="text-theme-secondary">{formatBytes(network?.bytes_sent)}</span>
           </div>
           <div className="flex items-center gap-2 text-xs font-mono mt-0.5">
             <ArrowDown className="w-3 h-3 text-sky-500" />
-            <span className="text-zinc-300">{formatBytes(network?.bytes_recv)}</span>
+            <span className="text-theme-secondary">{formatBytes(network?.bytes_recv)}</span>
           </div>
         </div>
         <MiniStat
@@ -313,7 +313,7 @@ export default function HealthPage() {
           {/* Per-core breakdown */}
           {cpu?.percent_per_core?.length > 1 && (
             <div>
-              <p className="text-xs text-zinc-500 mb-3">Per-Core Usage</p>
+              <p className="text-xs text-theme-faint mb-3">Per-Core Usage</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
                 {cpu.percent_per_core.map((pct, i) => (
                   <UsageBar key={i} percent={pct} height="h-1.5" showLabel label={`Core ${i}`} />
@@ -323,32 +323,32 @@ export default function HealthPage() {
           )}
 
           {/* Load average + frequency */}
-          <div className="flex flex-wrap gap-6 pt-2 border-t border-zinc-800/40">
+          <div className="flex flex-wrap gap-6 pt-2 border-t border-subtle">
             {cpu?.load_avg && (
               <div>
-                <p className="text-xs text-zinc-500 mb-1">Load Average</p>
+                <p className="text-xs text-theme-faint mb-1">Load Average</p>
                 <div className="flex items-center gap-3">
                   {['1m', '5m', '15m'].map((label, i) => (
                     <div key={label} className="text-center">
-                      <p className="text-sm font-bold font-mono text-zinc-200">
+                      <p className="text-sm font-bold font-mono text-theme-primary">
                         {cpu.load_avg[i]?.toFixed(2) ?? '--'}
                       </p>
-                      <p className="text-[10px] text-zinc-600 font-mono">{label}</p>
+                      <p className="text-[10px] text-theme-dimmed font-mono">{label}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             <div>
-              <p className="text-xs text-zinc-500 mb-1">Cores</p>
-              <p className="text-sm font-mono text-zinc-200">
+              <p className="text-xs text-theme-faint mb-1">Cores</p>
+              <p className="text-sm font-mono text-theme-primary">
                 {cpu?.count_physical || '--'}P / {cpu?.count_logical || '--'}L
               </p>
             </div>
             {cpu?.frequency_mhz?.current > 0 && (
               <div>
-                <p className="text-xs text-zinc-500 mb-1">Frequency</p>
-                <p className="text-sm font-mono text-zinc-200">
+                <p className="text-xs text-theme-faint mb-1">Frequency</p>
+                <p className="text-sm font-mono text-theme-primary">
                   {(cpu.frequency_mhz.current / 1000).toFixed(2)} GHz
                 </p>
               </div>
@@ -373,16 +373,16 @@ export default function HealthPage() {
               <UsageBar percent={memory?.percent || 0} height="h-2" showLabel label="Usage" />
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Used</p>
-                  <p className="text-sm font-mono text-zinc-200">{formatBytes(memory?.used_bytes)}</p>
+                  <p className="text-[10px] text-theme-dimmed uppercase tracking-wider">Used</p>
+                  <p className="text-sm font-mono text-theme-primary">{formatBytes(memory?.used_bytes)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Available</p>
-                  <p className="text-sm font-mono text-zinc-200">{formatBytes(memory?.available_bytes)}</p>
+                  <p className="text-[10px] text-theme-dimmed uppercase tracking-wider">Available</p>
+                  <p className="text-sm font-mono text-theme-primary">{formatBytes(memory?.available_bytes)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Total</p>
-                  <p className="text-sm font-mono text-zinc-200">{formatBytes(memory?.total_bytes)}</p>
+                  <p className="text-[10px] text-theme-dimmed uppercase tracking-wider">Total</p>
+                  <p className="text-sm font-mono text-theme-primary">{formatBytes(memory?.total_bytes)}</p>
                 </div>
               </div>
             </div>
@@ -401,12 +401,12 @@ export default function HealthPage() {
               <UsageBar percent={memory?.swap_percent || 0} height="h-2" showLabel label="Usage" />
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Used</p>
-                  <p className="text-sm font-mono text-zinc-200">{formatBytes(memory?.swap_used_bytes)}</p>
+                  <p className="text-[10px] text-theme-dimmed uppercase tracking-wider">Used</p>
+                  <p className="text-sm font-mono text-theme-primary">{formatBytes(memory?.swap_used_bytes)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Total</p>
-                  <p className="text-sm font-mono text-zinc-200">{formatBytes(memory?.swap_total_bytes)}</p>
+                  <p className="text-[10px] text-theme-dimmed uppercase tracking-wider">Total</p>
+                  <p className="text-sm font-mono text-theme-primary">{formatBytes(memory?.swap_total_bytes)}</p>
                 </div>
               </div>
             </div>
@@ -424,12 +424,12 @@ export default function HealthPage() {
             return (
               <div
                 key={i}
-                className="bg-[#09090b] border border-zinc-800/40 rounded-lg p-4 space-y-3"
+                className="bg-surface-page border border-subtle rounded-lg p-4 space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <HardDrive className={`w-3.5 h-3.5 ${color.text}`} />
-                    <span className="text-sm font-mono text-zinc-200">{part.mountpoint}</span>
+                    <span className="text-sm font-mono text-theme-primary">{part.mountpoint}</span>
                   </div>
                   <span className={`text-xs font-mono font-bold ${color.text}`}>
                     {part.percent.toFixed(1)}%
@@ -438,21 +438,21 @@ export default function HealthPage() {
                 <UsageBar percent={part.percent} height="h-2" />
                 <div className="grid grid-cols-3 gap-2 text-[10px] font-mono">
                   <div>
-                    <p className="text-zinc-600 uppercase tracking-wider">Used</p>
-                    <p className="text-zinc-300">{formatBytes(part.used_bytes)}</p>
+                    <p className="text-theme-dimmed uppercase tracking-wider">Used</p>
+                    <p className="text-theme-secondary">{formatBytes(part.used_bytes)}</p>
                   </div>
                   <div>
-                    <p className="text-zinc-600 uppercase tracking-wider">Free</p>
-                    <p className="text-zinc-300">{formatBytes(part.free_bytes)}</p>
+                    <p className="text-theme-dimmed uppercase tracking-wider">Free</p>
+                    <p className="text-theme-secondary">{formatBytes(part.free_bytes)}</p>
                   </div>
                   <div>
-                    <p className="text-zinc-600 uppercase tracking-wider">Total</p>
-                    <p className="text-zinc-300">{formatBytes(part.total_bytes)}</p>
+                    <p className="text-theme-dimmed uppercase tracking-wider">Total</p>
+                    <p className="text-theme-secondary">{formatBytes(part.total_bytes)}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 text-[10px] text-zinc-600 font-mono pt-1 border-t border-zinc-800/40">
+                <div className="flex items-center gap-3 text-[10px] text-theme-dimmed font-mono pt-1 border-t border-subtle">
                   <span>{part.device}</span>
-                  <span className="text-zinc-700">|</span>
+                  <span className="text-theme-dimmed">|</span>
                   <span>{part.fstype}</span>
                 </div>
               </div>
@@ -471,35 +471,35 @@ export default function HealthPage() {
             <div>
               <div className="flex items-center gap-1.5 mb-1">
                 <ArrowUp className="w-3 h-3 text-emerald-500" />
-                <span className="text-[10px] text-zinc-600 uppercase tracking-wider">Sent</span>
+                <span className="text-[10px] text-theme-dimmed uppercase tracking-wider">Sent</span>
               </div>
-              <p className="text-sm font-mono text-zinc-200">{formatBytes(network?.bytes_sent)}</p>
+              <p className="text-sm font-mono text-theme-primary">{formatBytes(network?.bytes_sent)}</p>
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-1">
                 <ArrowDown className="w-3 h-3 text-sky-500" />
-                <span className="text-[10px] text-zinc-600 uppercase tracking-wider">Received</span>
+                <span className="text-[10px] text-theme-dimmed uppercase tracking-wider">Received</span>
               </div>
-              <p className="text-sm font-mono text-zinc-200">{formatBytes(network?.bytes_recv)}</p>
+              <p className="text-sm font-mono text-theme-primary">{formatBytes(network?.bytes_recv)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Packets Sent</p>
-              <p className="text-sm font-mono text-zinc-200">{(network?.packets_sent || 0).toLocaleString()}</p>
+              <p className="text-[10px] text-theme-dimmed uppercase tracking-wider mb-1">Packets Sent</p>
+              <p className="text-sm font-mono text-theme-primary">{(network?.packets_sent || 0).toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Packets Recv</p>
-              <p className="text-sm font-mono text-zinc-200">{(network?.packets_recv || 0).toLocaleString()}</p>
+              <p className="text-[10px] text-theme-dimmed uppercase tracking-wider mb-1">Packets Recv</p>
+              <p className="text-sm font-mono text-theme-primary">{(network?.packets_recv || 0).toLocaleString()}</p>
             </div>
           </div>
 
           {/* Per-interface */}
           {network?.interfaces && Object.keys(network.interfaces).length > 0 && (
-            <div className="border-t border-zinc-800/40 pt-3">
-              <p className="text-xs text-zinc-500 mb-2">Interfaces</p>
-              <div className="divide-y divide-zinc-800/30">
+            <div className="border-t border-subtle pt-3">
+              <p className="text-xs text-theme-faint mb-2">Interfaces</p>
+              <div className="divide-y divide-subtle">
                 {Object.entries(network.interfaces).map(([name, iface]) => (
                   <div key={name} className="flex items-center justify-between py-2">
-                    <span className="text-xs font-mono text-zinc-400">{name}</span>
+                    <span className="text-xs font-mono text-theme-muted">{name}</span>
                     <div className="flex items-center gap-4 text-xs font-mono">
                       <span className="flex items-center gap-1 text-emerald-500/80">
                         <ArrowUp className="w-3 h-3" /> {formatBytes(iface.bytes_sent)}
@@ -559,7 +559,7 @@ export default function HealthPage() {
                 })()}
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-bold font-mono text-zinc-200">{processes?.total || 0}</span>
+                <span className="text-lg font-bold font-mono text-theme-primary">{processes?.total || 0}</span>
               </div>
             </div>
 
@@ -572,8 +572,8 @@ export default function HealthPage() {
               ].map(({ label, count, color }) => (
                 <div key={label} className="flex items-center gap-2">
                   <div className={`w-2.5 h-2.5 rounded-sm ${color}`} />
-                  <span className="text-xs text-zinc-400 w-16">{label}</span>
-                  <span className="text-xs font-mono text-zinc-200">{count}</span>
+                  <span className="text-xs text-theme-muted w-16">{label}</span>
+                  <span className="text-xs font-mono text-theme-primary">{count}</span>
                 </div>
               ))}
             </div>
@@ -586,18 +586,18 @@ export default function HealthPage() {
             <div className="space-y-2">
               {Object.entries(temperatures).map(([name, readings]) => (
                 <div key={name}>
-                  <p className="text-xs text-zinc-500 mb-1">{name}</p>
+                  <p className="text-xs text-theme-faint mb-1">{name}</p>
                   {Array.isArray(readings) ? readings.map((r, i) => {
                     const temp = r?.current ?? r;
                     const tempColor = temp >= 80 ? 'text-red-500' : temp >= 60 ? 'text-amber-500' : 'text-emerald-500';
                     return (
                       <div key={i} className="flex items-center justify-between py-1">
-                        <span className="text-xs font-mono text-zinc-400">{r?.label || `Sensor ${i}`}</span>
+                        <span className="text-xs font-mono text-theme-muted">{r?.label || `Sensor ${i}`}</span>
                         <span className={`text-sm font-mono font-bold ${tempColor}`}>{temp}°C</span>
                       </div>
                     );
                   }) : (
-                    <p className="text-xs text-zinc-600">No readings available</p>
+                    <p className="text-xs text-theme-dimmed">No readings available</p>
                   )}
                 </div>
               ))}
@@ -610,20 +610,20 @@ export default function HealthPage() {
           <Section icon={Clock} title="System Info">
             <div className="space-y-3">
               <div>
-                <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Uptime</p>
-                <p className="text-xl font-bold font-mono text-zinc-200 mt-1">{formatUptime(uptime_seconds)}</p>
+                <p className="text-[10px] text-theme-dimmed uppercase tracking-wider">Uptime</p>
+                <p className="text-xl font-bold font-mono text-theme-primary mt-1">{formatUptime(uptime_seconds)}</p>
               </div>
               {data.boot_time && (
                 <div>
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Boot Time</p>
-                  <p className="text-sm font-mono text-zinc-400 mt-1">
+                  <p className="text-[10px] text-theme-dimmed uppercase tracking-wider">Boot Time</p>
+                  <p className="text-sm font-mono text-theme-muted mt-1">
                     {new Date(data.boot_time).toLocaleString()}
                   </p>
                 </div>
               )}
               <div>
-                <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Total Processes</p>
-                <p className="text-sm font-mono text-zinc-400 mt-1">{processes?.total || '--'}</p>
+                <p className="text-[10px] text-theme-dimmed uppercase tracking-wider">Total Processes</p>
+                <p className="text-sm font-mono text-theme-muted mt-1">{processes?.total || '--'}</p>
               </div>
             </div>
           </Section>

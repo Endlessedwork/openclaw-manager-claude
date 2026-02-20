@@ -46,17 +46,17 @@ export default function Sidebar() {
         data-testid="sidebar"
         className={`fixed left-0 top-0 h-screen z-50 flex flex-col transition-all duration-300 ${
           collapsed ? 'w-16' : 'w-64'
-        } backdrop-blur-xl bg-[#0b0b0d]/95 border-r border-white/5`}
+        } backdrop-blur-xl bg-surface-raised/95 border-r border-subtle`}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-4 h-16 border-b border-white/5 shrink-0">
+        <div className="flex items-center gap-3 px-4 h-16 border-b border-subtle shrink-0">
           <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center shadow-[0_0_15px_rgba(249,115,22,0.4)]">
             <Activity className="w-4 h-4 text-white" />
           </div>
           {!collapsed && (
             <div className="flex flex-col leading-tight">
               <span className="font-bold text-base tracking-widest" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
-              <span className="text-[10px] text-zinc-500 tracking-wider">Operation Control</span>
+              <span className="text-[10px] text-theme-faint tracking-wider">Operation Control</span>
             </div>
           )}
         </div>
@@ -74,10 +74,10 @@ export default function Sidebar() {
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 group ${
                     isActive
                       ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'
+                      : 'text-theme-muted hover:text-theme-primary hover:bg-muted border border-transparent'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-500' : 'text-zinc-500 group-hover:text-zinc-300'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-500' : 'text-theme-faint group-hover:text-theme-secondary'}`} />
                   {!collapsed && <span>{label}</span>}
                 </NavLink>
               );
@@ -86,7 +86,7 @@ export default function Sidebar() {
                 return (
                   <Tooltip key={path}>
                     <TooltipTrigger asChild>{link}</TooltipTrigger>
-                    <TooltipContent side="right" className="bg-zinc-900 text-zinc-200 border-zinc-800">
+                    <TooltipContent side="right" className="bg-surface-card text-theme-primary border-subtle">
                       {label}
                     </TooltipContent>
                   </Tooltip>
@@ -99,16 +99,16 @@ export default function Sidebar() {
 
         {/* User Profile */}
         {user && (
-          <div className={`px-3 py-3 border-t border-white/5 ${collapsed ? 'text-center' : ''}`}>
+          <div className={`px-3 py-3 border-t border-subtle ${collapsed ? 'text-center' : ''}`}>
             {!collapsed && (
               <div className="mb-2">
-                <div className="text-sm font-medium text-zinc-300 truncate">{user.name}</div>
-                <div className="text-xs text-zinc-500 truncate">{user.role}</div>
+                <div className="text-sm font-medium text-theme-secondary truncate">{user.name}</div>
+                <div className="text-xs text-theme-faint truncate">{user.role}</div>
               </div>
             )}
             <button
               onClick={logout}
-              className={`flex items-center gap-2 text-sm text-zinc-500 hover:text-red-400 transition-colors ${collapsed ? 'justify-center w-full' : ''}`}
+              className={`flex items-center gap-2 text-sm text-theme-faint hover:text-red-400 transition-colors ${collapsed ? 'justify-center w-full' : ''}`}
             >
               <LogOut className="w-4 h-4" />
               {!collapsed && <span>Sign out</span>}
@@ -117,13 +117,13 @@ export default function Sidebar() {
         )}
 
         {/* Collapse Toggle */}
-        <div className="px-2 pb-4 pt-2 border-t border-white/5">
+        <div className="px-2 pb-4 pt-2 border-t border-subtle">
           <Button
             data-testid="sidebar-toggle"
             variant="ghost"
             size="sm"
             onClick={() => setCollapsed(!collapsed)}
-            className="w-full justify-center hover:bg-white/5 text-zinc-500 hover:text-zinc-300"
+            className="w-full justify-center hover:bg-muted text-theme-faint hover:text-theme-secondary"
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </Button>

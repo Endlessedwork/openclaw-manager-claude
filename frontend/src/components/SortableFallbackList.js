@@ -19,18 +19,18 @@ function SortableItem({ id, index, label, onRemove, canEdit }) {
       className={`flex items-center gap-3 px-3 py-2 rounded-lg border transition-all ${
         isDragging
           ? 'bg-orange-500/10 border-orange-500/30 shadow-lg'
-          : 'bg-[#0c0c0e] border-zinc-800/60 hover:border-zinc-700'
+          : 'bg-surface-card border-subtle hover:border-strong'
       }`}
     >
       {canEdit && (
-        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400 touch-none">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-theme-dimmed hover:text-theme-muted touch-none">
           <GripVertical className="w-4 h-4" />
         </button>
       )}
-      <span className="text-xs text-zinc-500 font-mono w-6 text-right">#{index + 1}</span>
-      <span className="flex-1 text-sm font-mono text-zinc-300 truncate">{label}</span>
+      <span className="text-xs text-theme-faint font-mono w-6 text-right">#{index + 1}</span>
+      <span className="flex-1 text-sm font-mono text-theme-secondary truncate">{label}</span>
       {canEdit && (
-        <button onClick={() => onRemove(id)} className="text-zinc-600 hover:text-red-400 p-0.5">
+        <button onClick={() => onRemove(id)} className="text-theme-dimmed hover:text-red-400 p-0.5">
           <X className="w-3.5 h-3.5" />
         </button>
       )}
@@ -54,7 +54,7 @@ export default function SortableFallbackList({ items, onReorder, onRemove, canEd
   };
 
   if (items.length === 0) {
-    return <div className="text-center py-4 text-xs text-zinc-600">No fallbacks configured</div>;
+    return <div className="text-center py-4 text-xs text-theme-dimmed">No fallbacks configured</div>;
   }
 
   return (

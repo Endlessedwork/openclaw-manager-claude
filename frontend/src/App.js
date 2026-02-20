@@ -3,6 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider } from "./contexts/AuthContext";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./layout/MainLayout";
 import LoginPage from "./pages/LoginPage";
@@ -25,38 +26,45 @@ import HealthPage from "./pages/HealthPage";
 import FilesPage from "./pages/FilesPage";
 import ProvidersPage from "./pages/ProvidersPage";
 
+function ThemedToaster() {
+  const { isDark } = useTheme();
+  return <Toaster position="bottom-right" theme={isDark ? 'dark' : 'light'} />;
+}
+
 function App() {
   return (
     <div className="App">
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/agents" element={<AgentsPage />} />
-              <Route path="/skills" element={<SkillsPage />} />
-              <Route path="/tools" element={<ToolsPage />} />
-              <Route path="/models" element={<ModelsPage />} />
-              <Route path="/providers" element={<ProvidersPage />} />
-              <Route path="/channels" element={<ChannelsPage />} />
-              <Route path="/sessions" element={<SessionsPage />} />
-              <Route path="/cron" element={<CronPage />} />
-              <Route path="/config" element={<ConfigPage />} />
-              <Route path="/gateway" element={<GatewayPage />} />
-              <Route path="/health" element={<HealthPage />} />
-              <Route path="/files" element={<FilesPage />} />
-              <Route path="/activities" element={<ActivitiesPage />} />
-              <Route path="/logs" element={<LogsPage />} />
-              <Route path="/clawhub" element={<ClawHubPage />} />
-              <Route path="/hooks" element={<HooksPage />} />
-              <Route path="/users" element={<ProtectedRoute roles={["admin"]}><UsersPage /></ProtectedRoute>} />
-            </Route>
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-      <Toaster position="bottom-right" theme="dark" />
+      <ThemeProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/agents" element={<AgentsPage />} />
+                <Route path="/skills" element={<SkillsPage />} />
+                <Route path="/tools" element={<ToolsPage />} />
+                <Route path="/models" element={<ModelsPage />} />
+                <Route path="/providers" element={<ProvidersPage />} />
+                <Route path="/channels" element={<ChannelsPage />} />
+                <Route path="/sessions" element={<SessionsPage />} />
+                <Route path="/cron" element={<CronPage />} />
+                <Route path="/config" element={<ConfigPage />} />
+                <Route path="/gateway" element={<GatewayPage />} />
+                <Route path="/health" element={<HealthPage />} />
+                <Route path="/files" element={<FilesPage />} />
+                <Route path="/activities" element={<ActivitiesPage />} />
+                <Route path="/logs" element={<LogsPage />} />
+                <Route path="/clawhub" element={<ClawHubPage />} />
+                <Route path="/hooks" element={<HooksPage />} />
+                <Route path="/users" element={<ProtectedRoute roles={["admin"]}><UsersPage /></ProtectedRoute>} />
+              </Route>
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+        <ThemedToaster />
+      </ThemeProvider>
     </div>
   );
 }

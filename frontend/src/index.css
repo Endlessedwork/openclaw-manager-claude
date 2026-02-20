@@ -14,8 +14,6 @@ body {
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #09090b;
-  color: #fafafa;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -27,7 +25,63 @@ code, pre, .font-mono {
 }
 
 @layer base {
+  /* LIGHT THEME — default */
   :root {
+    --background: 0 0% 96%;
+    --foreground: 0 0% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 199 89% 48%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 24 95% 53%;
+    --chart-1: 24 95% 53%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 199 89% 48%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 0 84% 60%;
+    --radius: 0.5rem;
+
+    --surface-page: 0 0% 96%;
+    --surface-card: 0 0% 100%;
+    --surface-card-hover: 0 0% 98%;
+    --surface-raised: 0 0% 100%;
+    --surface-sunken: 0 0% 93%;
+    --surface-section-header: 0 0% 95%;
+    --surface-terminal: 0 0% 7%;
+
+    --border-subtle: 0 0% 88%;
+    --border-strong: 0 0% 78%;
+
+    --text-primary: 0 0% 9%;
+    --text-secondary: 0 0% 35%;
+    --text-muted: 0 0% 52%;
+    --text-faint: 0 0% 65%;
+    --text-dimmed: 0 0% 75%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 9%;
+    --sidebar-primary: 24 95% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: 24 95% 53%;
+  }
+
+  /* DARK THEME */
+  .dark {
     --background: 0 0% 3.5%;
     --foreground: 0 0% 98%;
     --card: 0 0% 5%;
@@ -52,7 +106,24 @@ code, pre, .font-mono {
     --chart-3: 199 89% 48%;
     --chart-4: 43 74% 66%;
     --chart-5: 0 84% 60%;
-    --radius: 0.5rem;
+
+    --surface-page: 0 0% 3.5%;
+    --surface-card: 0 0% 5%;
+    --surface-card-hover: 0 0% 6%;
+    --surface-raised: 0 0% 4.5%;
+    --surface-sunken: 0 0% 2%;
+    --surface-section-header: 0 0% 6.3%;
+    --surface-terminal: 0 0% 2.4%;
+
+    --border-subtle: 0 0% 15%;
+    --border-strong: 0 0% 20%;
+
+    --text-primary: 0 0% 87%;
+    --text-secondary: 0 0% 76%;
+    --text-muted: 0 0% 62%;
+    --text-faint: 0 0% 50%;
+    --text-dimmed: 0 0% 44%;
+
     --sidebar-background: 0 0% 4.5%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 24 95% 53%;
@@ -73,20 +144,38 @@ code, pre, .font-mono {
   }
 }
 
+@layer utilities {
+  .bg-surface-page     { background-color: hsl(var(--surface-page)); }
+  .bg-surface-card     { background-color: hsl(var(--surface-card)); }
+  .bg-surface-raised   { background-color: hsl(var(--surface-raised)); }
+  .bg-surface-sunken   { background-color: hsl(var(--surface-sunken)); }
+  .bg-surface-header   { background-color: hsl(var(--surface-section-header)); }
+  .bg-surface-terminal { background-color: hsl(var(--surface-terminal)); }
+
+  .border-subtle  { border-color: hsl(var(--border-subtle)); }
+  .border-strong  { border-color: hsl(var(--border-strong)); }
+
+  .text-theme-primary   { color: hsl(var(--text-primary)); }
+  .text-theme-secondary { color: hsl(var(--text-secondary)); }
+  .text-theme-muted     { color: hsl(var(--text-muted)); }
+  .text-theme-faint     { color: hsl(var(--text-faint)); }
+  .text-theme-dimmed    { color: hsl(var(--text-dimmed)); }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #09090b;
+  background: hsl(var(--surface-page));
 }
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: hsl(var(--border-strong));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: hsl(var(--text-faint));
 }
 
 /* Animations */

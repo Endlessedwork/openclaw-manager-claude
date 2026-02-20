@@ -212,23 +212,23 @@ export default function LogsPage() {
       <div className="shrink-0 flex items-center justify-between mb-4">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Logs</h1>
-          <p className="text-sm text-zinc-500 mt-1"><span className="font-mono">openclaw logs --follow</span></p>
+          <p className="text-sm text-theme-faint mt-1"><span className="font-mono">openclaw logs --follow</span></p>
         </div>
         <div className="flex items-center gap-2">
           {/* WebSocket Status */}
-          <div className="flex items-center gap-2 bg-[#0c0c0e] border border-zinc-800/60 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 bg-surface-card border border-subtle rounded-lg px-3 py-2">
             <div className={`w-2 h-2 rounded-full transition-colors ${wsConnected && !paused ? 'bg-emerald-500 animate-pulse' : wsConnected ? 'bg-amber-500' : 'bg-red-500'}`}
               style={wsConnected && !paused ? { boxShadow: '0 0 8px rgba(16,185,129,0.6)' } : {}} />
-            <Label className="text-xs text-zinc-400 cursor-pointer" htmlFor="log-pause">
+            <Label className="text-xs text-theme-muted cursor-pointer" htmlFor="log-pause">
               {!wsConnected ? 'Disconnected' : paused ? 'Paused' : 'Live'}
             </Label>
             <Switch id="log-pause" data-testid="follow-toggle" checked={!paused} onCheckedChange={v => setPaused(!v)} />
           </div>
           <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}
-            className={`border-zinc-700 text-zinc-400 hover:bg-zinc-800 ${showFilters ? 'bg-zinc-800 text-zinc-200' : ''}`}>
+            className={`border-strong text-theme-muted hover:bg-muted ${showFilters ? 'bg-muted text-theme-primary' : ''}`}>
             <Filter className="w-3.5 h-3.5 mr-1" /> Filters
           </Button>
-          <Button variant="outline" size="sm" onClick={handleClear} className="border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-red-500" data-testid="clear-logs-btn">
+          <Button variant="outline" size="sm" onClick={handleClear} className="border-strong text-theme-muted hover:bg-muted hover:text-red-500" data-testid="clear-logs-btn">
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -236,38 +236,38 @@ export default function LogsPage() {
 
       {/* Filter Bar */}
       {showFilters && (
-        <div className="shrink-0 bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-3 mb-3 animate-fade-in">
+        <div className="shrink-0 bg-surface-card border border-subtle rounded-lg p-3 mb-3 animate-fade-in">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-zinc-600 uppercase tracking-wider mr-1">Level:</span>
+              <span className="text-[10px] text-theme-dimmed uppercase tracking-wider mr-1">Level:</span>
               {LEVELS.map(level => (
                 <button key={level} data-testid={`filter-level-${level.toLowerCase()}`} onClick={() => toggleLevel(level)}
-                  className={`text-[11px] font-mono px-2 py-0.5 rounded border transition-all ${levelFilters.has(level) ? `${levelBg(level)} border-current/20` : 'text-zinc-700 bg-zinc-900 border-zinc-800 line-through'}`}>
+                  className={`text-[11px] font-mono px-2 py-0.5 rounded border transition-all ${levelFilters.has(level) ? `${levelBg(level)} border-current/20` : 'text-theme-dimmed bg-surface-card border-subtle line-through'}`}>
                   {level}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-zinc-600 uppercase tracking-wider mr-1">Source:</span>
+              <span className="text-[10px] text-theme-dimmed uppercase tracking-wider mr-1">Source:</span>
               {SOURCE_PRESETS.map(src => (
                 <button key={src} data-testid={`filter-source-${src}`} onClick={() => setSourceFilter(sourceFilter === src ? '' : src)}
-                  className={`text-[11px] font-mono px-2 py-0.5 rounded border transition-all ${sourceFilter === src ? 'text-orange-500 bg-orange-500/10 border-orange-500/20' : 'text-zinc-600 bg-zinc-900 border-zinc-800 hover:text-zinc-400 hover:border-zinc-700'}`}>
+                  className={`text-[11px] font-mono px-2 py-0.5 rounded border transition-all ${sourceFilter === src ? 'text-orange-500 bg-orange-500/10 border-orange-500/20' : 'text-theme-dimmed bg-surface-card border-subtle hover:text-theme-muted hover:border-strong'}`}>
                   {src}
                 </button>
               ))}
-              {sourceFilter && <button onClick={() => setSourceFilter('')} className="text-zinc-600 hover:text-zinc-400"><X className="w-3.5 h-3.5" /></button>}
+              {sourceFilter && <button onClick={() => setSourceFilter('')} className="text-theme-dimmed hover:text-theme-muted"><X className="w-3.5 h-3.5" /></button>}
             </div>
             <form onSubmit={handleSearch} className="flex items-center gap-1.5 ml-auto">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-theme-dimmed" />
                 <Input data-testid="log-search" value={search} onChange={e => setSearch(e.target.value)}
-                  className="pl-7 h-7 w-52 bg-[#050505] border-zinc-800 focus:border-orange-500 font-mono text-xs" placeholder="Search logs..." />
+                  className="pl-7 h-7 w-52 bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-xs" placeholder="Search logs..." />
               </div>
-              {activeSearch && <button onClick={() => { setSearch(''); setActiveSearch(''); }} className="text-zinc-600 hover:text-zinc-400"><X className="w-3.5 h-3.5" /></button>}
+              {activeSearch && <button onClick={() => { setSearch(''); setActiveSearch(''); }} className="text-theme-dimmed hover:text-theme-muted"><X className="w-3.5 h-3.5" /></button>}
             </form>
           </div>
           {stats && (
-            <div className="flex items-center gap-4 mt-2 pt-2 border-t border-zinc-800/40 text-[10px] font-mono text-zinc-600">
+            <div className="flex items-center gap-4 mt-2 pt-2 border-t border-subtle text-[10px] font-mono text-theme-dimmed">
               <span>{stats.total} total</span>
               <span className="text-red-500">{stats.errors} errors</span>
               <span className="text-amber-500">{stats.warnings} warnings</span>
@@ -280,9 +280,9 @@ export default function LogsPage() {
       )}
 
       {/* Terminal */}
-      <div className="flex-1 min-h-0 bg-[#060608] border border-zinc-800/60 rounded-lg overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 bg-surface-terminal border border-subtle rounded-lg overflow-hidden flex flex-col">
         {/* Title Bar */}
-        <div className="shrink-0 px-3 py-1.5 bg-[#0a0a0c] border-b border-zinc-800/40 flex items-center gap-3">
+        <div className="shrink-0 px-3 py-1.5 bg-surface-terminal border-b border-subtle flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
             <div className="w-2.5 h-2.5 rounded-full bg-amber-500/70" />
@@ -324,7 +324,7 @@ export default function LogsPage() {
         )}
 
         {/* Bottom Bar */}
-        <div className="shrink-0 px-3 py-1 bg-[#0a0a0c] border-t border-zinc-800/40 flex items-center gap-2">
+        <div className="shrink-0 px-3 py-1 bg-surface-terminal border-t border-subtle flex items-center gap-2">
           <span className="text-[10px] font-mono text-zinc-700">
             {wsConnected && !paused ? 'Streaming via WebSocket...' : paused ? `Paused (${bufferRef.current.length} buffered)` : 'Reconnecting...'}
           </span>

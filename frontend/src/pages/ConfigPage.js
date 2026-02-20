@@ -56,10 +56,10 @@ export default function ConfigPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Configuration</h1>
-          <p className="text-sm text-zinc-500 mt-1">Edit openclaw.json gateway configuration</p>
+          <p className="text-sm text-theme-faint mt-1">Edit openclaw.json gateway configuration</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={load} className="border-zinc-700 text-zinc-400 hover:bg-zinc-800">
+          <Button variant="outline" onClick={load} className="border-strong text-theme-muted hover:bg-muted">
             <RotateCcw className="w-4 h-4 mr-2" /> Reset
           </Button>
           {canEdit() && (
@@ -78,21 +78,21 @@ export default function ConfigPage() {
       {/* Config Settings */}
       {config && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4">
-            <p className="text-xs text-zinc-500 mb-1">Port</p>
-            <p className="text-lg font-mono text-zinc-200">{config.port}</p>
+          <div className="bg-surface-card border border-subtle rounded-lg p-4">
+            <p className="text-xs text-theme-faint mb-1">Port</p>
+            <p className="text-lg font-mono text-theme-primary">{config.port}</p>
           </div>
-          <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4">
-            <p className="text-xs text-zinc-500 mb-1">Bind Host</p>
-            <p className="text-lg font-mono text-zinc-200">{config.bind_host}</p>
+          <div className="bg-surface-card border border-subtle rounded-lg p-4">
+            <p className="text-xs text-theme-faint mb-1">Bind Host</p>
+            <p className="text-lg font-mono text-theme-primary">{config.bind_host}</p>
           </div>
-          <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4">
-            <p className="text-xs text-zinc-500 mb-1">Reload Mode</p>
-            <p className="text-lg font-mono text-zinc-200">{config.reload_mode}</p>
+          <div className="bg-surface-card border border-subtle rounded-lg p-4">
+            <p className="text-xs text-theme-faint mb-1">Reload Mode</p>
+            <p className="text-lg font-mono text-theme-primary">{config.reload_mode}</p>
           </div>
-          <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4">
-            <p className="text-xs text-zinc-500 mb-1">TLS</p>
-            <p className="text-lg font-mono text-zinc-200">{config.tls_enabled ? 'Enabled' : 'Disabled'}</p>
+          <div className="bg-surface-card border border-subtle rounded-lg p-4">
+            <p className="text-xs text-theme-faint mb-1">TLS</p>
+            <p className="text-lg font-mono text-theme-primary">{config.tls_enabled ? 'Enabled' : 'Disabled'}</p>
           </div>
         </div>
       )}
@@ -131,11 +131,11 @@ export default function ConfigPage() {
       )}
 
       {/* Code Editor */}
-      <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg overflow-hidden">
-        <div className="border-b border-zinc-800/60 p-3 bg-[#101012] flex items-center gap-2">
+      <div className="bg-surface-card border border-subtle rounded-lg overflow-hidden">
+        <div className="border-b border-subtle p-3 bg-surface-header flex items-center gap-2">
           <FileCode className="w-4 h-4 text-orange-500" />
-          <span className="text-xs font-mono text-zinc-400">~/.openclaw/openclaw.json</span>
-          <span className="text-[10px] font-mono text-zinc-700 ml-auto">JSON5</span>
+          <span className="text-xs font-mono text-theme-muted">~/.openclaw/openclaw.json</span>
+          <span className="text-[10px] font-mono text-theme-dimmed ml-auto">JSON5</span>
         </div>
         {loading ? (
           <div className="flex justify-center py-16"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -144,45 +144,45 @@ export default function ConfigPage() {
             data-testid="config-editor"
             value={rawConfig}
             onChange={e => { setRawConfig(e.target.value); setValidation(null); }}
-            className="w-full min-h-[500px] p-4 bg-[#050505] text-zinc-200 font-mono text-sm resize-y focus:outline-none focus:ring-1 focus:ring-orange-500/30 leading-relaxed"
+            className="w-full min-h-[500px] p-4 bg-surface-sunken text-theme-primary font-mono text-sm resize-y focus:outline-none focus:ring-1 focus:ring-orange-500/30 leading-relaxed"
             spellCheck="false"
           />
         )}
       </div>
 
       {/* Config Schema Reference */}
-      <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-5">
+      <div className="bg-surface-card border border-subtle rounded-lg p-5">
         <h3 className="text-sm font-semibold mb-3" style={{ fontFamily: 'Manrope, sans-serif' }}>Configuration Reference</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-2 text-xs font-mono">
           <div className="space-y-1.5">
             <p className="text-orange-500/80 text-[10px] uppercase tracking-wider mb-1">Agents</p>
-            <p className="text-zinc-500">agents.defaults.workspace <span className="text-zinc-700">string</span></p>
-            <p className="text-zinc-500">agents.defaults.model.primary <span className="text-zinc-700">string</span></p>
-            <p className="text-zinc-500">agents.defaults.model.fallbacks <span className="text-zinc-700">string[]</span></p>
-            <p className="text-zinc-500">agents.defaults.heartbeat.every <span className="text-zinc-700">duration</span></p>
-            <p className="text-zinc-500">agents.defaults.sandbox.mode <span className="text-zinc-700">off|non-main|all</span></p>
-            <p className="text-zinc-500">agents.defaults.compaction.mode <span className="text-zinc-700">default|safeguard</span></p>
-            <p className="text-zinc-500">agents.list[] <span className="text-zinc-700">AgentConfig[]</span></p>
+            <p className="text-theme-faint">agents.defaults.workspace <span className="text-theme-dimmed">string</span></p>
+            <p className="text-theme-faint">agents.defaults.model.primary <span className="text-theme-dimmed">string</span></p>
+            <p className="text-theme-faint">agents.defaults.model.fallbacks <span className="text-theme-dimmed">string[]</span></p>
+            <p className="text-theme-faint">agents.defaults.heartbeat.every <span className="text-theme-dimmed">duration</span></p>
+            <p className="text-theme-faint">agents.defaults.sandbox.mode <span className="text-theme-dimmed">off|non-main|all</span></p>
+            <p className="text-theme-faint">agents.defaults.compaction.mode <span className="text-theme-dimmed">default|safeguard</span></p>
+            <p className="text-theme-faint">agents.list[] <span className="text-theme-dimmed">AgentConfig[]</span></p>
           </div>
           <div className="space-y-1.5">
             <p className="text-orange-500/80 text-[10px] uppercase tracking-wider mb-1">Tools & Sessions</p>
-            <p className="text-zinc-500">tools.profile <span className="text-zinc-700">full|coding|messaging|minimal</span></p>
-            <p className="text-zinc-500">tools.allow / tools.deny <span className="text-zinc-700">string[]</span></p>
-            <p className="text-zinc-500">tools.exec.timeoutSec <span className="text-zinc-700">number</span></p>
-            <p className="text-zinc-500">tools.web.search.apiKey <span className="text-zinc-700">string</span></p>
-            <p className="text-zinc-500">session.dmScope <span className="text-zinc-700">main|per-peer|per-channel-peer</span></p>
-            <p className="text-zinc-500">session.reset.mode <span className="text-zinc-700">daily|idle</span></p>
-            <p className="text-zinc-500">hooks.enabled <span className="text-zinc-700">boolean</span></p>
+            <p className="text-theme-faint">tools.profile <span className="text-theme-dimmed">full|coding|messaging|minimal</span></p>
+            <p className="text-theme-faint">tools.allow / tools.deny <span className="text-theme-dimmed">string[]</span></p>
+            <p className="text-theme-faint">tools.exec.timeoutSec <span className="text-theme-dimmed">number</span></p>
+            <p className="text-theme-faint">tools.web.search.apiKey <span className="text-theme-dimmed">string</span></p>
+            <p className="text-theme-faint">session.dmScope <span className="text-theme-dimmed">main|per-peer|per-channel-peer</span></p>
+            <p className="text-theme-faint">session.reset.mode <span className="text-theme-dimmed">daily|idle</span></p>
+            <p className="text-theme-faint">hooks.enabled <span className="text-theme-dimmed">boolean</span></p>
           </div>
           <div className="space-y-1.5">
             <p className="text-orange-500/80 text-[10px] uppercase tracking-wider mb-1">Gateway & Channels</p>
-            <p className="text-zinc-500">gateway.port <span className="text-zinc-700">number</span></p>
-            <p className="text-zinc-500">gateway.bind <span className="text-zinc-700">loopback|lan|tailnet</span></p>
-            <p className="text-zinc-500">gateway.auth.mode <span className="text-zinc-700">token|password</span></p>
-            <p className="text-zinc-500">gateway.reload.mode <span className="text-zinc-700">hybrid|hot|restart|off</span></p>
-            <p className="text-zinc-500">channels.*.dmPolicy <span className="text-zinc-700">pairing|allowlist|open</span></p>
-            <p className="text-zinc-500">cron.enabled <span className="text-zinc-700">boolean</span></p>
-            <p className="text-zinc-500">skills.entries.* <span className="text-zinc-700">SkillConfig</span></p>
+            <p className="text-theme-faint">gateway.port <span className="text-theme-dimmed">number</span></p>
+            <p className="text-theme-faint">gateway.bind <span className="text-theme-dimmed">loopback|lan|tailnet</span></p>
+            <p className="text-theme-faint">gateway.auth.mode <span className="text-theme-dimmed">token|password</span></p>
+            <p className="text-theme-faint">gateway.reload.mode <span className="text-theme-dimmed">hybrid|hot|restart|off</span></p>
+            <p className="text-theme-faint">channels.*.dmPolicy <span className="text-theme-dimmed">pairing|allowlist|open</span></p>
+            <p className="text-theme-faint">cron.enabled <span className="text-theme-dimmed">boolean</span></p>
+            <p className="text-theme-faint">skills.entries.* <span className="text-theme-dimmed">SkillConfig</span></p>
           </div>
         </div>
       </div>

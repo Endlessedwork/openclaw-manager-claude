@@ -53,10 +53,10 @@ function eventColor(type) {
     message_received: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
     message_sent: 'text-teal-500 bg-teal-500/10 border-teal-500/20',
     session_start: 'text-orange-500 bg-orange-500/10 border-orange-500/20',
-    session_end: 'text-zinc-500 bg-zinc-800 border-zinc-700',
+    session_end: 'text-zinc-500 bg-muted border-strong',
     heartbeat: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
   };
-  return colors[type] || 'text-zinc-500 bg-zinc-800 border-zinc-700';
+  return colors[type] || 'text-zinc-500 bg-muted border-strong';
 }
 
 function statusIndicator(status) {
@@ -72,7 +72,7 @@ function statusBadge(status) {
     completed: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
     running: 'text-sky-500 bg-sky-500/10 border-sky-500/20',
     error: 'text-red-500 bg-red-500/10 border-red-500/20',
-    cancelled: 'text-zinc-500 bg-zinc-800 border-zinc-700',
+    cancelled: 'text-zinc-500 bg-muted border-strong',
   };
   return (
     <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${cls[status] || cls.cancelled}`}>
@@ -110,10 +110,10 @@ function ActivityRow({ act, isExpanded, onToggle }) {
   return (
     <div
       data-testid={`activity-row-${act.id}`}
-      className={`border-b border-zinc-800/30 transition-colors ${
+      className={`border-b border-subtle transition-colors ${
         act.status === 'error' ? 'bg-red-500/[0.03]' :
         act.status === 'running' ? 'bg-sky-500/[0.02]' :
-        'hover:bg-white/[0.015]'
+        'hover:bg-muted/30'
       }`}
     >
       {/* Main Row */}
@@ -122,7 +122,7 @@ function ActivityRow({ act, isExpanded, onToggle }) {
         onClick={onToggle}
       >
         {/* Expand Arrow */}
-        <button className="text-zinc-600 hover:text-zinc-400 transition-colors w-4 shrink-0">
+        <button className="text-theme-dimmed hover:text-theme-muted transition-colors w-4 shrink-0">
           {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </button>
 
@@ -130,7 +130,7 @@ function ActivityRow({ act, isExpanded, onToggle }) {
         <div className="shrink-0">{statusIndicator(act.status)}</div>
 
         {/* Timestamp */}
-        <span className="text-[10px] font-mono text-zinc-600 w-16 shrink-0 tabular-nums">
+        <span className="text-[10px] font-mono text-theme-dimmed w-16 shrink-0 tabular-nums">
           {timeAgo(act.timestamp)}
         </span>
 
@@ -146,14 +146,14 @@ function ActivityRow({ act, isExpanded, onToggle }) {
 
         {/* Event Description */}
         <div className="flex-1 min-w-0 flex items-center gap-2">
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 shrink-0">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-card border border-subtle text-theme-muted shrink-0">
             {act.event_type}
           </span>
           {act.tool_name && (
-            <span className="text-xs font-mono text-zinc-300">{act.tool_name}</span>
+            <span className="text-xs font-mono text-theme-secondary">{act.tool_name}</span>
           )}
           {act.tool_input && (
-            <span className="text-xs text-zinc-500 truncate">{act.tool_input}</span>
+            <span className="text-xs text-theme-faint truncate">{act.tool_input}</span>
           )}
           {act.model_used && (
             <span className="text-xs font-mono text-violet-400">{act.model_used}</span>
@@ -166,7 +166,7 @@ function ActivityRow({ act, isExpanded, onToggle }) {
         {/* Duration */}
         {act.duration_ms > 0 && (
           <span className={`text-[10px] font-mono tabular-nums shrink-0 ${
-            act.duration_ms > 10000 ? 'text-amber-500' : act.duration_ms > 5000 ? 'text-zinc-400' : 'text-zinc-600'
+            act.duration_ms > 10000 ? 'text-amber-500' : act.duration_ms > 5000 ? 'text-theme-muted' : 'text-theme-dimmed'
           }`}>
             {formatDuration(act.duration_ms)}
           </span>
@@ -174,23 +174,23 @@ function ActivityRow({ act, isExpanded, onToggle }) {
 
         {/* Tokens */}
         {act.tokens_in > 0 && (
-          <span className="text-[10px] font-mono text-zinc-600 shrink-0 tabular-nums">
+          <span className="text-[10px] font-mono text-theme-dimmed shrink-0 tabular-nums">
             {act.tokens_in}+{act.tokens_out}t
           </span>
         )}
 
         {/* Channel */}
         {act.channel && (
-          <span className="text-[10px] font-mono text-zinc-700 shrink-0">{act.channel}</span>
+          <span className="text-[10px] font-mono text-theme-dimmed shrink-0">{act.channel}</span>
         )}
       </div>
 
       {/* Expanded Verbose Section */}
       {isExpanded && (
         <div className="px-4 pb-3 ml-8 animate-fade-in">
-          <div className="bg-[#050505] border border-zinc-800/60 rounded-lg overflow-hidden">
+          <div className="bg-surface-sunken border border-subtle rounded-lg overflow-hidden">
             {/* Verbose Header */}
-            <div className="px-3 py-1.5 bg-[#0a0a0a] border-b border-zinc-800/40 flex items-center gap-2">
+            <div className="px-3 py-1.5 bg-surface-terminal border-b border-subtle flex items-center gap-2">
               <Terminal className="w-3 h-3 text-zinc-600" />
               <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">Verbose Output</span>
               {act.session_key && <span className="text-[10px] font-mono text-zinc-700 ml-auto truncate max-w-[300px]">{act.session_key}</span>}
@@ -200,7 +200,7 @@ function ActivityRow({ act, isExpanded, onToggle }) {
               {act.verbose || 'No verbose output'}
             </pre>
             {/* Detail Footer */}
-            <div className="px-3 py-1.5 bg-[#0a0a0a] border-t border-zinc-800/40 flex flex-wrap items-center gap-3 text-[10px] font-mono text-zinc-600">
+            <div className="px-3 py-1.5 bg-surface-terminal border-t border-subtle flex flex-wrap items-center gap-3 text-[10px] font-mono text-zinc-600">
               {act.tool_name && <span>Tool: <span className="text-zinc-400">{act.tool_name}</span></span>}
               {act.model_used && <span>Model: <span className="text-violet-400">{act.model_used}</span></span>}
               {act.tokens_in > 0 && <span>Tokens: <span className="text-zinc-400">{act.tokens_in} in / {act.tokens_out} out</span></span>}
@@ -213,15 +213,15 @@ function ActivityRow({ act, isExpanded, onToggle }) {
           {(act.tool_input || act.tool_output) && (
             <div className="mt-2 grid grid-cols-2 gap-2">
               {act.tool_input && (
-                <div className="bg-[#050505] border border-zinc-800/40 rounded p-2">
-                  <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-wider">Input</span>
-                  <p className="text-xs font-mono text-zinc-400 mt-1">{act.tool_input}</p>
+                <div className="bg-surface-sunken border border-subtle rounded p-2">
+                  <span className="text-[9px] font-mono text-theme-dimmed uppercase tracking-wider">Input</span>
+                  <p className="text-xs font-mono text-theme-muted mt-1">{act.tool_input}</p>
                 </div>
               )}
               {act.tool_output && (
-                <div className="bg-[#050505] border border-zinc-800/40 rounded p-2">
-                  <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-wider">Output</span>
-                  <p className="text-xs font-mono text-zinc-400 mt-1">{act.tool_output}</p>
+                <div className="bg-surface-sunken border border-subtle rounded p-2">
+                  <span className="text-[9px] font-mono text-theme-dimmed uppercase tracking-wider">Output</span>
+                  <p className="text-xs font-mono text-theme-muted mt-1">{act.tool_output}</p>
                 </div>
               )}
             </div>
@@ -334,14 +334,14 @@ export default function ActivitiesPage() {
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Activities
           </h1>
-          <p className="text-sm text-zinc-500 mt-1">Real-time agent behavior monitoring</p>
+          <p className="text-sm text-theme-faint mt-1">Real-time agent behavior monitoring</p>
         </div>
         <div className="flex items-center gap-3">
           {/* Live Toggle */}
-          <div className="flex items-center gap-2 bg-[#0c0c0e] border border-zinc-800/60 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 bg-surface-card border border-subtle rounded-lg px-3 py-2">
             <div className={`w-2 h-2 rounded-full ${autoRefresh && wsConnected ? 'bg-emerald-500 animate-pulse' : autoRefresh ? 'bg-amber-500' : 'bg-zinc-600'}`}
               style={autoRefresh && wsConnected ? { boxShadow: '0 0 8px rgba(16,185,129,0.6)' } : {}} />
-            <Label className="text-xs text-zinc-400 cursor-pointer" htmlFor="auto-refresh">Live</Label>
+            <Label className="text-xs text-theme-muted cursor-pointer" htmlFor="auto-refresh">Live</Label>
             <Switch
               id="auto-refresh"
               data-testid="live-toggle"
@@ -355,25 +355,25 @@ export default function ActivitiesPage() {
       {/* Stats Bar */}
       {stats && showStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-3">
-            <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-mono">Total</p>
-            <p className="text-xl font-bold text-zinc-200 tabular-nums" style={{ fontFamily: 'Manrope' }}>{stats.total}</p>
+          <div className="bg-surface-card border border-subtle rounded-lg p-3">
+            <p className="text-[10px] text-theme-dimmed uppercase tracking-wider font-mono">Total</p>
+            <p className="text-xl font-bold text-theme-primary tabular-nums" style={{ fontFamily: 'Manrope' }}>{stats.total}</p>
           </div>
-          <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-3">
-            <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-mono">Running</p>
+          <div className="bg-surface-card border border-subtle rounded-lg p-3">
+            <p className="text-[10px] text-theme-dimmed uppercase tracking-wider font-mono">Running</p>
             <p className="text-xl font-bold text-sky-500 tabular-nums" style={{ fontFamily: 'Manrope' }}>{stats.running}</p>
           </div>
-          <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-3">
-            <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-mono">Errors</p>
+          <div className="bg-surface-card border border-subtle rounded-lg p-3">
+            <p className="text-[10px] text-theme-dimmed uppercase tracking-wider font-mono">Errors</p>
             <p className="text-xl font-bold text-red-500 tabular-nums" style={{ fontFamily: 'Manrope' }}>{stats.errors}</p>
           </div>
           {/* Top tools */}
           {stats.by_tool?.slice(0, 3).map(t => (
-            <div key={t._id} className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-3">
-              <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-mono">{t._id}</p>
+            <div key={t._id} className="bg-surface-card border border-subtle rounded-lg p-3">
+              <p className="text-[10px] text-theme-dimmed uppercase tracking-wider font-mono">{t._id}</p>
               <div className="flex items-baseline gap-2">
-                <p className="text-xl font-bold text-zinc-200 tabular-nums" style={{ fontFamily: 'Manrope' }}>{t.count}</p>
-                {t.avg_ms > 0 && <span className="text-[10px] font-mono text-zinc-600">{formatDuration(Math.round(t.avg_ms))} avg</span>}
+                <p className="text-xl font-bold text-theme-primary tabular-nums" style={{ fontFamily: 'Manrope' }}>{t.count}</p>
+                {t.avg_ms > 0 && <span className="text-[10px] font-mono text-theme-dimmed">{formatDuration(Math.round(t.avg_ms))} avg</span>}
               </div>
             </div>
           ))}
@@ -382,10 +382,10 @@ export default function ActivitiesPage() {
 
       {/* Agent Activity Bars */}
       {stats?.by_agent?.length > 0 && showStats && (
-        <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-4">
+        <div className="bg-surface-card border border-subtle rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Activity by Agent</h3>
-            <button onClick={() => setShowStats(false)} className="text-[10px] text-zinc-700 hover:text-zinc-500">Hide stats</button>
+            <h3 className="text-xs font-mono text-theme-faint uppercase tracking-wider">Activity by Agent</h3>
+            <button onClick={() => setShowStats(false)} className="text-[10px] text-theme-dimmed hover:text-theme-faint">Hide stats</button>
           </div>
           <div className="space-y-2">
             {stats.by_agent.map(a => {
@@ -396,7 +396,7 @@ export default function ActivitiesPage() {
                   <span className={`text-xs font-mono w-20 truncate ${agentColor(a._id)}`}>
                     {a._id || 'unknown'}
                   </span>
-                  <div className="flex-1 h-4 bg-zinc-900 rounded-sm overflow-hidden relative">
+                  <div className="flex-1 h-4 bg-surface-card rounded-sm overflow-hidden relative">
                     <div
                       className="h-full bg-gradient-to-r from-orange-600/80 to-orange-500/40 rounded-sm transition-all duration-500"
                       style={{ width: `${pct}%` }}
@@ -408,7 +408,7 @@ export default function ActivitiesPage() {
                       />
                     )}
                   </div>
-                  <span className="text-xs font-mono text-zinc-400 w-10 text-right tabular-nums">{a.count}</span>
+                  <span className="text-xs font-mono text-theme-muted w-10 text-right tabular-nums">{a.count}</span>
                   {a.errors > 0 && <span className="text-[10px] font-mono text-red-500 w-8 tabular-nums">{a.errors}e</span>}
                 </div>
               );
@@ -418,36 +418,36 @@ export default function ActivitiesPage() {
       )}
 
       {!showStats && (
-        <button onClick={() => setShowStats(true)} className="text-xs text-zinc-600 hover:text-zinc-400 flex items-center gap-1 transition-colors">
+        <button onClick={() => setShowStats(true)} className="text-xs text-theme-dimmed hover:text-theme-muted flex items-center gap-1 transition-colors">
           <BarChart3 className="w-3.5 h-3.5" /> Show stats
         </button>
       )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5 text-xs text-zinc-600">
+        <div className="flex items-center gap-1.5 text-xs text-theme-dimmed">
           <Filter className="w-3.5 h-3.5" /> Filters:
         </div>
         <Select value={filterAgent} onValueChange={setFilterAgent}>
-          <SelectTrigger className="w-40 h-8 bg-[#050505] border-zinc-800 text-xs"><SelectValue placeholder="All Agents" /></SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-zinc-800">
+          <SelectTrigger className="w-40 h-8 bg-surface-sunken border-subtle text-xs"><SelectValue placeholder="All Agents" /></SelectTrigger>
+          <SelectContent className="bg-surface-card border-subtle">
             <SelectItem value="all">All Agents</SelectItem>
             {agents.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterEvent} onValueChange={setFilterEvent}>
-          <SelectTrigger className="w-36 h-8 bg-[#050505] border-zinc-800 text-xs"><SelectValue placeholder="All Events" /></SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-zinc-800">
+          <SelectTrigger className="w-36 h-8 bg-surface-sunken border-subtle text-xs"><SelectValue placeholder="All Events" /></SelectTrigger>
+          <SelectContent className="bg-surface-card border-subtle">
             {EVENT_TYPES.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-32 h-8 bg-[#050505] border-zinc-800 text-xs"><SelectValue placeholder="All Status" /></SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-zinc-800">
+          <SelectTrigger className="w-32 h-8 bg-surface-sunken border-subtle text-xs"><SelectValue placeholder="All Status" /></SelectTrigger>
+          <SelectContent className="bg-surface-card border-subtle">
             {STATUS_TYPES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <span className="text-[10px] font-mono text-zinc-600 ml-auto tabular-nums">
+        <span className="text-[10px] font-mono text-theme-dimmed ml-auto tabular-nums">
           {filteredActivities.length !== activities.length
             ? `${filteredActivities.length} / ${activities.length} events`
             : `${activities.length} events`}
@@ -460,17 +460,17 @@ export default function ActivitiesPage() {
           <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : activities.length === 0 ? (
-        <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg p-12 text-center">
-          <Activity className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-          <p className="text-zinc-500 mb-2">No activities yet</p>
-          <p className="text-xs text-zinc-600">Turn on Live mode to stream real-time gateway activities</p>
+        <div className="bg-surface-card border border-subtle rounded-lg p-12 text-center">
+          <Activity className="w-12 h-12 text-theme-dimmed mx-auto mb-3" />
+          <p className="text-theme-faint mb-2">No activities yet</p>
+          <p className="text-xs text-theme-dimmed">Turn on Live mode to stream real-time gateway activities</p>
         </div>
       ) : (
-        <div className="bg-[#0c0c0e] border border-zinc-800/60 rounded-lg overflow-hidden" ref={scrollRef}>
+        <div className="bg-surface-card border border-subtle rounded-lg overflow-hidden" ref={scrollRef}>
           {/* Stream Header */}
-          <div className="px-4 py-2 bg-[#101012] border-b border-zinc-800/60 flex items-center gap-3">
+          <div className="px-4 py-2 bg-surface-header border-b border-subtle flex items-center gap-3">
             <Terminal className="w-3.5 h-3.5 text-orange-500" />
-            <span className="text-xs font-mono text-zinc-500">Activity Stream</span>
+            <span className="text-xs font-mono text-theme-faint">Activity Stream</span>
             {autoRefresh && wsConnected ? (
               <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-500 ml-auto">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
