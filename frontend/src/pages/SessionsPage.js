@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getSessions } from '../lib/api';
-import { MessageSquare, RefreshCw, Clock, Cpu } from 'lucide-react';
+import { MessageSquare, RefreshCw, Clock, Cpu, Bot, Hash } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 
@@ -33,15 +33,31 @@ export default function SessionsPage() {
   };
   useEffect(() => { load(); }, []);
 
-  const kindColor = (k) => {
-    if (k === 'direct') return 'text-sky-500 bg-sky-500/10 border-sky-500/20';
-    if (k === 'group') return 'text-violet-500 bg-violet-500/10 border-violet-500/20';
+  const kindStyle = (k) => {
+    if (k === 'direct') return 'text-sky-400 bg-sky-500/10 border-sky-500/20';
+    if (k === 'group') return 'text-violet-400 bg-violet-500/10 border-violet-500/20';
     return 'text-theme-faint bg-muted border-strong';
   };
 
-  const channelColor = (ch) => {
-    const c = { telegram: 'text-sky-500', line: 'text-emerald-500', discord: 'text-indigo-500', whatsapp: 'text-green-500', webchat: 'text-orange-500' };
-    return c[ch] || 'text-theme-muted';
+  const channelStyle = (ch) => {
+    const styles = {
+      telegram: { color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/20' },
+      line: { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+      discord: { color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
+      whatsapp: { color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+      webchat: { color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
+    };
+    return styles[ch] || { color: 'text-theme-muted', bg: 'bg-muted border-strong' };
+  };
+
+  const parseSessionKey = (key) => {
+    // key format: "agent:<agentName>:<channel>:<kind>:<kind>:<id>" or variations
+    const parts = key.split(':');
+    // Extract the last part as ID (often a numeric or unique identifier)
+    const id = parts.length > 3 ? parts.slice(-1)[0] : key;
+    // Short ID for display
+    const shortId = id.length > 8 ? id.slice(-8) : id;
+    return shortId;
   };
 
   return (
@@ -68,32 +84,46 @@ export default function SessionsPage() {
             <div key={s.id} data-testid={`session-row-${s.id}`} className="px-5 py-4 hover:bg-muted/30 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-muted border border-strong flex items-center justify-center">
-                    <MessageSquare className={`w-4 h-4 ${channelColor(s.channel)}`} />
+                  <div className={`w-8 h-8 rounded-lg border flex items-center justify-center ${channelStyle(s.channel).bg}`}>
+                    <MessageSquare className={`w-4 h-4 ${channelStyle(s.channel).color}`} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-mono text-theme-primary truncate">{s.session_key}</h3>
-                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${kindColor(s.kind)}`}>{s.kind}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border bg-orange-500/10 border-orange-500/20 text-orange-400">
+                        <Bot className="w-3 h-3" />
+                        {s.agent}
+                      </span>
+                      {s.channel && (
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border ${channelStyle(s.channel).bg} ${channelStyle(s.channel).color}`}>
+                          {s.channel}
+                        </span>
+                      )}
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md border uppercase tracking-wider ${kindStyle(s.kind)}`}>
+                        {s.kind}
+                      </span>
+                      <span className="text-[11px] font-mono text-theme-dimmed flex items-center gap-1">
+                        <Hash className="w-3 h-3" />
+                        {parseSessionKey(s.session_key)}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-4 mt-1 text-xs text-theme-faint">
-                      <span>Agent: <span className="font-mono text-theme-muted">{s.agent}</span></span>
-                      <span>Channel: <span className={`font-mono ${channelColor(s.channel)}`}>{s.channel || '-'}</span></span>
-                      {s.model && <span>Model: <span className="font-mono text-violet-400">{s.model}</span></span>}
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-theme-faint">
+                      {s.model && (
+                        <span className="inline-flex items-center gap-1">
+                          <Cpu className="w-3 h-3 text-violet-400" />
+                          <span className="font-mono text-violet-400">{s.model}</span>
+                        </span>
+                      )}
+                      <span className="font-mono">
+                        <span className="text-theme-muted">{formatTokens(s.total_tokens)}</span>
+                        <span className="text-theme-dimmed"> / </span>
+                        <span className="text-theme-faint">{formatTokens(s.context_tokens)} ctx</span>
+                      </span>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 ml-4">
-                  <div className="flex items-center gap-1 text-xs font-mono text-theme-faint">
-                    <Cpu className="w-3 h-3" />
-                    <span className="text-theme-muted">{formatTokens(s.total_tokens)}</span>
-                    <span className="text-theme-dimmed">/</span>
-                    <span className="text-theme-faint">{formatTokens(s.context_tokens)} ctx</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs font-mono text-theme-dimmed">
-                    <Clock className="w-3 h-3" />
-                    {formatAge(s.age_ms)}
-                  </div>
+                <div className="flex items-center gap-1 text-xs font-mono text-theme-dimmed ml-4">
+                  <Clock className="w-3 h-3" />
+                  {formatAge(s.age_ms)}
                 </div>
               </div>
             </div>
