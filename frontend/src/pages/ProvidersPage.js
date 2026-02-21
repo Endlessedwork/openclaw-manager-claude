@@ -300,7 +300,7 @@ export default function ProvidersPage() {
                           <Button
                             variant="ghost" size="sm"
                             onClick={() => handleTest(p.id)}
-                            disabled={testing[p.id] === 'loading' || !p.base_url}
+                            disabled={testing[p.id] === 'loading'}
                             className="text-theme-faint hover:text-sky-400 hover:bg-sky-500/10 h-7 px-2 text-xs gap-1.5"
                           >
                             {testing[p.id] === 'loading'
@@ -385,7 +385,7 @@ export default function ProvidersPage() {
                           <Button
                             variant="ghost" size="sm"
                             onClick={() => handleTest(p.id)}
-                            disabled={testing[p.id] === 'loading' || !p.base_url}
+                            disabled={testing[p.id] === 'loading'}
                             className="text-theme-faint hover:text-sky-400 hover:bg-sky-500/10 h-7 px-2 text-xs gap-1.5"
                           >
                             {testing[p.id] === 'loading'

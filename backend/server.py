@@ -288,6 +288,7 @@ async def list_providers(user=Depends(get_current_user)):
     result = []
     for pid in sorted(all_pids):
         is_custom = pid in custom_providers
+        is_in_cli = pid in cli_by_provider
         if is_custom:
             pdata = custom_providers[pid]
             entry = {
@@ -296,10 +297,11 @@ async def list_providers(user=Depends(get_current_user)):
                 "base_url": pdata.get("baseUrl", ""),
                 "api": pdata.get("api", ""),
                 "models": pdata.get("models", []),
-                "source": "custom",
+                # If also in CLI, it's a built-in that was overridden
+                "source": "builtin" if is_in_cli else "custom",
             }
             # Enrich custom provider models with live status from CLI
-            if pid in cli_by_provider:
+            if is_in_cli:
                 cli_map = {m["id"]: m for m in cli_by_provider[pid]}
                 for cm in entry["models"]:
                     live = cli_map.get(cm["id"])
@@ -384,14 +386,36 @@ async def delete_provider(provider_id: str, user=Depends(require_role("admin", "
     return {"status": "ok"}
 
 
+# Well-known base URLs for built-in providers
+PROVIDER_BASE_URLS = {
+    "openai": "https://api.openai.com/v1",
+    "anthropic": "https://api.anthropic.com/v1",
+    "google": "https://generativelanguage.googleapis.com/v1beta",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "groq": "https://api.groq.com/openai/v1",
+    "mistral": "https://api.mistral.ai/v1",
+    "xai": "https://api.x.ai/v1",
+    "cerebras": "https://api.cerebras.ai/v1",
+    "deepseek": "https://api.deepseek.com/v1",
+    "moonshot": "https://api.moonshot.ai/v1",
+    "minimax": "https://api.minimax.chat/v1",
+    "venice": "https://api.venice.ai/api/v1",
+    "chutes": "https://api.chutes.ai/v1",
+    "ollama": "http://127.0.0.1:11434/v1",
+    "qianfan": "https://qianfan.baidubce.com/v2",
+    "zai": "https://open.bigmodel.cn/api/paas/v4",
+}
+
+
 @api_router.post("/models/providers/{provider_id}/test")
 async def test_provider_connection(provider_id: str, user=Depends(require_role("admin", "editor"))):
     config = await gateway.config_read()
     providers = config.get("models", {}).get("providers", {})
-    if provider_id not in providers:
-        raise HTTPException(404, f"Provider '{provider_id}' not found")
-    pdata = providers[provider_id]
+    pdata = providers.get(provider_id, {})
     base_url = pdata.get("baseUrl", "").rstrip("/")
+    # Fallback to well-known URL for built-in providers
+    if not base_url:
+        base_url = PROVIDER_BASE_URLS.get(provider_id, "")
     if not base_url:
         return {"ok": False, "error": "No base URL configured", "latency_ms": 0}
 
