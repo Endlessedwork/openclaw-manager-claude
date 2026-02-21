@@ -82,7 +82,20 @@ class GatewayCLI:
                 raise RuntimeError(f"CLI error ({proc.returncode}): {stderr.decode()[:500]}")
             raw = stdout.decode()
             if json_output:
-                return json.loads(raw)
+                # CLI may emit doctor warnings before JSON — find the
+                # last top-level JSON object/array which is the actual data
+                last_obj_start = raw.rfind('\n{')
+                last_arr_start = raw.rfind('\n[')
+                start = max(last_obj_start, last_arr_start)
+                if start >= 0:
+                    start += 1  # skip the newline
+                else:
+                    # Maybe JSON is at very beginning
+                    if raw.startswith('{') or raw.startswith('['):
+                        start = 0
+                    else:
+                        raise RuntimeError(f"No JSON in CLI output: {raw[:200]}")
+                return json.loads(raw[start:])
             return raw
 
     async def agents(self):

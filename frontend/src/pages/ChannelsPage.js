@@ -1,17 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { getChannels } from '../lib/api';
-import { Plus, Pencil, Trash2, Wifi, WifiOff, MessageCircle } from 'lucide-react';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Switch } from '../components/ui/switch';
-import { Textarea } from '../components/ui/textarea';
+import { Wifi, WifiOff, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
-const CHANNEL_TYPES = ['whatsapp', 'telegram', 'discord', 'slack', 'signal', 'imessage', 'googlechat', 'webchat', 'irc', 'matrix', 'msteams', 'line', 'nostr', 'feishu', 'mattermost'];
-const DM_POLICIES = ['pairing', 'allowlist', 'open', 'disabled'];
 
 const channelColors = {
   whatsapp: 'bg-green-500/10', telegram: 'bg-sky-500/10', discord: 'bg-indigo-500/10',
@@ -117,18 +108,10 @@ const ChannelLogo = ({ type, size = 20 }) => {
   return logos[type] || <MessageCircle className="w-5 h-5 text-theme-muted" />;
 };
 
-const EMPTY_CHANNEL = {
-  channel_type: 'whatsapp', display_name: '', enabled: false,
-  dm_policy: 'pairing', allow_from: [], group_policy: 'mention',
-  group_allow_from: [], settings: {}, status: 'disconnected',
-};
 
 export default function ChannelsPage() {
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(EMPTY_CHANNEL);
 
   const load = async () => {
     try { const res = await getChannels(); setChannels(res.data); }
@@ -137,30 +120,6 @@ export default function ChannelsPage() {
   };
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setEditing(null); setForm(EMPTY_CHANNEL); setDialogOpen(true); };
-  const openEdit = (ch) => { setEditing(ch); setForm({ ...ch }); setDialogOpen(true); };
-
-  const handleSave = async () => {
-    try {
-      if (editing) { await updateChannel(editing.id, form); toast.success('Channel updated'); }
-      else { await createChannel(form); toast.success('Channel created'); }
-      setDialogOpen(false); load();
-    } catch { toast.error('Failed to save'); }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this channel?')) return;
-    try { await deleteChannel(id); toast.success('Deleted'); load(); }
-    catch { toast.error('Failed'); }
-  };
-
-  const handleToggle = async (ch) => {
-    try {
-      await updateChannel(ch.id, { ...ch, enabled: !ch.enabled });
-      toast.success(`Channel ${ch.enabled ? 'disabled' : 'enabled'}`); load();
-    } catch { toast.error('Failed'); }
-  };
-
   return (
     <div data-testid="channels-page" className="space-y-6">
       <div className="flex items-center justify-between">
@@ -168,9 +127,6 @@ export default function ChannelsPage() {
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Channels</h1>
           <p className="text-sm text-theme-faint mt-1">Configure messaging channels and DM policies</p>
         </div>
-        <Button data-testid="create-channel-btn" onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-          <Plus className="w-4 h-4 mr-2" /> Add Channel
-        </Button>
       </div>
 
       {loading ? (
@@ -196,7 +152,6 @@ export default function ChannelsPage() {
                     ) : (
                       <span className="flex items-center gap-1 text-xs font-mono text-theme-dimmed"><WifiOff className="w-3 h-3" /> off</span>
                     )}
-                    <Switch checked={ch.enabled} onCheckedChange={() => handleToggle(ch)} />
                   </div>
                 </div>
                 <div className="space-y-1.5 text-xs">
@@ -207,55 +162,11 @@ export default function ChannelsPage() {
                   )}
                 </div>
               </div>
-              <div className="border-t border-subtle px-5 py-3 flex items-center justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => openEdit(ch)} className="text-theme-faint hover:text-orange-500 hover:bg-orange-500/10"><Pencil className="w-3.5 h-3.5" /></Button>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(ch.id)} className="text-theme-faint hover:text-red-500 hover:bg-red-500/10"><Trash2 className="w-3.5 h-3.5" /></Button>
-              </div>
             </div>
           ))}
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-surface-card border-subtle max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>{editing ? 'Edit Channel' : 'Add Channel'}</DialogTitle></DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label className="text-theme-muted text-xs">Channel Type</Label>
-                <Select value={form.channel_type} onValueChange={v => setForm({...form, channel_type: v})}>
-                  <SelectTrigger className="bg-surface-sunken border-subtle text-sm mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-surface-card border-subtle max-h-60">{CHANNEL_TYPES.map(t => <SelectItem key={t} value={t}><span className="flex items-center gap-2"><ChannelLogo type={t} size={16} />{t}</span></SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label className="text-theme-muted text-xs">Display Name</Label><Input value={form.display_name} onChange={e => setForm({...form, display_name: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 text-sm mt-1" /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label className="text-theme-muted text-xs">DM Policy</Label>
-                <Select value={form.dm_policy} onValueChange={v => setForm({...form, dm_policy: v})}>
-                  <SelectTrigger className="bg-surface-sunken border-subtle text-sm mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-surface-card border-subtle">{DM_POLICIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label className="text-theme-muted text-xs">Group Policy</Label>
-                <Select value={form.group_policy} onValueChange={v => setForm({...form, group_policy: v})}>
-                  <SelectTrigger className="bg-surface-sunken border-subtle text-sm mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-surface-card border-subtle">
-                    <SelectItem value="mention">Mention</SelectItem>
-                    <SelectItem value="open">Open</SelectItem>
-                    <SelectItem value="disabled">Disabled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div><Label className="text-theme-muted text-xs">Allow From (comma separated)</Label><Input value={(form.allow_from || []).join(', ')} onChange={e => setForm({...form, allow_from: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" placeholder="+15555550123, tg:12345" /></div>
-            <div className="flex items-center justify-between"><Label className="text-theme-muted text-xs">Enabled</Label><Switch checked={form.enabled} onCheckedChange={v => setForm({...form, enabled: v})} /></div>
-          </div>
-          <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-subtle">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="border-strong text-theme-muted">Cancel</Button>
-            <Button data-testid="save-channel-btn" onClick={handleSave} className="bg-orange-600 hover:bg-orange-700 text-white">{editing ? 'Update' : 'Create'}</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
