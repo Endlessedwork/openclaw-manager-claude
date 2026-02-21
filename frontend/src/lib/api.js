@@ -32,6 +32,7 @@ export const createProvider = (data) => api.post('/models/providers', data);
 export const updateProvider = (id, data) => api.put(`/models/providers/${id}`, data);
 export const deleteProvider = (id) => api.delete(`/models/providers/${id}`);
 export const testProviderConnection = (id) => api.post(`/models/providers/${id}/test`);
+export const fetchProviderModels = (id, data) => api.post(`/models/providers/${id}/fetch-models`, data);
 
 // Model Fallbacks
 export const getFallbacks = () => api.get('/models/fallbacks');

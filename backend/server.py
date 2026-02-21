@@ -354,13 +354,16 @@ async def create_provider(body: dict, user=Depends(require_role("admin", "editor
 @api_router.put("/models/providers/{provider_id}")
 async def update_provider(provider_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
     config = await gateway.config_read()
-    providers = config.get("models", {}).get("providers", {})
-    if provider_id not in providers:
-        raise HTTPException(404, f"Provider '{provider_id}' not found")
+    if "models" not in config:
+        config["models"] = {"mode": "merge", "providers": {}}
+    if "providers" not in config["models"]:
+        config["models"]["providers"] = {}
+    providers = config["models"]["providers"]
+    existing = providers.get(provider_id, {})
     providers[provider_id] = {
-        "baseUrl": body.get("base_url", providers[provider_id].get("baseUrl", "")),
-        "api": body.get("api", providers[provider_id].get("api", "")),
-        "models": body.get("models", providers[provider_id].get("models", [])),
+        "baseUrl": body.get("base_url", existing.get("baseUrl", "")),
+        "api": body.get("api", existing.get("api", "")),
+        "models": body.get("models", existing.get("models", [])),
     }
     await gateway.config_write(config)
     gateway.cache.invalidate("models")
@@ -421,6 +424,156 @@ async def test_provider_connection(provider_id: str, user=Depends(require_role("
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, _probe)
     return result
+
+
+# Provider ID → env var mapping (matches openclaw's auth resolution)
+PROVIDER_API_KEY_ENV = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "google": "GEMINI_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "mistral": "MISTRAL_API_KEY",
+    "xai": "XAI_API_KEY",
+    "cerebras": "CEREBRAS_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "moonshot": "MOONSHOT_API_KEY",
+    "minimax": "MINIMAX_API_KEY",
+    "venice": "VENICE_API_KEY",
+    "chutes": "CHUTES_API_KEY",
+    "ollama": "OLLAMA_API_KEY",
+    "qianfan": "QIANFAN_API_KEY",
+    "zai": "ZAI_API_KEY",
+    "voyage": "VOYAGE_API_KEY",
+}
+
+
+def _resolve_api_key(provider_id: str) -> str:
+    """Resolve API key: auth-profiles → own env → .env → gateway process env."""
+    # 1. Read from openclaw auth-profiles (primary key store)
+    try:
+        import json as _json
+        auth_path = os.path.expanduser("~/.openclaw/agents/main/agent/auth-profiles.json")
+        with open(auth_path, "r") as f:
+            profiles = _json.load(f).get("profiles", {})
+        profile = profiles.get(f"{provider_id}:default", {})
+        key = profile.get("key", "")
+        if key:
+            return key
+    except Exception:
+        pass
+    # 2. Check env var
+    env_var = PROVIDER_API_KEY_ENV.get(provider_id, "")
+    if env_var:
+        key = os.environ.get(env_var, "")
+        if key:
+            return key
+    # 3. Read from openclaw's .env file
+    if env_var:
+        try:
+            env_path = os.path.expanduser("~/.openclaw/.env")
+            with open(env_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith(f"{env_var}="):
+                        return line.split("=", 1)[1].strip().strip('"').strip("'")
+        except (FileNotFoundError, PermissionError):
+            pass
+    # 4. Fallback: read from openclaw gateway process environment
+    if env_var:
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["pgrep", "-f", "openclaw.*gateway"],
+                capture_output=True, text=True, timeout=5
+            )
+            for pid in result.stdout.strip().split("\n"):
+                pid = pid.strip()
+                if not pid:
+                    continue
+                try:
+                    with open(f"/proc/{pid}/environ", "r") as f:
+                        for entry in f.read().split("\0"):
+                            if entry.startswith(f"{env_var}="):
+                                return entry.split("=", 1)[1]
+                except (PermissionError, FileNotFoundError):
+                    continue
+        except Exception:
+            pass
+    return ""
+
+
+@api_router.post("/models/providers/{provider_id}/fetch-models")
+async def fetch_provider_models(provider_id: str, body: dict = None, user=Depends(require_role("admin", "editor"))):
+    """Fetch available models from a provider's /models endpoint."""
+    # Allow passing base_url/api_key directly or read from config
+    base_url = (body or {}).get("base_url", "").rstrip("/") if body else ""
+    body_api_key = (body or {}).get("api_key", "") if body else ""
+    config = await gateway.config_read()
+    providers = config.get("models", {}).get("providers", {})
+    prov_cfg = providers.get(provider_id, {})
+    if not base_url:
+        base_url = prov_cfg.get("baseUrl", "").rstrip("/")
+    if not base_url:
+        return {"ok": False, "error": "No base URL configured", "models": []}
+
+    # Resolve API key: request body → config → env/.env → gateway process
+    api_key = body_api_key or prov_cfg.get("apiKey", "") or _resolve_api_key(provider_id)
+    env_var = PROVIDER_API_KEY_ENV.get(provider_id, "")
+
+    ctx = ssl.create_default_context()
+
+    # Provider-specific URL and auth handling
+    if provider_id == "google":
+        fetch_url = f"{base_url}/models" + (f"?key={api_key}" if api_key else "")
+    elif provider_id == "anthropic":
+        fetch_url = "https://api.anthropic.com/v1/models"
+    else:
+        fetch_url = f"{base_url}/models"
+
+    def _fetch():
+        import json as _json
+        try:
+            req = Request(fetch_url, method="GET")
+            req.add_header("User-Agent", "openclaw-manager/1.0")
+            if api_key and provider_id == "anthropic":
+                req.add_header("x-api-key", api_key)
+                req.add_header("anthropic-version", "2023-06-01")
+            elif api_key and provider_id != "google":
+                req.add_header("Authorization", f"Bearer {api_key}")
+            with urlopen(req, timeout=15, context=ctx) as resp:
+                data = _json.loads(resp.read().decode())
+                models = []
+                # Google returns {models: [{name: "models/gemini-..."}]}
+                if provider_id == "google":
+                    for m in data.get("models", []):
+                        mid = m.get("name", "").replace("models/", "")
+                        models.append({
+                            "id": mid,
+                            "name": m.get("displayName", mid),
+                            "owned_by": "google",
+                        })
+                else:
+                    for m in data.get("data", []):
+                        models.append({
+                            "id": m.get("id", ""),
+                            "name": m.get("name", m.get("id", "")),
+                            "owned_by": m.get("owned_by", m.get("created_by", "")),
+                        })
+                models.sort(key=lambda x: x["id"])
+                return {"ok": True, "models": models}
+        except HTTPError as e:
+            if e.code in (401, 403):
+                hint = f" ({env_var} not found)" if env_var and not api_key else ""
+                return {"ok": False, "error": f"Auth failed — API key missing or invalid{hint}", "models": []}
+            return {"ok": False, "error": f"HTTP {e.code}: {e.reason}", "models": []}
+        except URLError as e:
+            return {"ok": False, "error": str(e.reason), "models": []}
+        except Exception as e:
+            return {"ok": False, "error": str(e), "models": []}
+
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _fetch)
 
 
 # ===== MODEL FALLBACKS (from config) =====

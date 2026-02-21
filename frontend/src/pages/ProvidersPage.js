@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { getProviders, createProvider, updateProvider, deleteProvider, testProviderConnection } from '../lib/api';
-import { Server, Plus, Pencil, Trash2, X, Wifi, WifiOff, Loader2, Lock, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { getProviders, createProvider, updateProvider, deleteProvider, testProviderConnection, fetchProviderModels } from '../lib/api';
+import { Server, Plus, Pencil, Trash2, X, Wifi, WifiOff, Loader2, Lock, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -19,12 +19,42 @@ const API_TYPES = [
   { value: 'google', label: 'Google Gemini' },
 ];
 
+// Provider templates matching openclaw configure
+const PROVIDER_TEMPLATES = [
+  { id: 'openai', label: 'OpenAI', base_url: 'https://api.openai.com/v1', api: 'openai-completions', env: 'OPENAI_API_KEY', color: 'emerald' },
+  { id: 'anthropic', label: 'Anthropic', base_url: 'https://api.anthropic.com/v1', api: 'anthropic', env: 'ANTHROPIC_API_KEY', color: 'orange' },
+  { id: 'google', label: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta', api: 'google', env: 'GEMINI_API_KEY', color: 'sky' },
+  { id: 'openrouter', label: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', api: 'openai-completions', env: 'OPENROUTER_API_KEY', color: 'purple' },
+  { id: 'groq', label: 'Groq', base_url: 'https://api.groq.com/openai/v1', api: 'openai-completions', env: 'GROQ_API_KEY', color: 'amber' },
+  { id: 'mistral', label: 'Mistral', base_url: 'https://api.mistral.ai/v1', api: 'openai-completions', env: 'MISTRAL_API_KEY', color: 'blue' },
+  { id: 'xai', label: 'xAI (Grok)', base_url: 'https://api.x.ai/v1', api: 'openai-completions', env: 'XAI_API_KEY', color: 'slate' },
+  { id: 'cerebras', label: 'Cerebras', base_url: 'https://api.cerebras.ai/v1', api: 'openai-completions', env: 'CEREBRAS_API_KEY', color: 'rose' },
+  { id: 'deepseek', label: 'DeepSeek', base_url: 'https://api.deepseek.com/v1', api: 'openai-completions', env: 'DEEPSEEK_API_KEY', color: 'indigo' },
+  { id: 'moonshot', label: 'Moonshot (Kimi)', base_url: 'https://api.moonshot.ai/v1', api: 'openai-completions', env: 'MOONSHOT_API_KEY', color: 'yellow' },
+  { id: 'minimax', label: 'MiniMax', base_url: 'https://api.minimax.chat/v1', api: 'openai-completions', env: 'MINIMAX_API_KEY', color: 'teal' },
+  { id: 'venice', label: 'Venice', base_url: 'https://api.venice.ai/api/v1', api: 'openai-completions', env: 'VENICE_API_KEY', color: 'fuchsia' },
+  { id: 'chutes', label: 'Chutes', base_url: 'https://api.chutes.ai/v1', api: 'openai-completions', env: 'CHUTES_API_KEY', color: 'lime' },
+  { id: 'ollama', label: 'Ollama (Local)', base_url: 'http://127.0.0.1:11434/v1', api: 'openai-completions', env: 'OLLAMA_API_KEY', color: 'zinc' },
+  { id: 'qianfan', label: 'Qianfan (Baidu)', base_url: 'https://qianfan.baidubce.com/v2', api: 'openai-completions', env: 'QIANFAN_API_KEY', color: 'red' },
+];
+
 const PROVIDER_COLORS = {
   openai: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-500' },
   anthropic: { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400' },
   google: { bg: 'bg-sky-500/10', border: 'border-sky-500/20', text: 'text-sky-500' },
   openrouter: { bg: 'bg-purple-500/10', border: 'border-purple-500/20', text: 'text-purple-400' },
   zai: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', text: 'text-cyan-400' },
+  groq: { bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'text-amber-500' },
+  mistral: { bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-500' },
+  xai: { bg: 'bg-slate-500/10', border: 'border-slate-500/20', text: 'text-slate-400' },
+  cerebras: { bg: 'bg-rose-500/10', border: 'border-rose-500/20', text: 'text-rose-500' },
+  deepseek: { bg: 'bg-indigo-500/10', border: 'border-indigo-500/20', text: 'text-indigo-500' },
+  moonshot: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', text: 'text-yellow-500' },
+  minimax: { bg: 'bg-teal-500/10', border: 'border-teal-500/20', text: 'text-teal-500' },
+  venice: { bg: 'bg-fuchsia-500/10', border: 'border-fuchsia-500/20', text: 'text-fuchsia-500' },
+  chutes: { bg: 'bg-lime-500/10', border: 'border-lime-500/20', text: 'text-lime-500' },
+  ollama: { bg: 'bg-zinc-500/10', border: 'border-zinc-500/20', text: 'text-zinc-400' },
+  qianfan: { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-500' },
 };
 const DEFAULT_COLOR = { bg: 'bg-violet-500/10', border: 'border-violet-500/20', text: 'text-violet-500' };
 
@@ -41,6 +71,9 @@ export default function ProvidersPage() {
   const [form, setForm] = useState(EMPTY_PROVIDER);
   const [modelRows, setModelRows] = useState([{ ...EMPTY_MODEL_ROW }]);
   const [testing, setTesting] = useState({});
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [availableModels, setAvailableModels] = useState(null); // null = not fetched, [] = fetched empty
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -56,12 +89,25 @@ export default function ProvidersPage() {
     setEditing(null);
     setForm(EMPTY_PROVIDER);
     setModelRows([{ ...EMPTY_MODEL_ROW }]);
+    setAvailableModels(null);
+    setShowTemplates(true);
     setDialogOpen(true);
+  };
+
+  const applyTemplate = (tpl) => {
+    setForm({ id: tpl.id, base_url: tpl.base_url, api: tpl.api });
+    setModelRows([{ ...EMPTY_MODEL_ROW }]);
+    setShowTemplates(false);
   };
 
   const openEdit = (p) => {
     setEditing(p);
-    setForm({ id: p.id, base_url: p.base_url, api: p.api });
+    // For built-in providers without base_url, fill from template if available
+    const tpl = PROVIDER_TEMPLATES.find(t => t.id === p.id);
+    const baseUrl = p.base_url || (tpl ? tpl.base_url : '');
+    const apiType = p.api || (tpl ? tpl.api : 'openai-completions');
+    setForm({ id: p.id, base_url: baseUrl, api: apiType });
+    setAvailableModels(null);
     const rows = (p.models || []).map(m => ({
       id: m.id || '',
       name: m.name || '',
@@ -90,7 +136,7 @@ export default function ProvidersPage() {
       const payload = { ...form, models: parsedModels };
       if (editing) {
         await updateProvider(editing.id, payload);
-        toast.success('Provider updated — gateway reloading');
+        toast.success(`Provider ${editing.source === 'builtin' ? 'overridden' : 'updated'} — gateway reloading`);
       } else {
         await createProvider(payload);
         toast.success('Provider created — gateway reloading');
@@ -128,6 +174,44 @@ export default function ProvidersPage() {
       toast.error(`Failed to test ${id}`);
     }
     setTimeout(() => setTesting(prev => ({ ...prev, [id]: null })), 5000);
+  };
+
+  const handleFetchModels = async () => {
+    const url = form.base_url?.trim();
+    if (!url) { toast.error('Enter a Base URL first'); return; }
+    setFetchingModels(true);
+    try {
+      const pid = editing?.id || form.id || '_new';
+      const res = await fetchProviderModels(pid, { base_url: url });
+      const data = res.data;
+      if (!data.ok) { toast.error(data.error || 'Failed to fetch models'); setAvailableModels(null); return; }
+      if (data.models.length === 0) { toast.info('No models returned from provider'); setAvailableModels([]); return; }
+      setAvailableModels(data.models);
+      toast.success(`Found ${data.models.length} model${data.models.length !== 1 ? 's' : ''} available`);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to fetch models');
+      setAvailableModels(null);
+    } finally {
+      setFetchingModels(false);
+    }
+  };
+
+  const addModelFromList = (m) => {
+    const existingIds = new Set(modelRows.map(r => r.id).filter(Boolean));
+    if (existingIds.has(m.id)) { toast.info(`${m.id} already added`); return; }
+    const cleaned = modelRows.filter(r => r.id.trim());
+    setModelRows([...cleaned, { id: m.id, name: m.name || '', contextWindow: '' }]);
+  };
+
+  const addAllModels = () => {
+    if (!availableModels) return;
+    const existingIds = new Set(modelRows.map(r => r.id).filter(Boolean));
+    const newModels = availableModels.filter(m => !existingIds.has(m.id));
+    if (newModels.length === 0) { toast.info('All models already added'); return; }
+    const cleaned = modelRows.filter(r => r.id.trim());
+    const newRows = newModels.map(m => ({ id: m.id, name: m.name || '', contextWindow: '' }));
+    setModelRows([...cleaned, ...newRows]);
+    toast.success(`Added ${newRows.length} model${newRows.length !== 1 ? 's' : ''}`);
   };
 
   const customProviders = providers.filter(p => p.source === 'custom');
@@ -295,6 +379,28 @@ export default function ProvidersPage() {
                           </div>
                         )}
                       </div>
+
+                      {canEdit() && (
+                        <div className="border-t border-subtle px-5 py-3 flex items-center justify-between">
+                          <Button
+                            variant="ghost" size="sm"
+                            onClick={() => handleTest(p.id)}
+                            disabled={testing[p.id] === 'loading' || !p.base_url}
+                            className="text-theme-faint hover:text-sky-400 hover:bg-sky-500/10 h-7 px-2 text-xs gap-1.5"
+                          >
+                            {testing[p.id] === 'loading'
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <Wifi className="w-3.5 h-3.5" />
+                            }
+                            Test
+                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(p)} className="text-theme-faint hover:text-orange-500 hover:bg-orange-500/10 h-7 w-7 p-0">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -314,16 +420,49 @@ export default function ProvidersPage() {
 
       {/* Provider Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-surface-card border-subtle max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className={`bg-surface-card border-subtle ${!editing && showTemplates ? 'max-w-2xl' : 'max-w-lg'} max-h-[85vh] overflow-y-auto`}>
           <DialogHeader>
             <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
-              {editing ? `Edit Provider: ${editing.id}` : 'Add Provider'}
+              {editing ? `Edit Provider: ${editing.id}` : showTemplates ? 'Choose a Provider' : 'Add Provider'}
             </DialogTitle>
           </DialogHeader>
+
+          {/* Template picker for new providers */}
+          {!editing && showTemplates ? (
+            <div className="space-y-3 mt-2">
+              <p className="text-xs text-theme-faint">Select a provider to auto-fill settings, or configure manually.</p>
+              <div className="grid grid-cols-3 gap-2">
+                {PROVIDER_TEMPLATES.filter(t => !providers.some(p => p.id === t.id)).map(tpl => {
+                  const color = getColor(tpl.id);
+                  return (
+                    <button key={tpl.id} onClick={() => applyTemplate(tpl)}
+                      className={`flex items-center gap-2.5 p-3 rounded-lg border ${color.border} ${color.bg} hover:brightness-125 transition-all text-left`}>
+                      <Server className={`w-4 h-4 ${color.text} shrink-0`} />
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-theme-primary truncate">{tpl.label}</div>
+                        <div className="text-[9px] font-mono text-theme-dimmed truncate">{tpl.env}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="pt-2 border-t border-subtle">
+                <Button variant="ghost" size="sm" onClick={() => setShowTemplates(false)} className="text-theme-faint hover:text-orange-500 text-xs">
+                  Custom provider...
+                </Button>
+              </div>
+            </div>
+          ) : (
+          <>
           <div className="space-y-4 mt-2">
             {!editing && (
               <div>
-                <Label className="text-theme-muted text-xs">Provider ID</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-theme-muted text-xs">Provider ID</Label>
+                  <button onClick={() => setShowTemplates(true)} className="text-[10px] text-sky-500 hover:text-sky-400">
+                    Pick from templates
+                  </button>
+                </div>
                 <Input value={form.id} onChange={e => setForm({...form, id: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" placeholder="anthropic" />
               </div>
             )}
@@ -345,10 +484,61 @@ export default function ProvidersPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-theme-muted text-xs">Models</Label>
-                <Button type="button" variant="ghost" size="sm" onClick={addModelRow} className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10 h-6 px-2 text-xs">
-                  <Plus className="w-3 h-3 mr-1" /> Add Model
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button type="button" variant="ghost" size="sm" onClick={handleFetchModels} disabled={fetchingModels || !form.base_url?.trim()}
+                    className="text-sky-500 hover:text-sky-400 hover:bg-sky-500/10 h-6 px-2 text-xs">
+                    {fetchingModels ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                    {availableModels ? 'Refresh' : 'Fetch Models'}
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={addModelRow} className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10 h-6 px-2 text-xs">
+                    <Plus className="w-3 h-3 mr-1" /> Manual
+                  </Button>
+                </div>
               </div>
+
+              {/* Available models dropdown (after fetch) */}
+              {availableModels && availableModels.length > 0 && (
+                <div className="mb-3 border border-sky-500/20 rounded-lg bg-sky-500/5 p-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] uppercase tracking-wider text-sky-400 font-medium">
+                      {availableModels.length} model{availableModels.length !== 1 ? 's' : ''} available
+                    </span>
+                    <button type="button" onClick={addAllModels} className="text-[10px] text-sky-400 hover:text-sky-300 font-medium">
+                      Add all
+                    </button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-0.5">
+                    {availableModels.map(m => {
+                      const alreadyAdded = modelRows.some(r => r.id === m.id);
+                      return (
+                        <button key={m.id} type="button" onClick={() => !alreadyAdded && addModelFromList(m)}
+                          disabled={alreadyAdded}
+                          className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-left text-xs transition-colors ${
+                            alreadyAdded
+                              ? 'opacity-40 cursor-default'
+                              : 'hover:bg-sky-500/10 cursor-pointer'
+                          }`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            {alreadyAdded
+                              ? <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                              : <Plus className="w-3 h-3 text-sky-400 shrink-0" />
+                            }
+                            <span className="font-mono text-theme-primary truncate">{m.id}</span>
+                          </div>
+                          {m.owned_by && <span className="text-theme-dimmed text-[10px] shrink-0 ml-2">{m.owned_by}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected models */}
+              {modelRows.some(r => r.id.trim()) && (
+                <div className="text-[10px] uppercase tracking-wider text-theme-dimmed font-medium mb-1">
+                  Selected models ({modelRows.filter(r => r.id.trim()).length})
+                </div>
+              )}
               <div className="space-y-2">
                 {modelRows.map((row, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -364,7 +554,7 @@ export default function ProvidersPage() {
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-theme-dimmed mt-1">Model ID is required. Display name and context window are optional.</p>
+              <p className="text-[10px] text-theme-dimmed mt-1">Click models above to add, or type manually.</p>
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-subtle">
@@ -373,6 +563,8 @@ export default function ProvidersPage() {
               {editing ? 'Update' : 'Create'}
             </Button>
           </div>
+          </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
