@@ -3,37 +3,67 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 const ThemeContext = createContext(null);
 
 const STORAGE_KEY = 'openclaw-theme';
-const DEFAULT_THEME = 'dark';
+
+function getSystemTheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => {
+  // 'system' | 'dark' | 'light'
+  const [preference, setPreference] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
+      return localStorage.getItem(STORAGE_KEY) || 'system';
     } catch {
-      return DEFAULT_THEME;
+      return 'system';
     }
   });
 
+  const [resolved, setResolved] = useState(() =>
+    preference === 'system' ? getSystemTheme() : preference
+  );
+
+  // Listen for system theme changes when in system mode
+  useEffect(() => {
+    if (preference !== 'system') {
+      setResolved(preference);
+      return;
+    }
+    setResolved(getSystemTheme());
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => setResolved(e.matches ? 'dark' : 'light');
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [preference]);
+
+  // Apply class + persist
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
+    if (resolved === 'dark') {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
     try {
-      localStorage.setItem(STORAGE_KEY, theme);
+      localStorage.setItem(STORAGE_KEY, preference);
     } catch {}
-  }, [theme]);
+  }, [resolved, preference]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  const setTheme = useCallback((value) => {
+    setPreference(value);
   }, []);
 
-  const isDark = theme === 'dark';
+  const cycleTheme = useCallback(() => {
+    setPreference(prev => {
+      if (prev === 'system') return 'light';
+      if (prev === 'light') return 'dark';
+      return 'system';
+    });
+  }, []);
+
+  const isDark = resolved === 'dark';
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme: resolved, preference, isDark, setTheme, cycleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

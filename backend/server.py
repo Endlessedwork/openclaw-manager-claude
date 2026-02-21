@@ -325,6 +325,11 @@ async def list_providers(user=Depends(get_current_user)):
         entry["total_count"] = len(entry.get("models", []))
         result.append(entry)
 
+    # Batch resolve API keys (single pgrep + file reads for all providers)
+    all_keys = _resolve_all_api_keys()
+    for entry in result:
+        entry["has_api_key"] = bool(all_keys.get(entry["id"], ""))
+
     # Sort: custom first, then built-in, alphabetical within each group
     result.sort(key=lambda p: (0 if p["source"] == "custom" else 1, p["id"]))
     return result
@@ -348,6 +353,9 @@ async def create_provider(body: dict, user=Depends(require_role("admin", "editor
         "models": body.get("models", []),
     }
     await gateway.config_write(config)
+    # Save API key to ~/.openclaw/.env if provided
+    if body.get("api_key", "").strip():
+        _save_api_key(pid, body["api_key"].strip())
     gateway.cache.invalidate("models")
     await log_activity("create", "provider", pid, f"Created provider {pid}")
     return {"status": "ok", "id": pid}
@@ -368,6 +376,9 @@ async def update_provider(provider_id: str, body: dict, user=Depends(require_rol
         "models": body.get("models", existing.get("models", [])),
     }
     await gateway.config_write(config)
+    # Save API key to ~/.openclaw/.env if provided
+    if body.get("api_key", "").strip():
+        _save_api_key(provider_id, body["api_key"].strip())
     gateway.cache.invalidate("models")
     await log_activity("update", "provider", provider_id, f"Updated provider {provider_id}")
     return {"status": "ok"}
@@ -419,8 +430,17 @@ async def test_provider_connection(provider_id: str, user=Depends(require_role("
     if not base_url:
         return {"ok": False, "error": "No base URL configured", "latency_ms": 0}
 
+    api_key = _resolve_api_key(provider_id)
+
     # Probe the /models endpoint (standard for OpenAI-compatible APIs)
-    test_url = f"{base_url}/models"
+    # Anthropic base URL doesn't include /v1, so we need to add it
+    if provider_id == "anthropic":
+        test_url = f"{base_url}/v1/models"
+    else:
+        test_url = f"{base_url}/models"
+    # Google Gemini uses ?key= query param instead of Bearer token
+    if provider_id == "google" and api_key:
+        test_url = f"{test_url}?key={api_key}"
     ctx = ssl.create_default_context()
 
     def _probe():
@@ -429,14 +449,34 @@ async def test_provider_connection(provider_id: str, user=Depends(require_role("
         try:
             req = Request(test_url, method="GET")
             req.add_header("User-Agent", "openclaw-manager/1.0")
+            if api_key and provider_id == "anthropic":
+                req.add_header("x-api-key", api_key)
+                req.add_header("anthropic-version", "2023-06-01")
+            elif api_key and provider_id != "google":
+                req.add_header("Authorization", f"Bearer {api_key}")
             with urlopen(req, timeout=10, context=ctx) as resp:
                 latency = int((time.monotonic() - start) * 1000)
                 return {"ok": True, "status": resp.status, "latency_ms": latency}
         except HTTPError as e:
             latency = int((time.monotonic() - start) * 1000)
-            # 401/403 means the server is reachable but needs auth — that's a success for connectivity
+            # 401/403 means the server is reachable but needs auth
             if e.code in (401, 403):
                 return {"ok": True, "status": e.code, "latency_ms": latency, "note": "Reachable (auth required)"}
+            # Try to extract a meaningful message from the error body
+            if e.code == 400:
+                try:
+                    err_body = json.loads(e.read().decode())
+                    err_obj = err_body.get("error", {})
+                    msg = err_obj.get("message", "")
+                    # Google Gemini puts reason in details[0].reason
+                    details = err_obj.get("details", [])
+                    reason = details[0].get("reason", "") if details else ""
+                    if reason == "API_KEY_INVALID" or "API key" in msg:
+                        return {"ok": False, "error": f"Invalid API key — {msg}", "latency_ms": latency}
+                    if msg:
+                        return {"ok": False, "error": msg, "latency_ms": latency}
+                except Exception:
+                    pass
             return {"ok": False, "error": f"HTTP {e.code}: {e.reason}", "latency_ms": latency}
         except URLError as e:
             latency = int((time.monotonic() - start) * 1000)
@@ -473,58 +513,120 @@ PROVIDER_API_KEY_ENV = {
 
 
 def _resolve_api_key(provider_id: str) -> str:
-    """Resolve API key: auth-profiles → own env → .env → gateway process env."""
-    # 1. Read from openclaw auth-profiles (primary key store)
+    """Resolve API key for a single provider."""
+    return _resolve_all_api_keys().get(provider_id, "")
+
+
+# Cache gateway process env to avoid repeated pgrep + /proc reads
+_gateway_env_cache = {"data": {}, "ts": 0}
+
+
+def _resolve_all_api_keys() -> dict:
+    """Resolve API keys for ALL providers at once (efficient batch).
+    Returns dict of provider_id → api_key."""
+    import time as _time
+
+    result = {}
+
+    # 1. Read auth-profiles (single file read for all providers)
+    profiles = {}
     try:
-        import json as _json
         auth_path = os.path.expanduser("~/.openclaw/agents/main/agent/auth-profiles.json")
         with open(auth_path, "r") as f:
-            profiles = _json.load(f).get("profiles", {})
-        profile = profiles.get(f"{provider_id}:default", {})
-        key = profile.get("key", "")
-        if key:
-            return key
+            profiles = json.loads(f.read()).get("profiles", {})
     except Exception:
         pass
-    # 2. Check env var
-    env_var = PROVIDER_API_KEY_ENV.get(provider_id, "")
-    if env_var:
-        key = os.environ.get(env_var, "")
-        if key:
-            return key
-    # 3. Read from openclaw's .env file
-    if env_var:
-        try:
-            env_path = os.path.expanduser("~/.openclaw/.env")
-            with open(env_path, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith(f"{env_var}="):
-                        return line.split("=", 1)[1].strip().strip('"').strip("'")
-        except (FileNotFoundError, PermissionError):
-            pass
-    # 4. Fallback: read from openclaw gateway process environment
-    if env_var:
+
+    # 2. Read openclaw .env file (single file read)
+    dotenv_keys = {}
+    try:
+        env_path = os.path.expanduser("~/.openclaw/.env")
+        with open(env_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    dotenv_keys[k.strip()] = v.strip().strip('"').strip("'")
+    except (FileNotFoundError, PermissionError):
+        pass
+
+    # 3. Read gateway process env (cached for 60s to avoid repeated pgrep)
+    now = _time.monotonic()
+    if now - _gateway_env_cache["ts"] > 60:
+        gw_env = {}
         try:
             import subprocess
-            result = subprocess.run(
+            proc_result = subprocess.run(
                 ["pgrep", "-f", "openclaw.*gateway"],
                 capture_output=True, text=True, timeout=5
             )
-            for pid in result.stdout.strip().split("\n"):
+            for pid in proc_result.stdout.strip().split("\n"):
                 pid = pid.strip()
                 if not pid:
                     continue
                 try:
                     with open(f"/proc/{pid}/environ", "r") as f:
                         for entry in f.read().split("\0"):
-                            if entry.startswith(f"{env_var}="):
-                                return entry.split("=", 1)[1]
+                            if "=" in entry:
+                                k, v = entry.split("=", 1)
+                                gw_env[k] = v
+                    break  # Only need first matching process
                 except (PermissionError, FileNotFoundError):
                     continue
         except Exception:
             pass
-    return ""
+        _gateway_env_cache["data"] = gw_env
+        _gateway_env_cache["ts"] = now
+    gw_env = _gateway_env_cache["data"]
+
+    # 4. Resolve each provider: .env → process env → gateway env → auth-profiles
+    #    .env first because it's what the UI writes to (user-managed)
+    for pid, env_var in PROVIDER_API_KEY_ENV.items():
+        # .env file (written by UI — highest priority)
+        key = dotenv_keys.get(env_var, "")
+        if key:
+            result[pid] = key
+            continue
+        # process env
+        key = os.environ.get(env_var, "")
+        if key:
+            result[pid] = key
+            continue
+        # gateway process env
+        key = gw_env.get(env_var, "")
+        if key:
+            result[pid] = key
+            continue
+        # auth-profiles (fallback)
+        profile = profiles.get(f"{pid}:default", {})
+        key = profile.get("key", "")
+        if key:
+            result[pid] = key
+
+    return result
+
+
+def _save_api_key(provider_id: str, api_key: str):
+    """Save API key to ~/.openclaw/.env (same place openclaw CLI reads from)."""
+    env_var = PROVIDER_API_KEY_ENV.get(provider_id, "")
+    if not env_var or not api_key:
+        return
+    env_path = Path.home() / ".openclaw" / ".env"
+    lines = []
+    replaced = False
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                k = stripped.split("=", 1)[0].strip()
+                if k == env_var:
+                    lines.append(f"{env_var}={api_key}")
+                    replaced = True
+                    continue
+            lines.append(line)
+    if not replaced:
+        lines.append(f"{env_var}={api_key}")
+    env_path.write_text("\n".join(lines) + "\n")
 
 
 @api_router.post("/models/providers/{provider_id}/fetch-models")

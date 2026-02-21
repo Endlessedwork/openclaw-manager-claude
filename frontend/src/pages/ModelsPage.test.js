@@ -20,15 +20,12 @@ jest.mock('lucide-react', () => ({
   Image: (props) => <svg data-testid="icon-image" {...props} />,
   LayoutGrid: (props) => <svg data-testid="icon-layout-grid" {...props} />,
   List: (props) => <svg data-testid="icon-list" {...props} />,
+  Loader2: (props) => <svg data-testid="icon-loader" {...props} />,
 }));
 
 const mockModels = [
   { id: 'anthropic/claude-sonnet-4-5', name: 'Claude Sonnet', key: 'anthropic/claude-sonnet-4-5', provider_id: 'anthropic', enabled: true, is_primary: true, input: '$3/M', context_window: 200000, tags: ['default'] },
   { id: 'openai/gpt-4o', name: 'GPT-4o', key: 'openai/gpt-4o', provider_id: 'openai', enabled: true, is_primary: false, input: '$5/M', context_window: 128000, tags: [] },
-];
-
-const mockProviders = [
-  { id: 'custom-provider', api: 'openai-completions', base_url: 'https://api.example.com', models: [{ id: 'custom-model' }] },
 ];
 
 const mockFallbacks = {
@@ -39,21 +36,18 @@ const mockFallbacks = {
   ],
 };
 
-let mockGetModels, mockGetProviders, mockCreateProvider, mockUpdateProvider, mockDeleteProvider, mockGetFallbacks, mockUpdateFallbacks, mockUpdateAgentFallbacks;
+let mockGetModels, mockGetFallbacks, mockUpdateFallbacks, mockUpdateAgentFallbacks;
 
 jest.mock('../lib/api', () => ({
   getModels: (...args) => mockGetModels(...args),
-  getProviders: (...args) => mockGetProviders(...args),
-  createProvider: (...args) => mockCreateProvider(...args),
-  updateProvider: (...args) => mockUpdateProvider(...args),
-  deleteProvider: (...args) => mockDeleteProvider(...args),
   getFallbacks: (...args) => mockGetFallbacks(...args),
   updateFallbacks: (...args) => mockUpdateFallbacks(...args),
   updateAgentFallbacks: (...args) => mockUpdateAgentFallbacks(...args),
 }));
 
+let mockCanEdit = true;
 jest.mock('../contexts/AuthContext', () => ({
-  useAuth: () => ({ canEdit: () => true }),
+  useAuth: () => ({ canEdit: () => mockCanEdit }),
 }));
 
 jest.mock('../components/ui/dialog', () => ({
@@ -83,13 +77,6 @@ jest.mock('../components/ui/select', () => ({
   SelectValue: () => <span />,
 }));
 
-jest.mock('../components/ui/tabs', () => ({
-  Tabs: ({ children }) => <div data-testid="tabs">{children}</div>,
-  TabsList: ({ children }) => <div>{children}</div>,
-  TabsTrigger: ({ children, value }) => <button data-testid={`tab-${value}`}>{children}</button>,
-  TabsContent: ({ children, value }) => <div data-testid={`tab-content-${value}`}>{children}</div>,
-}));
-
 jest.mock('../components/ui/accordion', () => ({
   Accordion: ({ children }) => <div data-testid="accordion">{children}</div>,
   AccordionItem: ({ children }) => <div>{children}</div>,
@@ -97,32 +84,41 @@ jest.mock('../components/ui/accordion', () => ({
   AccordionContent: ({ children }) => <div>{children}</div>,
 }));
 
+let mockSortableListCounter = 0;
 jest.mock('../components/SortableFallbackList', () => {
-  return function MockSortableFallbackList({ items }) {
-    return <div data-testid="sortable-list">{items.map(i => <span key={i}>{i}</span>)}</div>;
+  return function MockSortableFallbackList({ items, onRemove, canEdit }) {
+    const listId = mockSortableListCounter++;
+    return (
+      <div data-testid="sortable-list">
+        {items.map((item, idx) => (
+          <span key={item}>
+            {item}
+            {canEdit && onRemove && (
+              <button data-testid={`remove-fallback-${listId}-${idx}`} onClick={() => onRemove(item)}>remove</button>
+            )}
+          </span>
+        ))}
+      </div>
+    );
   };
 });
 
 beforeEach(() => {
+  mockSortableListCounter = 0;
   mockGetModels = jest.fn().mockResolvedValue({ data: mockModels });
-  mockGetProviders = jest.fn().mockResolvedValue({ data: mockProviders });
-  mockCreateProvider = jest.fn().mockResolvedValue({ data: { id: 'new' } });
-  mockUpdateProvider = jest.fn().mockResolvedValue({ data: {} });
-  mockDeleteProvider = jest.fn().mockResolvedValue({ data: {} });
   mockGetFallbacks = jest.fn().mockResolvedValue({ data: mockFallbacks });
   mockUpdateFallbacks = jest.fn().mockResolvedValue({ data: { status: 'ok' } });
   mockUpdateAgentFallbacks = jest.fn().mockResolvedValue({ data: { status: 'ok' } });
-  window.confirm = jest.fn(() => true);
+  mockCanEdit = true;
 });
 
 describe('ModelsPage', () => {
-  it('renders models and providers after loading', async () => {
+  it('renders models after loading', async () => {
     render(<ModelsPage />);
     await waitFor(() => {
       expect(screen.getByText('Claude Sonnet')).toBeInTheDocument();
     });
     expect(screen.getByText('GPT-4o')).toBeInTheDocument();
-    expect(screen.getByText('custom-provider')).toBeInTheDocument();
   });
 
   it('shows loading spinner initially', () => {
@@ -133,7 +129,6 @@ describe('ModelsPage', () => {
 
   it('shows empty state when no models', async () => {
     mockGetModels.mockResolvedValue({ data: [] });
-    mockGetProviders.mockResolvedValue({ data: [] });
     render(<ModelsPage />);
     await waitFor(() => {
       expect(screen.getByText('No models available')).toBeInTheDocument();
@@ -149,38 +144,6 @@ describe('ModelsPage', () => {
     expect(screen.getByText('default')).toBeInTheDocument();
   });
 
-  it('shows Add Provider button for editors', async () => {
-    render(<ModelsPage />);
-    await waitFor(() => {
-      expect(screen.getByTestId('create-provider-btn')).toBeInTheDocument();
-    });
-  });
-
-  it('opens create provider dialog', async () => {
-    render(<ModelsPage />);
-    await waitFor(() => {
-      expect(screen.getByTestId('create-provider-btn')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('create-provider-btn'));
-    await waitFor(() => {
-      expect(screen.getByTestId('dialog')).toBeInTheDocument();
-    });
-  });
-
-  it('calls deleteProvider on delete', async () => {
-    render(<ModelsPage />);
-    await waitFor(() => {
-      expect(screen.getByText('custom-provider')).toBeInTheDocument();
-    });
-    // Find delete button in provider cards area
-    const deleteButtons = screen.getAllByTestId('icon-trash');
-    fireEvent.click(deleteButtons[0].closest('button'));
-    expect(window.confirm).toHaveBeenCalled();
-    await waitFor(() => {
-      expect(mockDeleteProvider).toHaveBeenCalledWith('custom-provider');
-    });
-  });
-
   it('shows error toast when load fails', async () => {
     const { toast } = require('sonner');
     mockGetModels.mockRejectedValue(new Error('fail'));
@@ -190,18 +153,12 @@ describe('ModelsPage', () => {
     });
   });
 
-  it('displays provider models list', async () => {
+  it('renders fallback sections', async () => {
     render(<ModelsPage />);
     await waitFor(() => {
-      expect(screen.getByText('custom-model')).toBeInTheDocument();
+      expect(screen.getByText('Text Model Fallback')).toBeInTheDocument();
     });
-  });
-
-  it('renders fallback priority section', async () => {
-    render(<ModelsPage />);
-    await waitFor(() => {
-      expect(screen.getByText('Fallback Priority')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Image Model')).toBeInTheDocument();
   });
 
   it('displays fallback models in the sortable list', async () => {
@@ -216,14 +173,6 @@ describe('ModelsPage', () => {
     render(<ModelsPage />);
     await waitFor(() => {
       expect(screen.getByText('Per-Agent Overrides')).toBeInTheDocument();
-    });
-  });
-
-  it('shows text and image model tabs', async () => {
-    render(<ModelsPage />);
-    await waitFor(() => {
-      expect(screen.getByTestId('tab-text')).toBeInTheDocument();
-      expect(screen.getByTestId('tab-image')).toBeInTheDocument();
     });
   });
 
@@ -244,10 +193,130 @@ describe('ModelsPage', () => {
     fireEvent.click(screen.getByLabelText('List view'));
     const listView = screen.getByTestId('models-list-view');
     expect(listView).toBeInTheDocument();
-    // List view shows model names, rank numbers, and providers
     expect(screen.getByText('Claude Sonnet')).toBeInTheDocument();
     expect(screen.getByText('GPT-4o')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('calls updateFallbacks on fallback save', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Claude Sonnet')).toBeInTheDocument();
+    });
+    // Trigger dirty state by removing a fallback via the remove button
+    const removeButtons = screen.getAllByText('remove');
+    fireEvent.click(removeButtons[0]);
+    // Save button should appear
+    const saveButtons = screen.getAllByText('Save Changes');
+    fireEvent.click(saveButtons[0]);
+    await waitFor(() => {
+      expect(mockUpdateFallbacks).toHaveBeenCalledWith(expect.objectContaining({
+        model: expect.any(Object),
+        imageModel: expect.any(Object),
+      }));
+    });
+  });
+
+  it('shows save button only when fallback is dirty', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Claude Sonnet')).toBeInTheDocument();
+    });
+    // Initially no save button
+    expect(screen.queryByText('Save Changes')).not.toBeInTheDocument();
+    // Make a change to trigger dirty state
+    const removeButtons = screen.getAllByText('remove');
+    fireEvent.click(removeButtons[0]);
+    // Now save button should appear
+    expect(screen.getAllByText('Save Changes').length).toBeGreaterThan(0);
+  });
+
+  it('shows error toast when fallback save fails', async () => {
+    const { toast } = require('sonner');
+    mockUpdateFallbacks.mockRejectedValue({ response: { data: { detail: 'Save failed' } } });
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Claude Sonnet')).toBeInTheDocument();
+    });
+    const removeButtons = screen.getAllByText('remove');
+    fireEvent.click(removeButtons[0]);
+    const saveButtons = screen.getAllByText('Save Changes');
+    fireEvent.click(saveButtons[0]);
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Save failed');
+    });
+  });
+
+  it('opens agent edit dialog with agent data', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Edit Fallbacks')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('Edit Fallbacks'));
+    await waitFor(() => {
+      expect(screen.getByTestId('dialog')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Edit Fallbacks: main')).toBeInTheDocument();
+  });
+
+  it('calls updateAgentFallbacks on agent save', async () => {
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Edit Fallbacks')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('Edit Fallbacks'));
+    await waitFor(() => {
+      expect(screen.getByTestId('dialog')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => {
+      expect(mockUpdateAgentFallbacks).toHaveBeenCalledWith('main', expect.objectContaining({
+        model: 'anthropic/claude-sonnet-4-5',
+        fallbacks: [],
+      }));
+    });
+  });
+
+  it('shows error toast when agent save fails', async () => {
+    const { toast } = require('sonner');
+    mockUpdateAgentFallbacks.mockRejectedValue({ response: { data: { detail: 'Agent save failed' } } });
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Edit Fallbacks')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('Edit Fallbacks'));
+    await waitFor(() => {
+      expect(screen.getByTestId('dialog')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Agent save failed');
+    });
+  });
+
+  it('hides edit controls for non-editors', async () => {
+    mockCanEdit = false;
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Claude Sonnet')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Edit Fallbacks')).not.toBeInTheDocument();
+    expect(screen.queryByText('Save Changes')).not.toBeInTheDocument();
+  });
+
+  it('shows Saving... state during save operations', async () => {
+    mockUpdateFallbacks.mockReturnValue(new Promise(() => {}));
+    render(<ModelsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Claude Sonnet')).toBeInTheDocument();
+    });
+    const removeButtons = screen.getAllByText('remove');
+    fireEvent.click(removeButtons[0]);
+    const saveButtons = screen.getAllByText('Save Changes');
+    fireEvent.click(saveButtons[0]);
+    await waitFor(() => {
+      expect(screen.getAllByText('Saving...').length).toBeGreaterThan(0);
+    });
   });
 });

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getProviders, createProvider, updateProvider, deleteProvider, testProviderConnection, fetchProviderModels } from '../lib/api';
-import { Server, Plus, Pencil, Trash2, X, Wifi, WifiOff, Loader2, Lock, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
+import { Server, Plus, Pencil, Trash2, X, Wifi, WifiOff, Loader2, Lock, CheckCircle2, AlertTriangle, Download, Key, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,21 +9,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 
-const EMPTY_PROVIDER = { id: '', base_url: '', api: 'openai-completions' };
+const EMPTY_PROVIDER = { id: '', base_url: '', api: 'openai-completions', api_key: '' };
 const EMPTY_MODEL_ROW = { id: '', name: '', contextWindow: '' };
 
 const API_TYPES = [
   { value: 'openai-completions', label: 'OpenAI Completions' },
   { value: 'openai-responses', label: 'OpenAI Responses' },
   { value: 'anthropic-messages', label: 'Anthropic' },
-  { value: 'google', label: 'Google Gemini' },
+  { value: 'google-generative-ai', label: 'Google Gemini' },
+  { value: 'bedrock-converse-stream', label: 'AWS Bedrock' },
 ];
 
 // Provider templates matching openclaw configure
 const PROVIDER_TEMPLATES = [
   { id: 'openai', label: 'OpenAI', base_url: 'https://api.openai.com/v1', api: 'openai-completions', env: 'OPENAI_API_KEY', color: 'emerald' },
   { id: 'anthropic', label: 'Anthropic', base_url: 'https://api.anthropic.com/v1', api: 'anthropic-messages', env: 'ANTHROPIC_API_KEY', color: 'orange' },
-  { id: 'google', label: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta', api: 'google', env: 'GEMINI_API_KEY', color: 'sky' },
+  { id: 'google', label: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta', api: 'google-generative-ai', env: 'GEMINI_API_KEY', color: 'sky' },
   { id: 'openrouter', label: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', api: 'openai-completions', env: 'OPENROUTER_API_KEY', color: 'purple' },
   { id: 'groq', label: 'Groq', base_url: 'https://api.groq.com/openai/v1', api: 'openai-completions', env: 'GROQ_API_KEY', color: 'amber' },
   { id: 'mistral', label: 'Mistral', base_url: 'https://api.mistral.ai/v1', api: 'openai-completions', env: 'MISTRAL_API_KEY', color: 'blue' },
@@ -75,6 +76,7 @@ export default function ProvidersPage() {
   const [availableModels, setAvailableModels] = useState(null); // null = not fetched, [] = fetched empty
   const [showTemplates, setShowTemplates] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -91,12 +93,13 @@ export default function ProvidersPage() {
     setForm(EMPTY_PROVIDER);
     setModelRows([{ ...EMPTY_MODEL_ROW }]);
     setAvailableModels(null);
+    setShowApiKey(false);
     setShowTemplates(true);
     setDialogOpen(true);
   };
 
   const applyTemplate = (tpl) => {
-    setForm({ id: tpl.id, base_url: tpl.base_url, api: tpl.api });
+    setForm({ id: tpl.id, base_url: tpl.base_url, api: tpl.api, api_key: '' });
     setModelRows([{ ...EMPTY_MODEL_ROW }]);
     setShowTemplates(false);
   };
@@ -107,8 +110,9 @@ export default function ProvidersPage() {
     const tpl = PROVIDER_TEMPLATES.find(t => t.id === p.id);
     const baseUrl = p.base_url || (tpl ? tpl.base_url : '');
     const apiType = p.api || (tpl ? tpl.api : 'openai-completions');
-    setForm({ id: p.id, base_url: baseUrl, api: apiType });
+    setForm({ id: p.id, base_url: baseUrl, api: apiType, api_key: '' });
     setAvailableModels(null);
+    setShowApiKey(false);
     const rows = (p.models || []).map(m => ({
       id: m.id || '',
       name: m.name || '',
@@ -266,6 +270,7 @@ export default function ProvidersPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
+                            <Key className={`w-3.5 h-3.5 ${p.has_api_key ? 'text-emerald-500' : 'text-amber-500/50'}`} title={p.has_api_key ? 'API key configured' : 'No API key'} />
                             {testing[p.id] === 'ok' && <Wifi className="w-4 h-4 text-emerald-500" />}
                             {testing[p.id] === 'error' && <WifiOff className="w-4 h-4 text-red-500" />}
                             {testing[p.id] === 'loading' && <Loader2 className="w-4 h-4 text-orange-500 animate-spin" />}
@@ -357,6 +362,7 @@ export default function ProvidersPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
+                            <Key className={`w-3.5 h-3.5 ${p.has_api_key ? 'text-emerald-500' : 'text-amber-500/50'}`} title={p.has_api_key ? 'API key configured' : 'No API key'} />
                             <span className="text-[10px] font-mono text-theme-faint">
                               {p.active_count}/{p.total_count}
                             </span>
@@ -484,6 +490,32 @@ export default function ProvidersPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label className="text-theme-muted text-xs">API Key</Label>
+              <div className="relative mt-1">
+                <Input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={form.api_key}
+                  onChange={e => setForm({...form, api_key: e.target.value})}
+                  className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm pr-10"
+                  placeholder={editing?.has_api_key ? '••••••••  (key configured — leave blank to keep)' : `Paste your ${(PROVIDER_TEMPLATES.find(t => t.id === form.id)?.env) || 'API key'}...`}
+                />
+                <button type="button" onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-theme-dimmed hover:text-theme-muted p-1">
+                  {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              {editing?.has_api_key && !form.api_key && (
+                <p className="text-[10px] text-emerald-500 mt-1 flex items-center gap-1">
+                  <Key className="w-3 h-3" /> API key is configured
+                </p>
+              )}
+              {!editing?.has_api_key && !form.api_key && (
+                <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
+                  <Key className="w-3 h-3" /> No API key found — Test will show "auth required"
+                </p>
+              )}
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">

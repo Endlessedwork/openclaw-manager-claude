@@ -18,7 +18,7 @@ export default function ConfigPage() {
     try {
       const res = await getConfig();
       setConfig(res.data);
-      setRawConfig(res.data.raw_config || '{}');
+      setRawConfig(res.data.raw || '{}');
       setValidation(null);
     } catch { toast.error('Failed to load config'); }
     finally { setLoading(false); }
@@ -28,7 +28,7 @@ export default function ConfigPage() {
   const handleValidate = async () => {
     setValidating(true);
     try {
-      const res = await validateConfig({ raw_config: rawConfig });
+      const res = await validateConfig({ raw: rawConfig });
       setValidation(res.data);
       if (res.data.valid) {
         toast.success('Configuration is valid');
@@ -43,7 +43,7 @@ export default function ConfigPage() {
     if (!config) { toast.error('Config not loaded'); return; }
     setSaving(true);
     try {
-      await updateConfig({ ...config, raw_config: rawConfig });
+      await updateConfig({ ...config, raw: rawConfig });
       toast.success('Configuration saved');
       setValidation(null);
       load();

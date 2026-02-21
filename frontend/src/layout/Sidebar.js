@@ -1,44 +1,235 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Bot, Zap, Wrench, Cpu, Radio, MessageSquare,
-  Clock, FileCode, Server, ChevronLeft, ChevronRight, Activity, Menu,
-  Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen
+  Clock, FileCode, Server, ChevronLeft, ChevronRight, ChevronDown, Activity,
+  Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
+  BrainCircuit, Link2, PlayCircle, Eye, Settings
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/activities', label: 'Activities', icon: MonitorDot },
-  { path: '/logs', label: 'Logs', icon: ScrollText },
-  { path: '/agents', label: 'Agents', icon: Bot },
-  { path: '/skills', label: 'Skills', icon: Zap },
-  { path: '/clawhub', label: 'ClawHub', icon: Store },
-  { path: '/tools', label: 'Tools', icon: Wrench },
-  { path: '/models', label: 'Models', icon: Cpu },
-  { path: '/providers', label: 'Providers', icon: Server },
-  { path: '/channels', label: 'Channels', icon: Radio },
-  { path: '/hooks', label: 'Hooks', icon: Webhook },
-  { path: '/sessions', label: 'Sessions', icon: MessageSquare },
-  { path: '/cron', label: 'Cron Jobs', icon: Clock },
-  { path: '/config', label: 'Config', icon: FileCode },
-  { path: '/files', label: 'Files', icon: FolderOpen },
-  { path: '/gateway', label: 'Gateway', icon: Server },
-  { path: '/health', label: 'Health', icon: Activity },
+const navGroups = [
+  {
+    id: 'dashboard',
+    type: 'standalone',
+    items: [{ path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }],
+  },
+  {
+    id: 'ai-models',
+    label: 'AI Models',
+    icon: BrainCircuit,
+    items: [
+      { path: '/providers', label: 'Providers', icon: Server },
+      { path: '/models', label: 'Models', icon: Cpu },
+    ],
+  },
+  {
+    id: 'agents',
+    label: 'Agents',
+    icon: Bot,
+    items: [
+      { path: '/agents', label: 'Agents', icon: Bot },
+      { path: '/skills', label: 'Skills', icon: Zap },
+      { path: '/tools', label: 'Tools', icon: Wrench },
+      { path: '/clawhub', label: 'ClawHub', icon: Store },
+    ],
+  },
+  {
+    id: 'integrations',
+    label: 'Integrations',
+    icon: Link2,
+    items: [
+      { path: '/channels', label: 'Channels', icon: Radio },
+      { path: '/hooks', label: 'Hooks', icon: Webhook },
+    ],
+  },
+  {
+    id: 'operations',
+    label: 'Operations',
+    icon: PlayCircle,
+    items: [
+      { path: '/sessions', label: 'Sessions', icon: MessageSquare },
+      { path: '/cron', label: 'Cron Jobs', icon: Clock },
+    ],
+  },
+  {
+    id: 'monitoring',
+    label: 'Monitoring',
+    icon: Eye,
+    items: [
+      { path: '/activities', label: 'Activities', icon: MonitorDot },
+      { path: '/logs', label: 'Logs', icon: ScrollText },
+      { path: '/health', label: 'Health', icon: Activity },
+    ],
+  },
+  {
+    id: 'system',
+    label: 'System',
+    icon: Settings,
+    items: [
+      { path: '/config', label: 'Config', icon: FileCode },
+      { path: '/files', label: 'Files', icon: FolderOpen },
+      { path: '/gateway', label: 'Gateway', icon: Server },
+    ],
+    // Users item added dynamically for admins
+  },
 ];
+
+function NavItem({ path, label, icon: Icon, isActive, collapsed }) {
+  const link = (
+    <NavLink
+      to={path}
+      data-testid={`nav-${label.toLowerCase().replace(/\s/g, '-')}`}
+      className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 group ${
+        isActive
+          ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
+          : 'text-theme-muted hover:text-theme-primary hover:bg-muted border border-transparent'
+      } ${!collapsed ? 'pl-9' : ''}`}
+    >
+      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-500' : 'text-theme-faint group-hover:text-theme-secondary'}`} />
+      {!collapsed && <span>{label}</span>}
+    </NavLink>
+  );
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{link}</TooltipTrigger>
+        <TooltipContent side="right" className="bg-surface-card text-theme-primary border-subtle">
+          {label}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  return link;
+}
+
+function NavGroup({ group, collapsed, location }) {
+  const isGroupActive = group.items.some(
+    ({ path }) => location.pathname === path || location.pathname.startsWith(path)
+  );
+  const [open, setOpen] = useState(isGroupActive);
+
+  // Auto-open group when navigating to one of its items
+  useEffect(() => {
+    if (isGroupActive && !open) setOpen(true);
+  }, [isGroupActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Standalone items (Dashboard) — no group header
+  if (group.type === 'standalone') {
+    const item = group.items[0];
+    const isActive = location.pathname === item.path;
+    const link = (
+      <NavLink
+        to={item.path}
+        data-testid={`nav-${item.label.toLowerCase()}`}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 group ${
+          isActive
+            ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
+            : 'text-theme-muted hover:text-theme-primary hover:bg-muted border border-transparent'
+        }`}
+      >
+        <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-500' : 'text-theme-faint group-hover:text-theme-secondary'}`} />
+        {!collapsed && <span>{item.label}</span>}
+      </NavLink>
+    );
+
+    if (collapsed) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>{link}</TooltipTrigger>
+          <TooltipContent side="right" className="bg-surface-card text-theme-primary border-subtle">
+            {item.label}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    return link;
+  }
+
+  const GroupIcon = group.icon;
+
+  // Collapsed sidebar — show only the group icon with tooltip
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => setOpen(!open)}
+            className={`flex items-center justify-center w-full px-3 py-2.5 rounded-md transition-all duration-200 ${
+              isGroupActive
+                ? 'bg-orange-500/10 text-orange-500'
+                : 'text-theme-faint hover:text-theme-secondary hover:bg-muted'
+            }`}
+          >
+            <GroupIcon className="w-4 h-4 shrink-0" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="bg-surface-card text-theme-primary border-subtle">
+          <div className="font-medium mb-1">{group.label}</div>
+          <div className="text-xs text-theme-faint">
+            {group.items.map(i => i.label).join(', ')}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  // Expanded sidebar — collapsible group
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-3 px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider w-full transition-all duration-200 ${
+          isGroupActive
+            ? 'text-orange-500/80'
+            : 'text-theme-faint hover:text-theme-secondary'
+        }`}
+      >
+        <GroupIcon className="w-3.5 h-3.5 shrink-0" />
+        <span className="flex-1 text-left">{group.label}</span>
+        <ChevronDown
+          className={`w-3 h-3 shrink-0 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+        />
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-200 ${
+          open ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <div className="flex flex-col gap-0.5 mt-0.5">
+          {group.items.map((item) => {
+            const isActive = location.pathname === item.path || location.pathname.startsWith(item.path);
+            return (
+              <NavItem
+                key={item.path}
+                {...item}
+                isActive={isActive}
+                collapsed={collapsed}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { user, logout, isAdmin } = useAuth();
 
-  const allNavItems = [
-    ...navItems,
-    ...(isAdmin() ? [{ path: '/users', label: 'Users', icon: Users }] : []),
-  ];
+  // Build groups with admin-only items
+  const groups = navGroups.map((group) => {
+    if (group.id === 'system' && isAdmin()) {
+      return { ...group, items: [...group.items, { path: '/users', label: 'Users', icon: Users }] };
+    }
+    return group;
+  });
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -61,39 +252,12 @@ export default function Sidebar() {
           )}
         </div>
 
-        {/* Nav Items */}
+        {/* Nav Groups */}
         <ScrollArea className="flex-1 py-3">
-          <nav className="flex flex-col gap-0.5 px-2">
-            {allNavItems.map(({ path, label, icon: Icon }) => {
-              const isActive = location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(path));
-              const link = (
-                <NavLink
-                  key={path}
-                  to={path}
-                  data-testid={`nav-${label.toLowerCase().replace(/\s/g, '-')}`}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 group ${
-                    isActive
-                      ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
-                      : 'text-theme-muted hover:text-theme-primary hover:bg-muted border border-transparent'
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-500' : 'text-theme-faint group-hover:text-theme-secondary'}`} />
-                  {!collapsed && <span>{label}</span>}
-                </NavLink>
-              );
-
-              if (collapsed) {
-                return (
-                  <Tooltip key={path}>
-                    <TooltipTrigger asChild>{link}</TooltipTrigger>
-                    <TooltipContent side="right" className="bg-surface-card text-theme-primary border-subtle">
-                      {label}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              }
-              return link;
-            })}
+          <nav className="flex flex-col gap-1 px-2">
+            {groups.map((group) => (
+              <NavGroup key={group.id} group={group} collapsed={collapsed} location={location} />
+            ))}
           </nav>
         </ScrollArea>
 
