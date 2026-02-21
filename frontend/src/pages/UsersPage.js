@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getUsers, createUser, updateUser, deleteUser } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { Users, Plus, Pencil, Trash2, Shield, Eye, Edit3 } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Shield, Eye, Edit3, Loader2 } from 'lucide-react';
 
 const ROLE_CONFIG = {
   admin: { label: 'Admin', icon: Shield, color: 'text-red-400 bg-red-500/10 border-red-500/20' },
@@ -17,6 +17,7 @@ export default function UsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [form, setForm] = useState({ username: '', password: '', name: '', role: 'viewer' });
+  const [saving, setSaving] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -33,6 +34,7 @@ export default function UsersPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    setSaving(true);
     try {
       await createUser(form);
       toast.success('User created');
@@ -41,11 +43,14 @@ export default function UsersPage() {
       fetchUsers();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to create user');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+    setSaving(true);
     try {
       const updates = {};
       if (form.name) updates.name = form.name;
@@ -57,6 +62,8 @@ export default function UsersPage() {
       fetchUsers();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to update user');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -142,8 +149,9 @@ export default function UsersPage() {
               </select>
             </div>
             <div className="sm:col-span-2 flex gap-2">
-              <button type="submit" className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm font-medium text-white transition-colors">
-                {editUser ? 'Update' : 'Create'}
+              <button type="submit" disabled={saving} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 flex items-center gap-2">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {saving ? 'Saving...' : editUser ? 'Update' : 'Create'}
               </button>
               <button type="button" onClick={() => { setShowCreate(false); setEditUser(null); }}
                 className="px-4 py-2 bg-muted hover:bg-strong rounded-lg text-sm font-medium text-theme-secondary transition-colors">

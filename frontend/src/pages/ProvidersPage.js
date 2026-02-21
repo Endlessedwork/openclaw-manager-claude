@@ -15,14 +15,14 @@ const EMPTY_MODEL_ROW = { id: '', name: '', contextWindow: '' };
 const API_TYPES = [
   { value: 'openai-completions', label: 'OpenAI Completions' },
   { value: 'openai-responses', label: 'OpenAI Responses' },
-  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'anthropic-messages', label: 'Anthropic' },
   { value: 'google', label: 'Google Gemini' },
 ];
 
 // Provider templates matching openclaw configure
 const PROVIDER_TEMPLATES = [
   { id: 'openai', label: 'OpenAI', base_url: 'https://api.openai.com/v1', api: 'openai-completions', env: 'OPENAI_API_KEY', color: 'emerald' },
-  { id: 'anthropic', label: 'Anthropic', base_url: 'https://api.anthropic.com/v1', api: 'anthropic', env: 'ANTHROPIC_API_KEY', color: 'orange' },
+  { id: 'anthropic', label: 'Anthropic', base_url: 'https://api.anthropic.com/v1', api: 'anthropic-messages', env: 'ANTHROPIC_API_KEY', color: 'orange' },
   { id: 'google', label: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta', api: 'google', env: 'GEMINI_API_KEY', color: 'sky' },
   { id: 'openrouter', label: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', api: 'openai-completions', env: 'OPENROUTER_API_KEY', color: 'purple' },
   { id: 'groq', label: 'Groq', base_url: 'https://api.groq.com/openai/v1', api: 'openai-completions', env: 'GROQ_API_KEY', color: 'amber' },
@@ -74,6 +74,7 @@ export default function ProvidersPage() {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [availableModels, setAvailableModels] = useState(null); // null = not fetched, [] = fetched empty
   const [showTemplates, setShowTemplates] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -126,6 +127,7 @@ export default function ProvidersPage() {
   };
 
   const handleSave = async () => {
+    setSaving(true);
     try {
       const parsedModels = modelRows.filter(r => r.id.trim()).map(r => {
         const m = { id: r.id.trim() };
@@ -145,6 +147,8 @@ export default function ProvidersPage() {
       setTimeout(load, 2000);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to save');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -200,7 +204,7 @@ export default function ProvidersPage() {
     const existingIds = new Set(modelRows.map(r => r.id).filter(Boolean));
     if (existingIds.has(m.id)) { toast.info(`${m.id} already added`); return; }
     const cleaned = modelRows.filter(r => r.id.trim());
-    setModelRows([...cleaned, { id: m.id, name: m.name || '', contextWindow: '' }]);
+    setModelRows([...cleaned, { id: m.id, name: m.name || '', contextWindow: m.context_window ? String(m.context_window) : '' }]);
   };
 
   const addAllModels = () => {
@@ -209,7 +213,7 @@ export default function ProvidersPage() {
     const newModels = availableModels.filter(m => !existingIds.has(m.id));
     if (newModels.length === 0) { toast.info('All models already added'); return; }
     const cleaned = modelRows.filter(r => r.id.trim());
-    const newRows = newModels.map(m => ({ id: m.id, name: m.name || '', contextWindow: '' }));
+    const newRows = newModels.map(m => ({ id: m.id, name: m.name || '', contextWindow: m.context_window ? String(m.context_window) : '' }));
     setModelRows([...cleaned, ...newRows]);
     toast.success(`Added ${newRows.length} model${newRows.length !== 1 ? 's' : ''}`);
   };
@@ -558,9 +562,9 @@ export default function ProvidersPage() {
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-subtle">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="border-strong text-theme-muted">Cancel</Button>
-            <Button onClick={handleSave} className="bg-orange-600 hover:bg-orange-700 text-white">
-              {editing ? 'Update' : 'Create'}
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving} className="border-strong text-theme-muted">Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white">
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : editing ? 'Update' : 'Create'}
             </Button>
           </div>
           </>

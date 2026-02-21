@@ -572,18 +572,28 @@ async def fetch_provider_models(provider_id: str, body: dict = None, user=Depend
                 if provider_id == "google":
                     for m in data.get("models", []):
                         mid = m.get("name", "").replace("models/", "")
-                        models.append({
+                        entry = {
                             "id": mid,
                             "name": m.get("displayName", mid),
                             "owned_by": "google",
-                        })
+                        }
+                        # Google returns inputTokenLimit
+                        itl = m.get("inputTokenLimit")
+                        if itl:
+                            entry["context_window"] = itl
+                        models.append(entry)
                 else:
                     for m in data.get("data", []):
-                        models.append({
+                        entry = {
                             "id": m.get("id", ""),
                             "name": m.get("name", m.get("id", "")),
                             "owned_by": m.get("owned_by", m.get("created_by", "")),
-                        })
+                        }
+                        # OpenRouter returns context_length; others may use context_window
+                        cw = m.get("context_length") or m.get("context_window") or m.get("max_model_len")
+                        if cw:
+                            entry["context_window"] = cw
+                        models.append(entry)
                 models.sort(key=lambda x: x["id"])
                 return {"ok": True, "models": models}
         except HTTPError as e:

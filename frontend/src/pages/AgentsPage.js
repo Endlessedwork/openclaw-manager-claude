@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getAgents, getAgent, getModels, updateAgentMd } from '../lib/api';
-import { Bot, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Bot, Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -27,6 +27,7 @@ export default function AgentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_AGENT);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -54,6 +55,7 @@ export default function AgentsPage() {
   };
 
   const handleSave = async () => {
+    setSaving(true);
     try {
       if (editing) {
         await updateAgentMd(editing.id, {
@@ -66,6 +68,7 @@ export default function AgentsPage() {
       setDialogOpen(false);
       load();
     } catch { toast.error('Failed to save agent'); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = () => {
@@ -312,9 +315,9 @@ export default function AgentsPage() {
             </TabsContent>
           </Tabs>
           <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-subtle">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="border-strong text-theme-muted hover:bg-muted">Cancel</Button>
-            <Button data-testid="save-agent-btn" onClick={handleSave} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-              {editing ? 'Update' : 'Create'}
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving} className="border-strong text-theme-muted hover:bg-muted">Cancel</Button>
+            <Button data-testid="save-agent-btn" onClick={handleSave} disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : editing ? 'Update' : 'Create'}
             </Button>
           </div>
         </DialogContent>
