@@ -225,6 +225,118 @@ describe('ConfigPage', () => {
     });
   });
 
+  it('updates config when form field is changed', async () => {
+    const { toast } = require('sonner');
+    render(<ConfigPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('field-gateway-port')).toBeInTheDocument();
+    });
+
+    // Change port value
+    fireEvent.change(screen.getByTestId('field-gateway-port'), { target: { value: '9999' } });
+
+    // Save and verify the updated value is sent
+    fireEvent.click(screen.getByTestId('save-config-btn'));
+
+    await waitFor(() => {
+      const sentRaw = JSON.parse(mockUpdateConfig.mock.calls[0][0].raw);
+      expect(sentRaw.gateway.port).toBe(9999);
+      expect(toast.success).toHaveBeenCalledWith('Configuration saved');
+    });
+  });
+
+  it('shows error toast when switching to Form with invalid JSON', async () => {
+    const { toast } = require('sonner');
+    render(<ConfigPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('tab-json')).toBeInTheDocument();
+    });
+
+    // Switch to JSON
+    fireEvent.click(screen.getByTestId('tab-json'));
+    await waitFor(() => {
+      expect(screen.getByTestId('config-editor')).toBeInTheDocument();
+    });
+
+    // Type invalid JSON
+    fireEvent.change(screen.getByTestId('config-editor'), { target: { value: '{invalid json' } });
+
+    // Try switching back to Form
+    fireEvent.click(screen.getByTestId('tab-form'));
+
+    // Should show error and stay on JSON tab
+    expect(toast.error).toHaveBeenCalledWith('Invalid JSON — fix errors before switching to Form view');
+    expect(screen.getByTestId('config-editor')).toBeInTheDocument();
+    expect(screen.queryByTestId('config-form')).not.toBeInTheDocument();
+  });
+
+  it('reloads config when Reset is clicked', async () => {
+    render(<ConfigPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('config-form')).toBeInTheDocument();
+    });
+    expect(mockGetConfig).toHaveBeenCalledTimes(1);
+
+    // Click Reset
+    fireEvent.click(screen.getByText('Reset'));
+
+    await waitFor(() => {
+      expect(mockGetConfig).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('hides Save and Validate buttons for viewer role', async () => {
+    // Override useAuth to return canEdit = false
+    const authMock = require('../contexts/AuthContext');
+    const originalUseAuth = authMock.useAuth;
+    authMock.useAuth = () => ({ canEdit: () => false });
+
+    render(<ConfigPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('config-form')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('save-config-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('validate-config-btn')).not.toBeInTheDocument();
+
+    // Restore
+    authMock.useAuth = originalUseAuth;
+  });
+
+  it('shows error toast when save fails', async () => {
+    const { toast } = require('sonner');
+    mockUpdateConfig.mockRejectedValue(new Error('network error'));
+    render(<ConfigPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('config-form')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('save-config-btn'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Failed to save config');
+    });
+  });
+
+  it('clears validation when form field changes', async () => {
+    render(<ConfigPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('validate-config-btn')).toBeInTheDocument();
+    });
+
+    // Validate first
+    fireEvent.click(screen.getByTestId('validate-config-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('validation-results')).toBeInTheDocument();
+    });
+
+    // Change a form field
+    fireEvent.change(screen.getByTestId('field-gateway-port'), { target: { value: '9999' } });
+
+    // Validation should be cleared
+    expect(screen.queryByTestId('validation-results')).not.toBeInTheDocument();
+  });
+
   it('saves config from JSON tab', async () => {
     const { toast } = require('sonner');
     render(<ConfigPage />);
