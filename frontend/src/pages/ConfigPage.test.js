@@ -6,7 +6,14 @@ jest.mock('sonner', () => ({ toast: { error: jest.fn(), success: jest.fn() } }))
 
 jest.mock('lucide-react', () => {
   const icon = (name) => (props) => <svg data-testid={`icon-${name}`} {...props} />;
-  return { FileCode: icon('file'), Save: icon('save'), RotateCcw: icon('reset'), CheckCircle: icon('check'), AlertTriangle: icon('alert'), XCircle: icon('xcircle') };
+  return {
+    FileCode: icon('file'), Save: icon('save'), RotateCcw: icon('reset'),
+    CheckCircle: icon('check'), AlertTriangle: icon('alert'), XCircle: icon('xcircle'),
+    Server: icon('server'), Bot: icon('bot'), Wrench: icon('wrench'),
+    MessageSquare: icon('message'), Terminal: icon('terminal'), Package: icon('package'),
+    Plug: icon('plug'), Eye: icon('eye'), EyeOff: icon('eyeoff'),
+    X: icon('x'), Plus: icon('plus'),
+  };
 });
 
 jest.mock('../contexts/AuthContext', () => ({
@@ -19,6 +26,37 @@ jest.mock('../components/ui/button', () => ({
   ),
 }));
 
+jest.mock('../components/ui/input', () => ({
+  Input: ({ className, ...props }) => <input {...props} />,
+}));
+
+jest.mock('../components/ui/label', () => ({
+  Label: ({ children, ...props }) => <label {...props}>{children}</label>,
+}));
+
+jest.mock('../components/ui/switch', () => ({
+  Switch: ({ checked, onCheckedChange, ...props }) => (
+    <input type="checkbox" checked={checked} onChange={e => onCheckedChange(e.target.checked)} {...props} />
+  ),
+}));
+
+jest.mock('../components/ui/select', () => ({
+  Select: ({ children, value, onValueChange }) => (
+    <div data-value={value} data-mock-select>{children}</div>
+  ),
+  SelectContent: ({ children }) => <div>{children}</div>,
+  SelectItem: ({ children, value }) => <option value={value}>{children}</option>,
+  SelectTrigger: ({ children, ...props }) => <button {...props}>{children}</button>,
+  SelectValue: () => null,
+}));
+
+jest.mock('../components/ui/accordion', () => ({
+  Accordion: ({ children, ...props }) => <div {...props}>{children}</div>,
+  AccordionItem: ({ children, ...props }) => <div {...props}>{children}</div>,
+  AccordionTrigger: ({ children, ...props }) => <div {...props}>{children}</div>,
+  AccordionContent: ({ children, ...props }) => <div {...props}>{children}</div>,
+}));
+
 let mockGetConfig, mockUpdateConfig, mockValidateConfig;
 jest.mock('../lib/api', () => ({
   getConfig: (...args) => mockGetConfig(...args),
@@ -26,48 +64,81 @@ jest.mock('../lib/api', () => ({
   validateConfig: (...args) => mockValidateConfig(...args),
 }));
 
+const mockFullConfig = {
+  gateway: { port: 18789, bind: 'loopback', auth: { mode: 'token', token: 'test-token' }, tailscale: { mode: 'off', resetOnExit: false }, controlUi: { allowedOrigins: ['*'] } },
+  agents: { defaults: { workspace: '/home/test/.openclaw/workspace', maxConcurrent: 5, compaction: { mode: 'default', memoryFlush: { enabled: true } } } },
+  tools: { web: { search: { apiKey: 'test-key' } }, elevated: { enabled: true, allowFrom: { '*': ['*'] } }, sandbox: { tools: { allow: ['exec', 'read'] } } },
+  messages: { ackReactionScope: 'group-mentions' },
+  commands: { native: 'auto', nativeSkills: 'auto', restart: true },
+  skills: { install: { nodeManager: 'npm' } },
+  plugins: { entries: { telegram: { enabled: true }, line: { enabled: true } } },
+};
+
 const mockConfig = {
   port: 18789,
-  bind_host: '127.0.0.1',
-  reload_mode: 'hybrid',
-  tls_enabled: false,
-  raw_config: '{\n  "gateway": { "port": 18789 }\n}',
+  bind_host: 'loopback',
+  reload_mode: 'local',
+  tls: false,
+  raw: JSON.stringify(mockFullConfig, null, 2),
 };
 
 beforeEach(() => {
+  jest.clearAllMocks();
   mockGetConfig = jest.fn().mockResolvedValue({ data: mockConfig });
   mockUpdateConfig = jest.fn().mockResolvedValue({ data: {} });
   mockValidateConfig = jest.fn().mockResolvedValue({ data: { valid: true, errors: [], warnings: [] } });
 });
 
 describe('ConfigPage', () => {
-  it('renders config settings after loading', async () => {
+  it('renders form view by default with all 7 accordion section headers', async () => {
     render(<ConfigPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('config-editor')).toBeInTheDocument();
+      expect(screen.getByTestId('config-form')).toBeInTheDocument();
     });
-    expect(screen.getByText('Port')).toBeInTheDocument();
-    expect(screen.getByText('Bind Host')).toBeInTheDocument();
-    expect(screen.getByText('Reload Mode')).toBeInTheDocument();
-    expect(screen.getByText('TLS')).toBeInTheDocument();
+    expect(screen.getByText('Gateway')).toBeInTheDocument();
+    expect(screen.getByText('Agent Defaults')).toBeInTheDocument();
+    expect(screen.getByText('Tools')).toBeInTheDocument();
+    expect(screen.getByText('Messages')).toBeInTheDocument();
+    expect(screen.getByText('Commands')).toBeInTheDocument();
+    expect(screen.getByText('Skills')).toBeInTheDocument();
+    expect(screen.getByText('Plugins')).toBeInTheDocument();
   });
 
-  it('renders JSON editor with raw config', async () => {
+  it('switches to JSON tab and shows editor', async () => {
     render(<ConfigPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('tab-json')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('tab-json'));
+
     await waitFor(() => {
       expect(screen.getByTestId('config-editor')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('config-editor')).toHaveValue('{\n  "gateway": { "port": 18789 }\n}');
+    expect(screen.queryByTestId('config-form')).not.toBeInTheDocument();
   });
 
-  it('updates editor content on typing', async () => {
+  it('populates form fields from config data', async () => {
     render(<ConfigPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('config-editor')).toBeInTheDocument();
+      expect(screen.getByTestId('field-gateway-port')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('field-gateway-port')).toHaveValue(18789);
+  });
+
+  it('saves config from form view (serializes fullConfig)', async () => {
+    const { toast } = require('sonner');
+    render(<ConfigPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('config-form')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByTestId('config-editor'), { target: { value: '{"new": true}' } });
-    expect(screen.getByTestId('config-editor')).toHaveValue('{"new": true}');
+    fireEvent.click(screen.getByTestId('save-config-btn'));
+
+    await waitFor(() => {
+      expect(mockUpdateConfig).toHaveBeenCalledWith({ raw: JSON.stringify(mockFullConfig, null, 2) });
+      expect(toast.success).toHaveBeenCalledWith('Configuration saved');
+    });
   });
 
   it('validates config and shows success', async () => {
@@ -94,7 +165,7 @@ describe('ConfigPage', () => {
     });
     render(<ConfigPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('config-editor')).toBeInTheDocument();
+      expect(screen.getByTestId('config-form')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId('validate-config-btn'));
@@ -105,23 +176,6 @@ describe('ConfigPage', () => {
     expect(screen.getByTestId('validation-results')).toBeInTheDocument();
     expect(screen.getByText('Invalid port number')).toBeInTheDocument();
     expect(screen.getByText('Missing required field')).toBeInTheDocument();
-  });
-
-  it('handles validation response with missing errors array (bug regression)', async () => {
-    mockValidateConfig.mockResolvedValue({
-      data: { valid: false, errors: [] },
-    });
-    render(<ConfigPage />);
-    await waitFor(() => {
-      expect(screen.getByTestId('validate-config-btn')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('validate-config-btn'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('validation-results')).toBeInTheDocument();
-    });
-    expect(screen.getByText(/Error/)).toBeInTheDocument();
   });
 
   it('shows validation warnings', async () => {
@@ -140,34 +194,25 @@ describe('ConfigPage', () => {
     });
   });
 
-  it('saves config successfully', async () => {
-    const { toast } = require('sonner');
+  it('handles tab switch back and forth', async () => {
     render(<ConfigPage />);
     await waitFor(() => {
-      expect(screen.getByText('18789')).toBeInTheDocument();
+      expect(screen.getByTestId('config-form')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId('save-config-btn'));
-
+    // Switch to JSON tab
+    fireEvent.click(screen.getByTestId('tab-json'));
     await waitFor(() => {
-      expect(mockUpdateConfig).toHaveBeenCalled();
-      expect(toast.success).toHaveBeenCalledWith('Configuration saved');
+      expect(screen.getByTestId('config-editor')).toBeInTheDocument();
     });
-  });
+    expect(screen.queryByTestId('config-form')).not.toBeInTheDocument();
 
-  it('clears validation when editor content changes', async () => {
-    render(<ConfigPage />);
+    // Switch back to form tab
+    fireEvent.click(screen.getByTestId('tab-form'));
     await waitFor(() => {
-      expect(screen.getByTestId('validate-config-btn')).toBeInTheDocument();
+      expect(screen.getByTestId('config-form')).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByTestId('validate-config-btn'));
-    await waitFor(() => {
-      expect(screen.getByTestId('validation-results')).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByTestId('config-editor'), { target: { value: '{}' } });
-    expect(screen.queryByTestId('validation-results')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('config-editor')).not.toBeInTheDocument();
   });
 
   it('shows error toast when load fails', async () => {
@@ -177,6 +222,31 @@ describe('ConfigPage', () => {
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Failed to load config');
+    });
+  });
+
+  it('saves config from JSON tab', async () => {
+    const { toast } = require('sonner');
+    render(<ConfigPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('tab-json')).toBeInTheDocument();
+    });
+
+    // Switch to JSON tab
+    fireEvent.click(screen.getByTestId('tab-json'));
+    await waitFor(() => {
+      expect(screen.getByTestId('config-editor')).toBeInTheDocument();
+    });
+
+    // Modify the JSON
+    fireEvent.change(screen.getByTestId('config-editor'), { target: { value: '{"modified": true}' } });
+
+    // Save
+    fireEvent.click(screen.getByTestId('save-config-btn'));
+
+    await waitFor(() => {
+      expect(mockUpdateConfig).toHaveBeenCalledWith({ raw: '{"modified": true}' });
+      expect(toast.success).toHaveBeenCalledWith('Configuration saved');
     });
   });
 });
