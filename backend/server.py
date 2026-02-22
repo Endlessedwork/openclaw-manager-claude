@@ -857,7 +857,10 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
 # ===== CRON JOBS (from CLI) =====
 @api_router.get("/cron")
 async def list_cron_jobs(user=Depends(get_current_user)):
-    raw = await gateway.cron_jobs()
+    try:
+        raw = await gateway.cron_jobs()
+    except Exception:
+        return []
     return [
         {
             "id": j["id"],
