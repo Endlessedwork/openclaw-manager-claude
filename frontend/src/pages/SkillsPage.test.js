@@ -6,38 +6,11 @@ jest.mock('sonner', () => ({ toast: { error: jest.fn(), success: jest.fn() } }))
 
 jest.mock('lucide-react', () => {
   const icon = (name) => (props) => <svg data-testid={`icon-${name}`} {...props} />;
-  return { Zap: icon('zap'), Plus: icon('plus'), Pencil: icon('pencil'), Trash2: icon('trash'), Search: icon('search') };
+  return { Zap: icon('zap'), Search: icon('search') };
 });
 
-jest.mock('../components/ui/button', () => ({
-  Button: ({ children, onClick, ...props }) => <button onClick={onClick} {...props}>{children}</button>,
-}));
 jest.mock('../components/ui/input', () => ({
   Input: (props) => <input {...props} />,
-}));
-jest.mock('../components/ui/label', () => ({
-  Label: ({ children, ...props }) => <label>{children}</label>,
-}));
-jest.mock('../components/ui/textarea', () => ({
-  Textarea: (props) => <textarea {...props} />,
-}));
-jest.mock('../components/ui/switch', () => ({
-  Switch: ({ checked, onCheckedChange, ...props }) => (
-    <input type="checkbox" checked={checked} onChange={() => onCheckedChange?.(!checked)} data-testid={props['data-testid']} />
-  ),
-}));
-jest.mock('../components/ui/dialog', () => ({
-  Dialog: ({ children, open }) => open ? <div data-testid="dialog">{children}</div> : null,
-  DialogContent: ({ children }) => <div data-testid="dialog-content">{children}</div>,
-  DialogHeader: ({ children }) => <div>{children}</div>,
-  DialogTitle: ({ children }) => <h2>{children}</h2>,
-}));
-jest.mock('../components/ui/select', () => ({
-  Select: ({ children }) => <div>{children}</div>,
-  SelectContent: ({ children }) => <div>{children}</div>,
-  SelectItem: ({ children }) => <div>{children}</div>,
-  SelectTrigger: ({ children }) => <div>{children}</div>,
-  SelectValue: () => <span />,
 }));
 
 let mockGetSkills;
@@ -126,25 +99,13 @@ describe('SkillsPage', () => {
     expect(screen.getByText('No skills found')).toBeInTheDocument();
   });
 
-  it('shows toggle switches for skills', async () => {
+  it('shows active/inactive status badges', async () => {
     render(<SkillsPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('toggle-skill-sk-1')).toBeInTheDocument();
+      expect(screen.getByText('web-search')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('toggle-skill-sk-2')).toBeInTheDocument();
-  });
-
-  it('opens create dialog on New Skill click', async () => {
-    render(<SkillsPage />);
-    await waitFor(() => {
-      expect(screen.getByTestId('create-skill-btn')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('create-skill-btn'));
-
-    await waitFor(() => {
-      expect(screen.getByText('Create Skill')).toBeInTheDocument();
-    });
+    expect(screen.getAllByText('active').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('inactive')).toBeInTheDocument();
   });
 
   it('displays required env vars badges', async () => {
@@ -175,6 +136,14 @@ describe('SkillsPage', () => {
   it('renders page title', () => {
     render(<SkillsPage />);
     expect(screen.getByText('Skills')).toBeInTheDocument();
-    expect(screen.getByText('Manage agent skills and capabilities')).toBeInTheDocument();
+  });
+
+  it('is read-only (no create/edit/delete buttons)', async () => {
+    render(<SkillsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('web-search')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('create-skill-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('dialog')).not.toBeInTheDocument();
   });
 });

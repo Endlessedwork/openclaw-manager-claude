@@ -3,7 +3,7 @@ import { getFileCategories, getFileTree, getFileContent, updateFileContent, getF
 import {
   Bot, Sparkles, Settings, Image, Brain, Key, FileCode, Globe,
   Layout, FolderOpen, ChevronRight, ChevronDown, Folder, File,
-  ArrowLeft, Save, X, Pencil
+  ArrowLeft, Save, X, Pencil, Search
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,10 +29,22 @@ function formatSize(bytes) {
   return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
-function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir }) {
+function nodeMatchesSearch(node, search, loadedDirs) {
+  if (!search) return true;
+  const lower = search.toLowerCase();
+  if (node.name.toLowerCase().includes(lower)) return true;
+  if (node.isDir) {
+    const children = loadedDirs[node.path] || [];
+    return children.some((child) => nodeMatchesSearch(child, search, loadedDirs));
+  }
+  return false;
+}
+
+function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir, searchFilter }) {
   const [expanded, setExpanded] = useState(false);
   const children = loadedDirs[node.path] || [];
   const isSelected = selectedPath === node.path;
+  const forceExpand = !!searchFilter;
 
   const handleClick = () => {
     if (node.isDir) {
@@ -52,6 +64,12 @@ function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir })
     return a.name.localeCompare(b.name);
   });
 
+  const filteredChildren = searchFilter
+    ? sortedChildren.filter((child) => nodeMatchesSearch(child, searchFilter, loadedDirs))
+    : sortedChildren;
+
+  const showExpanded = node.isDir && (expanded || forceExpand);
+
   return (
     <div>
       <button
@@ -64,7 +82,7 @@ function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir })
         }`}
       >
         {node.isDir ? (
-          expanded ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-theme-faint" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-theme-faint" />
+          (expanded || forceExpand) ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-theme-faint" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-theme-faint" />
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
@@ -81,9 +99,9 @@ function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir })
           <span className="ml-auto text-[10px] text-theme-dimmed">{formatSize(node.size)}</span>
         )}
       </button>
-      {node.isDir && expanded && (
+      {showExpanded && (
         <div className="ml-3 border-l border-subtle pl-1">
-          {sortedChildren.map((child) => (
+          {filteredChildren.map((child) => (
             <TreeNode
               key={child.path}
               node={child}
@@ -91,6 +109,7 @@ function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir })
               onSelectFile={onSelectFile}
               loadedDirs={loadedDirs}
               onToggleDir={onToggleDir}
+              searchFilter={searchFilter}
             />
           ))}
         </div>
@@ -115,6 +134,9 @@ export default function FilesPage() {
 
   // Image preview state
   const [imageUrl, setImageUrl] = useState(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Edit state
   const [editing, setEditing] = useState(false);
@@ -146,6 +168,7 @@ export default function FilesPage() {
     setFileData(null);
     setEditing(false);
     setLoadedDirs({});
+    setSearchQuery('');
     try {
       const res = await getFileTree(category.path);
       const sorted = [...res.data].sort((a, b) => {
@@ -230,8 +253,9 @@ export default function FilesPage() {
     breadcrumbParts.push(activeCategory.name);
   }
   if (selectedPath && activeCategory) {
-    const relative = selectedPath.replace(activeCategory.path + '/', '');
-    if (relative !== selectedPath) {
+    const prefix = activeCategory.path ? activeCategory.path + '/' : '';
+    const relative = prefix ? selectedPath.replace(prefix, '') : selectedPath;
+    if (relative !== selectedPath || !prefix) {
       breadcrumbParts.push(relative);
     }
   }
@@ -253,6 +277,29 @@ export default function FilesPage() {
           </div>
         ) : (
           <div data-testid="category-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {/* Browse All card */}
+            <button
+              data-testid="category-card-all"
+              onClick={() => enterCategory({ id: 'all', name: 'All Files', path: '', icon: 'folder-open', description: 'Browse all files from root' })}
+              className="bg-surface-card border border-orange-500/30 rounded-lg p-5 text-left hover:border-orange-500/50 transition-all group"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
+                  <FolderOpen className="w-5 h-5 text-orange-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-orange-400 group-hover:text-orange-300 transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                    All Files
+                  </h3>
+                </div>
+              </div>
+              <p className="text-xs text-theme-faint mb-3 line-clamp-2">Browse all files from root directory</p>
+              <div className="flex items-center gap-3 text-[11px] text-theme-dimmed">
+                <span>{categories.reduce((sum, c) => sum + c.fileCount, 0)} files</span>
+                <span className="text-theme-dimmed">|</span>
+                <span>{formatSize(categories.reduce((sum, c) => sum + c.totalSize, 0))}</span>
+              </div>
+            </button>
             {categories.map((cat) => {
               const IconComp = iconMap[cat.icon] || FolderOpen;
               return (
@@ -325,30 +372,57 @@ export default function FilesPage() {
           data-testid="file-tree-panel"
           className="w-72 shrink-0 bg-surface-card border border-subtle rounded-lg overflow-hidden flex flex-col"
         >
-          <div className="px-3 py-2.5 border-b border-subtle">
+          <div className="px-3 py-2.5 border-b border-subtle space-y-2">
             <h2 className="text-xs font-semibold text-theme-muted uppercase tracking-wider" style={{ fontFamily: 'Manrope, sans-serif' }}>
               {activeCategory?.name || 'Files'}
             </h2>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-theme-dimmed" />
+              <input
+                data-testid="file-search-input"
+                type="text"
+                placeholder="Search files..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-7 pr-2 py-1.5 bg-surface-page border border-subtle rounded-md text-xs text-theme-secondary placeholder:text-theme-dimmed focus:outline-none focus:border-orange-500/50 font-mono"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-theme-dimmed hover:text-theme-muted"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-2">
             {treeLoading ? (
               <div className="flex justify-center py-8">
                 <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
               </div>
-            ) : treeNodes.length === 0 ? (
-              <p className="text-xs text-theme-dimmed text-center py-8">No files found</p>
-            ) : (
-              treeNodes.map((node) => (
-                <TreeNode
-                  key={node.path}
-                  node={node}
-                  selectedPath={selectedPath}
-                  onSelectFile={loadFile}
-                  loadedDirs={loadedDirs}
-                  onToggleDir={loadDir}
-                />
-              ))
-            )}
+            ) : (() => {
+              const filtered = searchQuery
+                ? treeNodes.filter((node) => nodeMatchesSearch(node, searchQuery, loadedDirs))
+                : treeNodes;
+              return filtered.length === 0 ? (
+                <p className="text-xs text-theme-dimmed text-center py-8">
+                  {searchQuery ? 'No matching files' : 'No files found'}
+                </p>
+              ) : (
+                filtered.map((node) => (
+                  <TreeNode
+                    key={node.path}
+                    node={node}
+                    selectedPath={selectedPath}
+                    onSelectFile={loadFile}
+                    loadedDirs={loadedDirs}
+                    onToggleDir={loadDir}
+                    searchFilter={searchQuery}
+                  />
+                ))
+              );
+            })()}
           </div>
         </div>
 
