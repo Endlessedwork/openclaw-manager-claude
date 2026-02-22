@@ -85,6 +85,24 @@ function FormField({ label, description, children }) {
   );
 }
 
+function ChannelAdder({ onAdd }) {
+  const [name, setName] = useState('');
+  return (
+    <div className="flex gap-2 mt-2">
+      <Input
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (name.trim()) { onAdd(name.trim()); setName(''); } } }}
+        placeholder="Channel name (e.g. telegram)"
+        className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm"
+      />
+      <Button type="button" variant="outline" size="sm" onClick={() => { if (name.trim()) { onAdd(name.trim()); setName(''); } }} className="border-subtle text-theme-muted hover:bg-muted shrink-0">
+        <Plus className="w-3.5 h-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 export default function ConfigPage() {
   const { canEdit } = useAuth();
   const [fullConfig, setFullConfig] = useState(null);
@@ -378,10 +396,20 @@ export default function ConfigPage() {
                 <FormField label="Elevated Allow From" description="Per-channel elevated permissions">
                   {Object.entries(getConfigValue('tools.elevated.allowFrom', {})).map(([channel, patterns]) => (
                     <div key={channel} className="mb-3">
-                      <span className="text-[10px] font-mono text-theme-dimmed uppercase tracking-wider">{channel}</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-mono text-theme-dimmed uppercase tracking-wider">{channel}</span>
+                        <button onClick={() => {
+                          const next = { ...getConfigValue('tools.elevated.allowFrom', {}) };
+                          delete next[channel];
+                          setConfigValue('tools.elevated.allowFrom', next);
+                        }} className="text-theme-dimmed hover:text-red-400">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
                       <TagInput value={patterns} onChange={v => setConfigValue(`tools.elevated.allowFrom.${channel}`, v)} placeholder="Pattern (e.g. *)" />
                     </div>
                   ))}
+                  <ChannelAdder onAdd={(name) => setConfigValue(`tools.elevated.allowFrom.${name}`, [])} />
                 </FormField>
                 <FormField label="Sandbox Tools Allow" description="Allowed sandbox tool names">
                   <TagInput value={getConfigValue('tools.sandbox.tools.allow', [])} onChange={v => setConfigValue('tools.sandbox.tools.allow', v)} placeholder="Tool name (e.g. exec, read, write)" />
@@ -497,9 +525,15 @@ export default function ConfigPage() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-0">
-                {Object.entries(getConfigValue('plugins.entries', {})).map(([name, cfg]) => (
-                  <FormField key={name} label={name.charAt(0).toUpperCase() + name.slice(1)} description={`Enable ${name} plugin`}>
-                    <Switch checked={cfg?.enabled ?? false} onCheckedChange={v => setConfigValue(`plugins.entries.${name}.enabled`, v)} />
+                {[
+                  { key: 'telegram', label: 'Telegram' },
+                  { key: 'line', label: 'Line' },
+                ].map(({ key, label }) => (
+                  <FormField key={key} label={`${label} Enabled`} description={`Enable ${label} plugin`}>
+                    <Switch
+                      checked={getConfigValue(`plugins.entries.${key}.enabled`, false)}
+                      onCheckedChange={v => setConfigValue(`plugins.entries.${key}.enabled`, v)}
+                    />
                   </FormField>
                 ))}
               </AccordionContent>
