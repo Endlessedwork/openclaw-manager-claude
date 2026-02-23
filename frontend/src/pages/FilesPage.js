@@ -40,21 +40,34 @@ function nodeMatchesSearch(node, search, loadedDirs) {
   return false;
 }
 
-function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir, searchFilter }) {
+function TreeNode({ node, selectedPath, selectedDir, onSelectFile, onSelectDir, loadedDirs, onToggleDir, searchFilter }) {
   const [expanded, setExpanded] = useState(false);
   const children = loadedDirs[node.path] || [];
-  const isSelected = selectedPath === node.path;
+  const isSelected = node.isDir ? selectedDir === node.path : selectedPath === node.path;
   const forceExpand = !!searchFilter;
+
+  const toggleExpand = (e) => {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
+    if (!node.isDir) return;
+    const next = !expanded;
+    setExpanded(next);
+    if (next && !loadedDirs[node.path]) {
+      onToggleDir(node.path);
+    }
+  };
 
   const handleClick = () => {
     if (node.isDir) {
-      const next = !expanded;
-      setExpanded(next);
-      if (next && !loadedDirs[node.path]) {
-        onToggleDir(node.path);
-      }
+      // Single click on folder → show contents on right
+      onSelectDir(node.path);
     } else {
       onSelectFile(node.path);
+    }
+  };
+
+  const handleDoubleClick = () => {
+    if (node.isDir) {
+      toggleExpand();
     }
   };
 
@@ -75,6 +88,7 @@ function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir, s
       <button
         data-testid={`tree-node-${node.path}`}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-md transition-colors text-left ${
           isSelected
             ? 'bg-orange-500/10 text-orange-400'
@@ -82,7 +96,13 @@ function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir, s
         }`}
       >
         {node.isDir ? (
-          (expanded || forceExpand) ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-theme-faint" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-theme-faint" />
+          <span
+            role="button"
+            onClick={toggleExpand}
+            className="shrink-0 p-0.5 -m-0.5 rounded hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            {(expanded || forceExpand) ? <ChevronDown className="w-3.5 h-3.5 text-theme-faint" /> : <ChevronRight className="w-3.5 h-3.5 text-theme-faint" />}
+          </span>
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
@@ -106,7 +126,9 @@ function TreeNode({ node, selectedPath, onSelectFile, loadedDirs, onToggleDir, s
               key={child.path}
               node={child}
               selectedPath={selectedPath}
+              selectedDir={selectedDir}
               onSelectFile={onSelectFile}
+              onSelectDir={onSelectDir}
               loadedDirs={loadedDirs}
               onToggleDir={onToggleDir}
               searchFilter={searchFilter}
@@ -131,6 +153,11 @@ export default function FilesPage() {
   const [selectedPath, setSelectedPath] = useState(null);
   const [fileData, setFileData] = useState(null);
   const [fileLoading, setFileLoading] = useState(false);
+
+  // Directory listing state (right panel)
+  const [selectedDir, setSelectedDir] = useState(null);
+  const [dirContents, setDirContents] = useState([]);
+  const [dirLoading, setDirLoading] = useState(false);
 
   // Image preview state
   const [imageUrl, setImageUrl] = useState(null);
@@ -165,6 +192,8 @@ export default function FilesPage() {
     setMode('browse');
     setTreeLoading(true);
     setSelectedPath(null);
+    setSelectedDir(null);
+    setDirContents([]);
     setFileData(null);
     setEditing(false);
     setLoadedDirs({});
@@ -193,8 +222,34 @@ export default function FilesPage() {
     }
   };
 
+  const selectDir = async (path) => {
+    setSelectedDir(path);
+    setSelectedPath(null);
+    setFileData(null);
+    setEditing(false);
+    if (imageUrl) { URL.revokeObjectURL(imageUrl); setImageUrl(null); }
+    setDirLoading(true);
+    try {
+      const res = await getFileTree(path);
+      const sorted = [...res.data].sort((a, b) => {
+        if (a.isDir && !b.isDir) return -1;
+        if (!a.isDir && b.isDir) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      setDirContents(sorted);
+      // Also cache for tree expansion
+      setLoadedDirs((prev) => ({ ...prev, [path]: res.data }));
+    } catch {
+      toast.error('Failed to load directory');
+      setDirContents([]);
+    } finally {
+      setDirLoading(false);
+    }
+  };
+
   const loadFile = async (path) => {
     setSelectedPath(path);
+    setSelectedDir(null);
     setFileLoading(true);
     setEditing(false);
     if (imageUrl) { URL.revokeObjectURL(imageUrl); setImageUrl(null); }
@@ -242,6 +297,8 @@ export default function FilesPage() {
     setMode('overview');
     setActiveCategory(null);
     setSelectedPath(null);
+    setSelectedDir(null);
+    setDirContents([]);
     setFileData(null);
     setEditing(false);
     if (imageUrl) { URL.revokeObjectURL(imageUrl); setImageUrl(null); }
@@ -252,10 +309,11 @@ export default function FilesPage() {
   if (activeCategory) {
     breadcrumbParts.push(activeCategory.name);
   }
-  if (selectedPath && activeCategory) {
+  const activePath = selectedPath || selectedDir;
+  if (activePath && activeCategory) {
     const prefix = activeCategory.path ? activeCategory.path + '/' : '';
-    const relative = prefix ? selectedPath.replace(prefix, '') : selectedPath;
-    if (relative !== selectedPath || !prefix) {
+    const relative = prefix ? activePath.replace(prefix, '') : activePath;
+    if (relative !== activePath || !prefix) {
       breadcrumbParts.push(relative);
     }
   }
@@ -353,7 +411,7 @@ export default function FilesPage() {
             <ChevronRight className="w-3.5 h-3.5 text-theme-dimmed" />
             {i === 0 ? (
               <button
-                onClick={() => { setSelectedPath(null); setFileData(null); setEditing(false); }}
+                onClick={() => { setSelectedPath(null); setSelectedDir(null); setDirContents([]); setFileData(null); setEditing(false); }}
                 className={`text-sm font-mono transition-colors ${selectedPath ? 'text-theme-faint hover:text-orange-400 cursor-pointer' : 'text-theme-secondary'}`}
               >
                 {part}
@@ -415,7 +473,9 @@ export default function FilesPage() {
                     key={node.path}
                     node={node}
                     selectedPath={selectedPath}
+                    selectedDir={selectedDir}
                     onSelectFile={loadFile}
+                    onSelectDir={selectDir}
                     loadedDirs={loadedDirs}
                     onToggleDir={loadDir}
                     searchFilter={searchQuery}
@@ -431,14 +491,58 @@ export default function FilesPage() {
           data-testid="file-content-panel"
           className="flex-1 bg-surface-card border border-subtle rounded-lg overflow-hidden flex flex-col"
         >
-          {fileLoading ? (
+          {fileLoading || dirLoading ? (
             <div className="flex justify-center items-center flex-1">
               <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
             </div>
+          ) : selectedDir && !fileData ? (
+            /* Directory listing view */
+            <>
+              <div className="px-4 py-3 border-b border-subtle">
+                <h3 className="text-sm font-medium text-theme-primary font-mono flex items-center gap-2">
+                  <FolderOpen className="w-4 h-4 text-orange-500" />
+                  {selectedDir.split('/').pop() || selectedDir}
+                </h3>
+                <p className="text-[11px] text-theme-faint mt-0.5">{dirContents.length} items</p>
+              </div>
+              <div className="flex-1 overflow-auto">
+                {dirContents.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-theme-dimmed">
+                    <Folder className="w-10 h-10 mb-2 text-theme-dimmed" />
+                    <p className="text-sm">Empty directory</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-subtle">
+                    {dirContents.map((item) => (
+                      <button
+                        key={item.path}
+                        onClick={() => item.isDir ? selectDir(item.path) : loadFile(item.path)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted transition-colors group"
+                      >
+                        {item.isDir ? (
+                          <Folder className="w-5 h-5 shrink-0 text-orange-500/70" />
+                        ) : (
+                          <File className="w-5 h-5 shrink-0 text-theme-faint" />
+                        )}
+                        <span className="flex-1 truncate text-sm font-mono text-theme-secondary group-hover:text-theme-primary transition-colors">
+                          {item.name}
+                        </span>
+                        {!item.isDir && item.size != null && (
+                          <span className="text-xs text-theme-dimmed">{formatSize(item.size)}</span>
+                        )}
+                        {item.isDir && (
+                          <ChevronRight className="w-4 h-4 text-theme-dimmed" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           ) : !fileData ? (
             <div className="flex flex-col items-center justify-center flex-1 text-theme-dimmed">
               <File className="w-12 h-12 mb-3 text-theme-dimmed" />
-              <p className="text-sm">Select a file to view</p>
+              <p className="text-sm">Select a folder or file to view</p>
             </div>
           ) : (
             <>

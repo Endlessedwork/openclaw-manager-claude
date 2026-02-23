@@ -25,6 +25,7 @@ import UsersPage from "./pages/UsersPage";
 import HealthPage from "./pages/HealthPage";
 import FilesPage from "./pages/FilesPage";
 import ProvidersPage from "./pages/ProvidersPage";
+import UsagePage from "./pages/UsagePage";
 
 function ThemedToaster() {
   const { isDark } = useTheme();
@@ -42,6 +43,7 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/usage" element={<UsagePage />} />
                 <Route path="/agents" element={<AgentsPage />} />
                 <Route path="/skills" element={<SkillsPage />} />
                 <Route path="/tools" element={<ToolsPage />} />
