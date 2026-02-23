@@ -854,18 +854,78 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
     ]
 
 
+# ===== USAGE ANALYTICS =====
+@api_router.get("/usage/cost")
+async def get_usage_cost(days: int = Query(30, ge=1, le=90), user=Depends(get_current_user)):
+    try:
+        data = await gateway.usage_cost(days)
+    except Exception:
+        return {"daily": [], "totals": {}}
+    return data
+
+
+@api_router.get("/usage/breakdown")
+async def get_usage_breakdown(days: int = Query(30, ge=1, le=90), user=Depends(get_current_user)):
+    cutoff = datetime.now(timezone.utc).timestamp() - (days * 86400)
+    cutoff_iso = datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat()
+    match = {"event_type": "llm_request", "timestamp": {"$gte": cutoff_iso}}
+
+    by_agent = await db.agent_activities.aggregate([
+        {"$match": match},
+        {"$group": {
+            "_id": "$agent_name",
+            "tokens_in": {"$sum": "$tokens_in"},
+            "tokens_out": {"$sum": "$tokens_out"},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"tokens_out": -1}},
+        {"$limit": 20},
+    ]).to_list(20)
+
+    by_model = await db.agent_activities.aggregate([
+        {"$match": match},
+        {"$group": {
+            "_id": "$model_used",
+            "tokens_in": {"$sum": "$tokens_in"},
+            "tokens_out": {"$sum": "$tokens_out"},
+            "count": {"$sum": 1},
+            "avg_ms": {"$avg": "$duration_ms"},
+        }},
+        {"$sort": {"tokens_out": -1}},
+        {"$limit": 20},
+    ]).to_list(20)
+
+    by_channel = await db.agent_activities.aggregate([
+        {"$match": match},
+        {"$group": {
+            "_id": "$channel",
+            "tokens_in": {"$sum": "$tokens_in"},
+            "tokens_out": {"$sum": "$tokens_out"},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"tokens_out": -1}},
+    ]).to_list(20)
+
+    return {"by_agent": by_agent, "by_model": by_model, "by_channel": by_channel}
+
+
 # ===== CRON JOBS (from CLI) =====
 @api_router.get("/cron")
 async def list_cron_jobs(user=Depends(get_current_user)):
+    import json as _json
+    # Read jobs.json directly — CLI only returns enabled jobs, file has all
+    jobs_path = Path.home() / ".openclaw" / "cron" / "jobs.json"
     try:
-        raw = await gateway.cron_jobs()
+        raw = _json.loads(jobs_path.read_text())
     except Exception:
         return []
     return [
         {
             "id": j["id"],
             "name": j.get("name", ""),
-            "schedule": j.get("schedule", {}).get("expr", ""),
+            "schedule": j.get("schedule", {}).get("expr", "")
+                        or (f"every {j.get('schedule', {}).get('everyMs', 0) // 1000}s"
+                            if j.get("schedule", {}).get("kind") == "every" else ""),
             "timezone": j.get("schedule", {}).get("tz", "UTC"),
             "agent_id": j.get("agentId", "main"),
             "enabled": j.get("enabled", False),

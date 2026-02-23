@@ -45,6 +45,10 @@ export const getChannels = () => api.get('/channels');
 // Sessions (read-only)
 export const getSessions = (limit = 50) => api.get(`/sessions?limit=${limit}`);
 
+// Usage analytics
+export const getUsageCost = (days = 30) => api.get(`/usage/cost?days=${days}`);
+export const getUsageBreakdown = (days = 30) => api.get(`/usage/breakdown?days=${days}`);
+
 // Cron (read-only)
 export const getCronJobs = () => api.get('/cron');
 

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Bot, Zap, Wrench, Cpu, Radio, MessageSquare,
   Clock, FileCode, Server, ChevronLeft, ChevronRight, ChevronDown, Activity,
   Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
-  BrainCircuit, Link2, PlayCircle, Eye, Settings
+  BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -16,6 +16,11 @@ const navGroups = [
     id: 'dashboard',
     type: 'standalone',
     items: [{ path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }],
+  },
+  {
+    id: 'usage',
+    type: 'standalone',
+    items: [{ path: '/usage', label: 'Usage', icon: Coins }],
   },
   {
     id: 'ai-models',

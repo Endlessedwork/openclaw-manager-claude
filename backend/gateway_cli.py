@@ -150,6 +150,13 @@ class GatewayCLI:
         self.cache.invalidate("config")
         await self._run("gateway", "restart", json_output=False, timeout=10)
 
+    async def usage_cost(self, days=30):
+        return await self.cache.get(
+            f"usage_cost_{days}",
+            lambda: self._run("gateway", "usage-cost", "--days", str(days), timeout=60),
+            300,  # 5 min TTL
+        )
+
     async def gateway_restart(self):
         self.cache.invalidate()
         return await self._run("gateway", "restart", json_output=False, timeout=15)
