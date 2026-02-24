@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
+import { GatewayBannerProvider } from "./contexts/GatewayBannerContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./layout/MainLayout";
 import LoginPage from "./pages/LoginPage";
@@ -41,7 +42,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<LoginPage />} />
-              <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+              <Route element={<ProtectedRoute><GatewayBannerProvider><MainLayout /></GatewayBannerProvider></ProtectedRoute>}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/usage" element={<UsagePage />} />
                 <Route path="/agents" element={<AgentsPage />} />

@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { useGatewayBanner } from '../contexts/GatewayBannerContext';
 
 function TagInput({ value = [], onChange, placeholder = 'Add item...' }) {
   const [input, setInput] = useState('');
@@ -105,6 +106,7 @@ function ChannelAdder({ onAdd }) {
 
 export default function ConfigPage() {
   const { canEdit } = useAuth();
+  const { markRestartNeeded } = useGatewayBanner();
   const [fullConfig, setFullConfig] = useState(null);
   const [rawConfig, setRawConfig] = useState('');
   const [activeTab, setActiveTab] = useState('form');
@@ -143,6 +145,7 @@ export default function ConfigPage() {
       const raw = activeTab === 'json' ? rawConfig : JSON.stringify(fullConfig, null, 2);
       await updateConfig({ raw });
       toast.success('Configuration saved');
+      markRestartNeeded();
       setValidation(null);
       load();
     } catch { toast.error('Failed to save config'); }

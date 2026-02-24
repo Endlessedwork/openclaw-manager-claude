@@ -8,7 +8,7 @@ import logging
 import asyncio
 from pathlib import Path
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 import ssl
@@ -32,6 +32,7 @@ app = FastAPI()
 @app.on_event("startup")
 async def set_db():
     app.state.db = db
+    await db.daily_usage.create_index("date", unique=True)
     async def _warmup():
         await gateway.warmup()
         # Pre-build dashboard after CLI cache is warm
@@ -40,6 +41,46 @@ async def set_db():
         except Exception:
             pass
     asyncio.create_task(_warmup())
+    asyncio.create_task(_usage_collector())
+
+
+async def _usage_collector():
+    """Background task: backfill 90d on start, then upsert hourly."""
+    logger = logging.getLogger("usage_collector")
+
+    # Backfill on startup
+    try:
+        data = await gateway.usage_cost_raw(days=90)
+        daily = data.get("daily", []) if isinstance(data, dict) else []
+        for d in daily:
+            if not d.get("date"):
+                continue
+            await db.daily_usage.update_one(
+                {"date": d["date"]},
+                {"$set": {**d, "updated_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True,
+            )
+        logger.info(f"Backfilled {len(daily)} daily usage records")
+    except Exception as e:
+        logger.warning(f"Usage backfill failed: {e}")
+
+    # Hourly loop
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            data = await gateway.usage_cost_raw(days=1)
+            daily = data.get("daily", []) if isinstance(data, dict) else []
+            for d in daily:
+                if not d.get("date"):
+                    continue
+                await db.daily_usage.update_one(
+                    {"date": d["date"]},
+                    {"$set": {**d, "updated_at": datetime.now(timezone.utc).isoformat()}},
+                    upsert=True,
+                )
+        except Exception as e:
+            logger.warning(f"Usage hourly sync failed: {e}")
+
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -99,14 +140,18 @@ async def get_dashboard(user=Depends(get_current_user)):
 # ===== AGENTS (read-only from CLI) =====
 @api_router.get("/agents")
 async def list_agents(user=Depends(get_current_user)):
-    raw = await gateway.agents()
+    raw, config = await asyncio.gather(gateway.agents(), gateway.config_read())
+    # Build lookup from config for per-agent model overrides
+    agents_cfg = config.get("agents", {})
+    default_model = agents_cfg.get("defaults", {}).get("model", {}).get("primary", "")
+    cfg_by_id = {a["id"]: a for a in agents_cfg.get("list", []) if "id" in a}
     return [
         {
             "id": a.get("id"),
             "name": a.get("id"),
             "description": a.get("identityName", a.get("name", "")),
             "workspace": a.get("workspace", ""),
-            "model_primary": a.get("model", ""),
+            "model_primary": cfg_by_id.get(a.get("id"), {}).get("model", "") or default_model,
             "tools_profile": "full",
             "status": "active",
             "sandbox_mode": "off",
@@ -118,7 +163,10 @@ async def list_agents(user=Depends(get_current_user)):
 
 @api_router.get("/agents/{agent_id}")
 async def get_agent(agent_id: str, user=Depends(get_current_user)):
-    raw = await gateway.agents()
+    raw, config = await asyncio.gather(gateway.agents(), gateway.config_read())
+    agents_cfg = config.get("agents", {})
+    default_model = agents_cfg.get("defaults", {}).get("model", {}).get("primary", "")
+    cfg_by_id = {a["id"]: a for a in agents_cfg.get("list", []) if "id" in a}
     for a in raw:
         if a.get("id") == agent_id:
             workspace = a.get("workspace", "")
@@ -132,12 +180,13 @@ async def get_agent(agent_id: str, user=Depends(get_current_user)):
                             md_files[fname] = fpath.read_text(encoding="utf-8")
                         except Exception:
                             md_files[fname] = ""
+            agent_model = cfg_by_id.get(agent_id, {}).get("model", "") or default_model
             return {
                 "id": a.get("id"),
                 "name": a.get("id"),
                 "description": a.get("identityName", a.get("name", "")),
                 "workspace": workspace,
-                "model_primary": a.get("model", ""),
+                "model_primary": agent_model,
                 "tools_profile": "full",
                 "status": "active",
                 "sandbox_mode": "off",
@@ -358,7 +407,7 @@ async def create_provider(body: dict, user=Depends(require_role("admin", "editor
         _save_api_key(pid, body["api_key"].strip())
     gateway.cache.invalidate("models")
     await log_activity("create", "provider", pid, f"Created provider {pid}")
-    return {"status": "ok", "id": pid}
+    return {"status": "ok", "id": pid, "restart_needed": True}
 
 
 @api_router.put("/models/providers/{provider_id}")
@@ -381,7 +430,7 @@ async def update_provider(provider_id: str, body: dict, user=Depends(require_rol
         _save_api_key(provider_id, body["api_key"].strip())
     gateway.cache.invalidate("models")
     await log_activity("update", "provider", provider_id, f"Updated provider {provider_id}")
-    return {"status": "ok"}
+    return {"status": "ok", "restart_needed": True}
 
 
 @api_router.delete("/models/providers/{provider_id}")
@@ -394,7 +443,7 @@ async def delete_provider(provider_id: str, user=Depends(require_role("admin", "
     await gateway.config_write(config)
     gateway.cache.invalidate("models")
     await log_activity("delete", "provider", provider_id, f"Deleted provider {provider_id}")
-    return {"status": "ok"}
+    return {"status": "ok", "restart_needed": True}
 
 
 # Well-known base URLs for built-in providers
@@ -769,7 +818,7 @@ async def update_fallbacks(body: dict, user=Depends(require_role("admin", "edito
 
     await gateway.config_write(config)
     await log_activity("update", "fallbacks", "defaults", "Updated default model fallbacks")
-    return {"status": "ok"}
+    return {"status": "ok", "restart_needed": True}
 
 
 @api_router.put("/models/fallbacks/agent/{agent_id}")
@@ -806,29 +855,55 @@ async def update_agent_fallbacks(agent_id: str, body: dict, user=Depends(require
             await db.agent_fallbacks.delete_one({"agent_id": agent_id})
 
     await log_activity("update", "fallbacks", agent_id, f"Updated fallbacks for agent {agent_id}")
-    return {"status": "ok"}
+    return {"status": "ok", "restart_needed": need_config_write}
 
 
-# ===== CHANNELS (from health probe) =====
+# ===== CHANNELS (from health probe + config) =====
 @api_router.get("/channels")
 async def list_channels(user=Depends(get_current_user)):
     health = await gateway.health()
     channels = health.get("channels", {})
+    config = await gateway.config_read()
+    config_channels = config.get("channels", {})
     result = []
     for ch_type, ch_data in channels.items():
         probe = ch_data.get("probe", {})
         bot = probe.get("bot", {})
+        ch_config = config_channels.get(ch_type, {})
         result.append({
             "id": ch_type,
             "channel_type": ch_type,
             "display_name": ch_type.title(),
             "enabled": ch_data.get("configured", False),
             "status": "connected" if probe.get("ok") else "off",
-            "dm_policy": "pairing",
-            "group_policy": "mention",
+            "dm_policy": ch_config.get("dmPolicy", "open"),
+            "group_policy": ch_config.get("groupPolicy", "mention"),
+            "allow_from": ch_config.get("allowFrom", []),
+            "streaming": ch_config.get("streaming", "off"),
+            "group_allow_from": ch_config.get("groupAllowFrom", []),
             "bot_username": bot.get("username") or bot.get("displayName", ""),
         })
     return result
+
+
+CHANNEL_FIELDS = {"dmPolicy", "groupPolicy", "allowFrom", "streaming", "groupAllowFrom"}
+
+
+@api_router.put("/channels/{channel_id}")
+async def update_channel(channel_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
+    config = await gateway.config_read()
+    if "channels" not in config:
+        config["channels"] = {}
+    if channel_id not in config["channels"]:
+        raise HTTPException(404, f"Channel '{channel_id}' not found in config")
+    ch = config["channels"][channel_id]
+    for key in CHANNEL_FIELDS:
+        if key in body:
+            ch[key] = body[key]
+    await gateway.config_write(config)
+    gateway.cache.invalidate("health")
+    await log_activity("update", "channel", channel_id, f"Updated channel {channel_id}")
+    return {"status": "ok", "restart_needed": True}
 
 
 # ===== SESSIONS (from CLI) =====
@@ -856,19 +931,57 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
 
 # ===== USAGE ANALYTICS =====
 @api_router.get("/usage/cost")
-async def get_usage_cost(days: int = Query(30, ge=1, le=90), user=Depends(get_current_user)):
-    try:
-        data = await gateway.usage_cost(days)
-    except Exception:
-        return {"daily": [], "totals": {}}
-    return data
+async def get_usage_cost(
+    days: int = Query(None, ge=1, le=90),
+    start: str = Query(None),
+    end: str = Query(None),
+    user=Depends(get_current_user),
+):
+    # Determine date range
+    if start and end:
+        date_start, date_end = start, end
+    else:
+        d = days or 30
+        date_end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        date_start = (datetime.now(timezone.utc) - timedelta(days=d - 1)).strftime("%Y-%m-%d")
+
+    # Read from MongoDB
+    records = await db.daily_usage.find(
+        {"date": {"$gte": date_start, "$lte": date_end}},
+        {"_id": 0, "updated_at": 0},
+    ).sort("date", 1).to_list(None)
+
+    if records:
+        totals = {
+            "totalTokens": sum(r.get("totalTokens", 0) for r in records),
+            "totalCost": sum(r.get("totalCost", 0) for r in records),
+        }
+        return {"daily": records, "totals": totals}
+
+    # Fallback to CLI if MongoDB is empty
+    if not start:
+        try:
+            return await gateway.usage_cost(days or 30)
+        except Exception:
+            pass
+
+    return {"daily": [], "totals": {"totalTokens": 0, "totalCost": 0}}
 
 
 @api_router.get("/usage/breakdown")
-async def get_usage_breakdown(days: int = Query(30, ge=1, le=90), user=Depends(get_current_user)):
-    cutoff = datetime.now(timezone.utc).timestamp() - (days * 86400)
-    cutoff_iso = datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat()
-    match = {"event_type": "llm_request", "timestamp": {"$gte": cutoff_iso}}
+async def get_usage_breakdown(
+    days: int = Query(None, ge=1, le=90),
+    start: str = Query(None),
+    end: str = Query(None),
+    user=Depends(get_current_user),
+):
+    if start and end:
+        match = {"event_type": "llm_request", "timestamp": {"$gte": start, "$lte": end}}
+    else:
+        d = days or 30
+        cutoff = datetime.now(timezone.utc).timestamp() - (d * 86400)
+        cutoff_iso = datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat()
+        match = {"event_type": "llm_request", "timestamp": {"$gte": cutoff_iso}}
 
     by_agent = await db.agent_activities.aggregate([
         {"$match": match},
@@ -959,7 +1072,7 @@ async def update_config(body: dict, user=Depends(require_role("admin", "editor")
     try:
         new_config = json.loads(body.get("raw", "{}"))
         await gateway.config_write(new_config)
-        return {"status": "ok"}
+        return {"status": "ok", "restart_needed": True}
     except Exception as e:
         raise HTTPException(400, str(e))
 
@@ -974,6 +1087,21 @@ async def validate_config(body: dict, user=Depends(require_role("admin", "editor
 
 
 # ===== GATEWAY STATUS =====
+def _check_restart_needed(health: dict) -> bool:
+    """Compare config file mtime against gateway start time."""
+    try:
+        from gateway_cli import OPENCLAW_CONFIG
+        mtime = OPENCLAW_CONFIG.stat().st_mtime
+        duration_ms = health.get("durationMs", 0)
+        if not duration_ms:
+            return False
+        import time
+        gateway_start = time.time() - (duration_ms / 1000)
+        return mtime > gateway_start
+    except Exception:
+        return False
+
+
 @api_router.get("/gateway/status")
 async def get_gateway_status(user=Depends(get_current_user)):
     health = await gateway.health()
@@ -985,6 +1113,7 @@ async def get_gateway_status(user=Depends(get_current_user)):
         "bind_host": gw.get("bind", "loopback"),
         "reload_mode": gw.get("mode", "local"),
         "uptime_ms": health.get("durationMs", 0),
+        "restart_needed": _check_restart_needed(health),
     }
 
 
@@ -992,7 +1121,7 @@ async def get_gateway_status(user=Depends(get_current_user)):
 async def gateway_restart_endpoint(user=Depends(require_role("admin"))):
     await gateway.gateway_restart()
     await log_activity("restart", "gateway", "", "Gateway restart requested")
-    return {"status": "restart_initiated", "message": "Gateway restart signal sent"}
+    return {"status": "restart_initiated", "message": "Gateway restart signal sent", "restart_needed": False}
 
 
 # ===== HOOKS (from config) =====

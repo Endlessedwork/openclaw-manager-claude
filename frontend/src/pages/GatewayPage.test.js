@@ -28,14 +28,21 @@ jest.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ isAdmin: () => true }),
 }));
 
+const mockBannerRestart = jest.fn().mockResolvedValue(undefined);
+jest.mock('../contexts/GatewayBannerContext', () => ({
+  useGatewayBanner: () => ({ handleRestart: mockBannerRestart }),
+}));
+
 jest.mock('../components/ui/button', () => ({
   Button: ({ children, onClick, disabled, ...props }) => <button onClick={onClick} disabled={disabled} {...props}>{children}</button>,
 }));
 
 beforeEach(() => {
+  jest.clearAllMocks();
   mockGetGatewayStatus = jest.fn().mockResolvedValue({ data: mockStatus });
   mockRestartGateway = jest.fn().mockResolvedValue({ data: {} });
   mockGetLogs = jest.fn().mockResolvedValue({ data: mockLogs });
+  mockBannerRestart.mockResolvedValue(undefined);
 });
 
 describe('GatewayPage', () => {
@@ -73,14 +80,14 @@ describe('GatewayPage', () => {
     });
   });
 
-  it('calls restartGateway on restart click', async () => {
+  it('calls context handleRestart on restart click', async () => {
     render(<GatewayPage />);
     await waitFor(() => {
       expect(screen.getByTestId('restart-gateway-btn')).toBeInTheDocument();
     });
     fireEvent.click(screen.getByTestId('restart-gateway-btn'));
     await waitFor(() => {
-      expect(mockRestartGateway).toHaveBeenCalled();
+      expect(mockBannerRestart).toHaveBeenCalled();
     });
   });
 

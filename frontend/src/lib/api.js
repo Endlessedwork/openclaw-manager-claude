@@ -39,15 +39,35 @@ export const getFallbacks = () => api.get('/models/fallbacks');
 export const updateFallbacks = (data) => api.put('/models/fallbacks', data);
 export const updateAgentFallbacks = (id, data) => api.put(`/models/fallbacks/agent/${id}`, data);
 
-// Channels (read-only)
+// Channels
 export const getChannels = () => api.get('/channels');
+export const updateChannel = (id, data) => api.put(`/channels/${id}`, data);
 
 // Sessions (read-only)
 export const getSessions = (limit = 50) => api.get(`/sessions?limit=${limit}`);
 
 // Usage analytics
-export const getUsageCost = (days = 30) => api.get(`/usage/cost?days=${days}`);
-export const getUsageBreakdown = (days = 30) => api.get(`/usage/breakdown?days=${days}`);
+export const getUsageCost = (params = {}) => {
+  const q = new URLSearchParams();
+  if (params.start && params.end) {
+    q.set('start', params.start);
+    q.set('end', params.end);
+  } else {
+    q.set('days', String(params.days || 30));
+  }
+  return api.get(`/usage/cost?${q.toString()}`);
+};
+
+export const getUsageBreakdown = (params = {}) => {
+  const q = new URLSearchParams();
+  if (params.start && params.end) {
+    q.set('start', params.start);
+    q.set('end', params.end);
+  } else {
+    q.set('days', String(params.days || 30));
+  }
+  return api.get(`/usage/breakdown?${q.toString()}`);
+};
 
 // Cron (read-only)
 export const getCronJobs = () => api.get('/cron');

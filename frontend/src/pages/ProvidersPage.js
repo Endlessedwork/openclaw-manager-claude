@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { useGatewayBanner } from '../contexts/GatewayBannerContext';
 
 const EMPTY_PROVIDER = { id: '', base_url: '', api: 'openai-completions', api_key: '' };
 const EMPTY_MODEL_ROW = { id: '', name: '', contextWindow: '' };
@@ -65,6 +66,7 @@ function getColor(pid) {
 
 export default function ProvidersPage() {
   const { canEdit } = useAuth();
+  const { markRestartNeeded } = useGatewayBanner();
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -142,11 +144,12 @@ export default function ProvidersPage() {
       const payload = { ...form, models: parsedModels };
       if (editing) {
         await updateProvider(editing.id, payload);
-        toast.success(`Provider ${editing.source === 'builtin' ? 'overridden' : 'updated'} — gateway reloading`);
+        toast.success(`Provider ${editing.source === 'builtin' ? 'overridden' : 'updated'}`);
       } else {
         await createProvider(payload);
-        toast.success('Provider created — gateway reloading');
+        toast.success('Provider created');
       }
+      markRestartNeeded();
       setDialogOpen(false);
       setTimeout(load, 2000);
     } catch (e) {
@@ -157,10 +160,11 @@ export default function ProvidersPage() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm(`Delete provider "${id}"? This will reload the gateway.`)) return;
+    if (!window.confirm(`Delete provider "${id}"?`)) return;
     try {
       await deleteProvider(id);
       toast.success('Provider deleted');
+      markRestartNeeded();
       setTimeout(load, 2000);
     } catch { toast.error('Failed to delete'); }
   };

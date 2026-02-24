@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { getAgents, getAgent, getModels, updateAgentMd } from '../lib/api';
+import { getAgents, getAgent, getModels, updateAgentMd, updateAgentFallbacks } from '../lib/api';
 import { Bot, Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { Switch } from '../components/ui/switch';
 import { toast } from 'sonner';
+import { useGatewayBanner } from '../contexts/GatewayBannerContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 
 const EMPTY_AGENT = {
@@ -21,6 +22,7 @@ const EMPTY_AGENT = {
 };
 
 export default function AgentsPage() {
+  const { markRestartNeeded } = useGatewayBanner();
   const [agents, setAgents] = useState([]);
   const [availableModels, setAvailableModels] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -58,11 +60,20 @@ export default function AgentsPage() {
     setSaving(true);
     try {
       if (editing) {
+        // Save markdown files
         await updateAgentMd(editing.id, {
           soul_md: form.soul_md,
           agents_md: form.agents_md,
           identity_md: form.identity_md,
         });
+        // Save model if changed
+        if (form.model_primary !== editing.model_primary) {
+          await updateAgentFallbacks(editing.id, {
+            model: form.model_primary,
+            fallbacks: form.model_fallbacks || [],
+          });
+          markRestartNeeded();
+        }
         toast.success('Agent updated');
       }
       setDialogOpen(false);

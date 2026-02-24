@@ -8,10 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { useGatewayBanner } from '../contexts/GatewayBannerContext';
 import SortableFallbackList from '../components/SortableFallbackList';
 
 export default function ModelsPage() {
   const { canEdit } = useAuth();
+  const { markRestartNeeded } = useGatewayBanner();
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fallbackConfig, setFallbackConfig] = useState(null);
@@ -45,7 +47,8 @@ export default function ModelsPage() {
     setSaving(true);
     try {
       await updateFallbacks({ model: editModel, imageModel: editImage });
-      toast.success('Fallback order saved — gateway reloading');
+      toast.success('Fallback order saved');
+      markRestartNeeded();
       setFallbackDirty(false);
       setTimeout(load, 2000);
     } catch (e) {
@@ -74,7 +77,8 @@ export default function ModelsPage() {
     setSaving(true);
     try {
       await updateAgentFallbacks(editingAgent.id, agentForm);
-      toast.success(`Fallbacks updated for ${editingAgent.name} — gateway reloading`);
+      toast.success(`Fallbacks updated for ${editingAgent.name}`);
+      markRestartNeeded();
       setAgentDialogOpen(false);
       setTimeout(load, 2000);
     } catch (e) {

@@ -50,6 +50,10 @@ jest.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ canEdit: () => mockCanEdit }),
 }));
 
+jest.mock('../contexts/GatewayBannerContext', () => ({
+  useGatewayBanner: () => ({ markRestartNeeded: jest.fn() }),
+}));
+
 jest.mock('../components/ui/dialog', () => ({
   Dialog: ({ children, open }) => open ? <div data-testid="dialog">{children}</div> : null,
   DialogContent: ({ children }) => <div>{children}</div>,

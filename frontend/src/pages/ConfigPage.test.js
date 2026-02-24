@@ -20,6 +20,10 @@ jest.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ canEdit: () => true }),
 }));
 
+jest.mock('../contexts/GatewayBannerContext', () => ({
+  useGatewayBanner: () => ({ markRestartNeeded: jest.fn() }),
+}));
+
 jest.mock('../components/ui/button', () => ({
   Button: ({ children, onClick, disabled, ...props }) => (
     <button onClick={onClick} disabled={disabled} {...props}>{children}</button>

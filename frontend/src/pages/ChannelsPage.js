@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { getChannels } from '../lib/api';
-import { Wifi, WifiOff, MessageCircle } from 'lucide-react';
+import { getChannels, updateChannel } from '../lib/api';
+import { Wifi, WifiOff, MessageCircle, Pencil, X, Loader2 } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
+import { useGatewayBanner } from '../contexts/GatewayBannerContext';
 
 
 const channelColors = {
@@ -112,6 +120,12 @@ const ChannelLogo = ({ type, size = 20 }) => {
 export default function ChannelsPage() {
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ dmPolicy: 'open', groupPolicy: 'mention', allowFrom: '', streaming: 'off', groupAllowlist: '' });
+  const [saving, setSaving] = useState(false);
+  const { canEdit } = useAuth();
+  const { markRestartNeeded } = useGatewayBanner();
 
   const load = async () => {
     try { const res = await getChannels(); setChannels(res.data); }
@@ -119,6 +133,40 @@ export default function ChannelsPage() {
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+
+  const openEdit = (ch) => {
+    setEditing(ch);
+    setForm({
+      dmPolicy: ch.dm_policy || 'open',
+      groupPolicy: ch.group_policy || 'mention',
+      allowFrom: (ch.allow_from || []).join(', '),
+      streaming: ch.streaming || 'off',
+      groupAllowlist: (ch.group_allowlist || []).join('\n'),
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        dmPolicy: form.dmPolicy,
+        groupPolicy: form.groupPolicy,
+        allowFrom: form.allowFrom.split(',').map(s => s.trim()).filter(Boolean),
+        streaming: form.streaming,
+        groupAllowlist: form.groupAllowlist.split('\n').map(s => s.trim()).filter(Boolean),
+      };
+      await updateChannel(editing.id, payload);
+      toast.success(`Channel ${editing.display_name} updated`);
+      markRestartNeeded();
+      setDialogOpen(false);
+      setTimeout(load, 2000);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div data-testid="channels-page" className="space-y-6">
@@ -147,6 +195,11 @@ export default function ChannelsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {canEdit() && (
+                      <button data-testid={`edit-channel-${ch.id}`} onClick={() => openEdit(ch)} className="p-1.5 rounded-md hover:bg-white/5 text-theme-dimmed hover:text-orange-400 transition-colors">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {ch.enabled ? (
                       <span className="flex items-center gap-1 text-xs font-mono text-emerald-500"><Wifi className="w-3 h-3" /> {ch.status}</span>
                     ) : (
@@ -157,8 +210,14 @@ export default function ChannelsPage() {
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between"><span className="text-theme-dimmed">DM Policy</span><span className="font-mono text-theme-muted">{ch.dm_policy}</span></div>
                   <div className="flex justify-between"><span className="text-theme-dimmed">Group Policy</span><span className="font-mono text-theme-muted">{ch.group_policy}</span></div>
+                  {ch.streaming && ch.streaming !== 'off' && (
+                    <div className="flex justify-between"><span className="text-theme-dimmed">Streaming</span><span className="font-mono text-theme-muted">{ch.streaming}</span></div>
+                  )}
                   {ch.allow_from?.length > 0 && (
                     <div className="flex justify-between"><span className="text-theme-dimmed">Allow From</span><span className="font-mono text-theme-muted truncate max-w-[200px]">{ch.allow_from.join(', ')}</span></div>
+                  )}
+                  {ch.group_allowlist?.length > 0 && (
+                    <div className="flex justify-between"><span className="text-theme-dimmed">Group Allowlist</span><span className="font-mono text-theme-muted">{ch.group_allowlist.length} group(s)</span></div>
                   )}
                 </div>
               </div>
@@ -167,6 +226,82 @@ export default function ChannelsPage() {
         </div>
       )}
 
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="bg-surface-card border-subtle max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-theme-primary flex items-center justify-between">
+              Edit {editing?.display_name} Settings
+              <button onClick={() => setDialogOpen(false)} className="text-theme-dimmed hover:text-theme-muted"><X className="w-4 h-4" /></button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label className="text-theme-muted text-xs">DM Policy</Label>
+              <Select value={form.dmPolicy} onValueChange={v => setForm(f => ({ ...f, dmPolicy: v }))}>
+                <SelectTrigger className="bg-surface-base border-strong text-theme-primary mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">open</SelectItem>
+                  <SelectItem value="pairing">pairing</SelectItem>
+                  <SelectItem value="allowlist">allowlist</SelectItem>
+                  <SelectItem value="off">off</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-theme-muted text-xs">Group Policy</Label>
+              <Select value={form.groupPolicy} onValueChange={v => setForm(f => ({ ...f, groupPolicy: v }))}>
+                <SelectTrigger className="bg-surface-base border-strong text-theme-primary mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mention">mention</SelectItem>
+                  <SelectItem value="allowlist">allowlist</SelectItem>
+                  <SelectItem value="open">open</SelectItem>
+                  <SelectItem value="off">off</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.groupPolicy === 'allowlist' && (
+              <div>
+                <Label className="text-theme-muted text-xs">Group Allowlist</Label>
+                <Textarea
+                  data-testid="group-allowlist-input"
+                  value={form.groupAllowlist}
+                  onChange={e => setForm(f => ({ ...f, groupAllowlist: e.target.value }))}
+                  placeholder="One group ID per line"
+                  className="bg-surface-base border-strong text-theme-primary font-mono text-xs mt-1 min-h-[80px]"
+                />
+                <p className="text-[10px] text-theme-faint mt-1">One group/chat ID per line</p>
+              </div>
+            )}
+            <div>
+              <Label className="text-theme-muted text-xs">Allow From</Label>
+              <Input
+                value={form.allowFrom}
+                onChange={e => setForm(f => ({ ...f, allowFrom: e.target.value }))}
+                placeholder="* or comma-separated user IDs"
+                className="bg-surface-base border-strong text-theme-primary font-mono text-xs mt-1"
+              />
+              <p className="text-[10px] text-theme-faint mt-1">Use * to allow all, or comma-separated user IDs</p>
+            </div>
+            <div>
+              <Label className="text-theme-muted text-xs">Streaming</Label>
+              <Select value={form.streaming} onValueChange={v => setForm(f => ({ ...f, streaming: v }))}>
+                <SelectTrigger className="bg-surface-base border-strong text-theme-primary mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="off">off</SelectItem>
+                  <SelectItem value="on">on</SelectItem>
+                  <SelectItem value="adaptive">adaptive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving} className="border-strong text-theme-muted">Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white">
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : 'Save'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

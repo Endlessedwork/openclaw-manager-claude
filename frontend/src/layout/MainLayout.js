@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import Sidebar from './Sidebar';
+import RestartBanner from '../components/RestartBanner';
 import { useTheme } from '../contexts/ThemeContext';
 
 const THEME_OPTIONS = [
@@ -35,6 +36,7 @@ export default function MainLayout() {
             })}
           </div>
         </div>
+        <RestartBanner />
         <div className="max-w-7xl mx-auto px-8 pb-8">
           <Outlet />
         </div>

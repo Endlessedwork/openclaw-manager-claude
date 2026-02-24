@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 
 const PERIOD_OPTIONS = [
+  { label: 'Today', value: 1 },
   { label: '7d', value: 7 },
   { label: '14d', value: 14 },
   { label: '30d', value: 30 },
@@ -93,13 +94,20 @@ export default function UsagePage() {
   const [breakdown, setBreakdown] = useState(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
+  const [customRange, setCustomRange] = useState(null);
+  const [showCustom, setShowCustom] = useState(false);
+  const [tempStart, setTempStart] = useState('');
+  const [tempEnd, setTempEnd] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const params = customRange
+        ? { start: customRange.start, end: customRange.end }
+        : { days };
       const [costRes, breakdownRes] = await Promise.all([
-        getUsageCost(days),
-        getUsageBreakdown(days),
+        getUsageCost(params),
+        getUsageBreakdown(params),
       ]);
       setCostData(costRes.data);
       setBreakdown(breakdownRes.data);
@@ -108,9 +116,23 @@ export default function UsagePage() {
     } finally {
       setLoading(false);
     }
-  }, [days]);
+  }, [days, customRange]);
 
   useEffect(() => { load(); }, [load]);
+
+  const selectPreset = (d) => {
+    setCustomRange(null);
+    setShowCustom(false);
+    setDays(d);
+  };
+
+  const applyCustomRange = () => {
+    if (tempStart && tempEnd && tempStart <= tempEnd) {
+      setCustomRange({ start: tempStart, end: tempEnd });
+      setDays(null);
+      setShowCustom(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -151,20 +173,56 @@ export default function UsagePage() {
           </h1>
           <p className="text-sm text-theme-faint mt-1">Token consumption & cost analytics</p>
         </div>
-        <div className="flex items-center gap-1 bg-surface-card border border-subtle rounded-lg p-1">
-          {PERIOD_OPTIONS.map(opt => (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-surface-card border border-subtle rounded-lg p-1">
+            {PERIOD_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => selectPreset(opt.value)}
+                className={`px-3 py-1.5 text-xs font-mono rounded transition-all ${
+                  days === opt.value && !customRange
+                    ? 'bg-orange-500/20 text-orange-500 border border-orange-500/30'
+                    : 'text-theme-dimmed hover:text-theme-secondary'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
             <button
-              key={opt.value}
-              onClick={() => setDays(opt.value)}
+              onClick={() => setShowCustom(!showCustom)}
               className={`px-3 py-1.5 text-xs font-mono rounded transition-all ${
-                days === opt.value
+                customRange
                   ? 'bg-orange-500/20 text-orange-500 border border-orange-500/30'
                   : 'text-theme-dimmed hover:text-theme-secondary'
               }`}
             >
-              {opt.label}
+              Custom
             </button>
-          ))}
+          </div>
+          {showCustom && (
+            <div className="flex items-center gap-2 bg-surface-card border border-subtle rounded-lg p-2">
+              <input
+                type="date"
+                value={tempStart}
+                onChange={(e) => setTempStart(e.target.value)}
+                className="bg-transparent border border-subtle rounded px-2 py-1 text-xs font-mono text-theme-secondary focus:border-orange-500/50 outline-none"
+              />
+              <span className="text-theme-faint text-xs">to</span>
+              <input
+                type="date"
+                value={tempEnd}
+                onChange={(e) => setTempEnd(e.target.value)}
+                className="bg-transparent border border-subtle rounded px-2 py-1 text-xs font-mono text-theme-secondary focus:border-orange-500/50 outline-none"
+              />
+              <button
+                onClick={applyCustomRange}
+                disabled={!tempStart || !tempEnd || tempStart > tempEnd}
+                className="px-3 py-1 text-xs font-mono rounded bg-orange-500/20 text-orange-500 border border-orange-500/30 hover:bg-orange-500/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Apply
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -174,7 +232,7 @@ export default function UsagePage() {
           icon={Zap}
           label="Total Tokens"
           value={formatTokens(totals.totalTokens)}
-          sub={`${days}d`}
+          sub={customRange ? `${customRange.start} – ${customRange.end}` : `${days}d`}
           color="orange"
         />
         <StatCard

@@ -4,9 +4,11 @@ import { RefreshCw, Activity, RotateCcw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { useGatewayBanner } from '../contexts/GatewayBannerContext';
 
 export default function GatewayPage() {
   const { isAdmin } = useAuth();
+  const { handleRestart: bannerRestart } = useGatewayBanner();
   const [status, setStatus] = useState(null);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,9 +26,14 @@ export default function GatewayPage() {
 
   const handleRestart = async () => {
     setRestarting(true);
-    try { await restartGateway(); toast.success('Gateway restart initiated'); load(); }
-    catch { toast.error('Failed to restart'); }
-    finally { setRestarting(false); }
+    try {
+      await bannerRestart();
+      load();
+    } catch {
+      toast.error('Failed to restart');
+    } finally {
+      setRestarting(false);
+    }
   };
 
   return (

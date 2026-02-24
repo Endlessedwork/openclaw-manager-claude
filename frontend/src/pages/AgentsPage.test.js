@@ -28,13 +28,18 @@ const mockAgents = [
   },
 ];
 
-let mockGetAgents, mockGetAgent, mockGetModels, mockUpdateAgentMd;
+let mockGetAgents, mockGetAgent, mockGetModels, mockUpdateAgentMd, mockUpdateAgentFallbacks;
 
 jest.mock('../lib/api', () => ({
   getAgents: (...args) => mockGetAgents(...args),
   getAgent: (...args) => mockGetAgent(...args),
   getModels: (...args) => mockGetModels(...args),
   updateAgentMd: (...args) => mockUpdateAgentMd(...args),
+  updateAgentFallbacks: (...args) => mockUpdateAgentFallbacks(...args),
+}));
+
+jest.mock('../contexts/GatewayBannerContext', () => ({
+  useGatewayBanner: () => ({ markRestartNeeded: jest.fn() }),
 }));
 
 jest.mock('../components/ui/dialog', () => ({
@@ -84,6 +89,7 @@ beforeEach(() => {
   mockGetAgent = jest.fn().mockResolvedValue({ data: { soul_md: '', agents_md: '', identity_md: '' } });
   mockGetModels = jest.fn().mockResolvedValue({ data: [] });
   mockUpdateAgentMd = jest.fn().mockResolvedValue({ data: {} });
+  mockUpdateAgentFallbacks = jest.fn().mockResolvedValue({ data: { status: 'ok' } });
 });
 
 describe('AgentsPage', () => {
@@ -115,8 +121,11 @@ describe('AgentsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('test-agent')).toBeInTheDocument();
     });
-    expect(screen.getByText('anthropic/claude-sonnet-4-5')).toBeInTheDocument();
-    expect(screen.getByText('openai/gpt-4o')).toBeInTheDocument();
+    // Model is split into provider + model name across two spans
+    expect(screen.getByText('anthropic')).toBeInTheDocument();
+    expect(screen.getByText('claude-sonnet-4-5')).toBeInTheDocument();
+    expect(screen.getByText('openai')).toBeInTheDocument();
+    expect(screen.getByText('gpt-4o')).toBeInTheDocument();
     expect(screen.getByText('active')).toBeInTheDocument();
     expect(screen.getByText('inactive')).toBeInTheDocument();
     expect(screen.getByText('default')).toBeInTheDocument();
