@@ -29,6 +29,18 @@ function formatSize(bytes) {
   return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
+function formatShortDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  const day = d.getDate();
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const mon = months[d.getMonth()];
+  const yr = d.getFullYear();
+  const now = new Date();
+  if (yr === now.getFullYear()) return `${day} ${mon}`;
+  return `${day} ${mon} ${yr}`;
+}
+
 function nodeMatchesSearch(node, search, loadedDirs) {
   if (!search) return true;
   const lower = search.toLowerCase();
@@ -304,17 +316,26 @@ export default function FilesPage() {
     if (imageUrl) { URL.revokeObjectURL(imageUrl); setImageUrl(null); }
   };
 
-  // Breadcrumb parts
+  // Breadcrumb parts: [{label, path, isDir}]
   const breadcrumbParts = [];
   if (activeCategory) {
-    breadcrumbParts.push(activeCategory.name);
+    breadcrumbParts.push({ label: activeCategory.name, path: null });
   }
   const activePath = selectedPath || selectedDir;
   if (activePath && activeCategory) {
     const prefix = activeCategory.path ? activeCategory.path + '/' : '';
     const relative = prefix ? activePath.replace(prefix, '') : activePath;
     if (relative !== activePath || !prefix) {
-      breadcrumbParts.push(relative);
+      const segments = relative.split('/');
+      let cumulative = activeCategory.path || '';
+      segments.forEach((seg) => {
+        cumulative = cumulative ? cumulative + '/' + seg : seg;
+        breadcrumbParts.push({ label: seg, path: cumulative, isDir: true });
+      });
+      // Last segment: if it's a file (selectedPath), mark as not dir
+      if (selectedPath && breadcrumbParts.length > 1) {
+        breadcrumbParts[breadcrumbParts.length - 1].isDir = false;
+      }
     }
   }
 
@@ -406,21 +427,32 @@ export default function FilesPage() {
         >
           <ArrowLeft className="w-4 h-4 mr-1" /> Files
         </Button>
-        {breadcrumbParts.map((part, i) => (
-          <React.Fragment key={i}>
-            <ChevronRight className="w-3.5 h-3.5 text-theme-dimmed" />
-            {i === 0 ? (
-              <button
-                onClick={() => { setSelectedPath(null); setSelectedDir(null); setDirContents([]); setFileData(null); setEditing(false); }}
-                className={`text-sm font-mono transition-colors ${selectedPath ? 'text-theme-faint hover:text-orange-400 cursor-pointer' : 'text-theme-secondary'}`}
-              >
-                {part}
-              </button>
-            ) : (
-              <span className="text-sm text-theme-secondary font-mono">{part}</span>
-            )}
-          </React.Fragment>
-        ))}
+        {breadcrumbParts.map((part, i) => {
+          const isLast = i === breadcrumbParts.length - 1;
+          return (
+            <React.Fragment key={i}>
+              <ChevronRight className="w-3.5 h-3.5 text-theme-dimmed shrink-0" />
+              {isLast ? (
+                <span className="text-sm text-theme-secondary font-mono truncate">{part.label}</span>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (i === 0) {
+                      // Category root: clear selection
+                      setSelectedPath(null); setSelectedDir(null); setDirContents([]); setFileData(null); setEditing(false);
+                    } else {
+                      // Navigate to this folder
+                      selectDir(part.path);
+                    }
+                  }}
+                  className="text-sm font-mono text-theme-faint hover:text-orange-400 transition-colors cursor-pointer shrink-0"
+                >
+                  {part.label}
+                </button>
+              )}
+            </React.Fragment>
+          );
+        })}
       </div>
 
       {/* Split view */}
@@ -527,8 +559,14 @@ export default function FilesPage() {
                         <span className="flex-1 truncate text-sm font-mono text-theme-secondary group-hover:text-theme-primary transition-colors">
                           {item.name}
                         </span>
+                        {!item.isDir && item.modified > 0 && (
+                          <span className="hidden xl:inline text-[11px] text-theme-dimmed whitespace-nowrap">{formatShortDate(item.modified)}</span>
+                        )}
                         {!item.isDir && item.size != null && (
-                          <span className="text-xs text-theme-dimmed">{formatSize(item.size)}</span>
+                          <span className="text-xs text-theme-dimmed whitespace-nowrap">{formatSize(item.size)}</span>
+                        )}
+                        {item.isDir && item.modified > 0 && (
+                          <span className="hidden xl:inline text-[11px] text-theme-dimmed whitespace-nowrap">{formatShortDate(item.modified)}</span>
                         )}
                         {item.isDir && (
                           <ChevronRight className="w-4 h-4 text-theme-dimmed" />
