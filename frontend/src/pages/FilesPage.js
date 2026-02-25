@@ -456,11 +456,11 @@ export default function FilesPage() {
       </div>
 
       {/* Split view */}
-      <div className="flex gap-4" style={{ minHeight: 'calc(100vh - 180px)' }}>
+      <div className="flex flex-col md:flex-row gap-4" style={{ minHeight: 'calc(100vh - 180px)' }}>
         {/* Left panel - tree */}
         <div
           data-testid="file-tree-panel"
-          className="w-72 shrink-0 bg-surface-card border border-subtle rounded-lg overflow-hidden flex flex-col"
+          className="w-full md:w-72 md:shrink-0 bg-surface-card border border-subtle rounded-lg overflow-hidden flex flex-col"
         >
           <div className="px-3 py-2.5 border-b border-subtle space-y-2">
             <h2 className="text-xs font-semibold text-theme-muted uppercase tracking-wider" style={{ fontFamily: 'Manrope, sans-serif' }}>

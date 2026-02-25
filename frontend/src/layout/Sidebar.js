@@ -5,9 +5,10 @@ import {
   Clock, FileCode, Server, ChevronLeft, ChevronRight, ChevronDown, Activity,
   Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
   BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins,
-  Database, UserCircle, UsersRound, BookOpen, FileText
+  Database, UserCircle, UsersRound, BookOpen, FileText, X
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsMobile } from '../hooks/useMediaQuery';
 import { Button } from '../components/ui/button';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
@@ -235,10 +236,16 @@ function NavGroup({ group, collapsed, location }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isMobileMenuOpen, onClose }) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { user, logout, isAdmin } = useAuth();
+  const isMobile = useIsMobile();
+
+  // Close drawer on route change (mobile only)
+  useEffect(() => {
+    if (isMobile && onClose) onClose();
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build groups with admin-only items
   const groups = navGroups.map((group) => {
@@ -248,56 +255,61 @@ export default function Sidebar() {
     return group;
   });
 
-  return (
-    <TooltipProvider delayDuration={0}>
-      <aside
-        data-testid="sidebar"
-        className={`fixed left-0 top-0 h-screen z-50 flex flex-col transition-all duration-300 ${
-          collapsed ? 'w-16' : 'w-64'
-        } backdrop-blur-xl bg-surface-raised/95 border-r border-subtle`}
-      >
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-4 h-16 border-b border-subtle shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center shadow-[0_0_15px_rgba(249,115,22,0.4)]">
-            <Activity className="w-4 h-4 text-white" />
-          </div>
-          {!collapsed && (
-            <div className="flex flex-col leading-tight">
-              <span className="font-bold text-base tracking-widest" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
-              <span className="text-[10px] text-theme-faint tracking-wider">Operation Control</span>
-            </div>
-          )}
+  const sidebarContent = (
+    <aside
+      data-testid="sidebar"
+      className={`fixed left-0 top-0 h-screen z-50 flex flex-col transition-all duration-300 ${
+        isMobile ? 'w-64' : (collapsed ? 'w-16' : 'w-64')
+      } backdrop-blur-xl bg-surface-raised/95 border-r border-subtle`}
+    >
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-4 h-16 border-b border-subtle shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center shadow-[0_0_15px_rgba(249,115,22,0.4)]">
+          <Activity className="w-4 h-4 text-white" />
         </div>
-
-        {/* Nav Groups */}
-        <ScrollArea className="flex-1 py-3">
-          <nav className="flex flex-col gap-1 px-2">
-            {groups.map((group) => (
-              <NavGroup key={group.id} group={group} collapsed={collapsed} location={location} />
-            ))}
-          </nav>
-        </ScrollArea>
-
-        {/* User Profile */}
-        {user && (
-          <div className={`px-3 py-3 border-t border-subtle ${collapsed ? 'text-center' : ''}`}>
-            {!collapsed && (
-              <div className="mb-2">
-                <div className="text-sm font-medium text-theme-secondary truncate">{user.name}</div>
-                <div className="text-xs text-theme-faint truncate">{user.role}</div>
-              </div>
-            )}
-            <button
-              onClick={logout}
-              className={`flex items-center gap-2 text-sm text-theme-faint hover:text-red-400 transition-colors ${collapsed ? 'justify-center w-full' : ''}`}
-            >
-              <LogOut className="w-4 h-4" />
-              {!collapsed && <span>Sign out</span>}
-            </button>
+        {(isMobile || !collapsed) && (
+          <div className="flex flex-col leading-tight flex-1">
+            <span className="font-bold text-base tracking-widest" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
+            <span className="text-[10px] text-theme-faint tracking-wider">Operation Control</span>
           </div>
         )}
+        {isMobile && (
+          <button onClick={onClose} className="p-1 text-theme-faint hover:text-theme-primary">
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
 
-        {/* Collapse Toggle */}
+      {/* Nav Groups */}
+      <ScrollArea className="flex-1 py-3">
+        <nav className="flex flex-col gap-1 px-2">
+          {groups.map((group) => (
+            <NavGroup key={group.id} group={group} collapsed={isMobile ? false : collapsed} location={location} />
+          ))}
+        </nav>
+      </ScrollArea>
+
+      {/* User Profile */}
+      {user && (
+        <div className={`px-3 py-3 border-t border-subtle ${!isMobile && collapsed ? 'text-center' : ''}`}>
+          {(isMobile || !collapsed) && (
+            <div className="mb-2">
+              <div className="text-sm font-medium text-theme-secondary truncate">{user.name}</div>
+              <div className="text-xs text-theme-faint truncate">{user.role}</div>
+            </div>
+          )}
+          <button
+            onClick={logout}
+            className={`flex items-center gap-2 text-sm text-theme-faint hover:text-red-400 transition-colors ${!isMobile && collapsed ? 'justify-center w-full' : ''}`}
+          >
+            <LogOut className="w-4 h-4" />
+            {(isMobile || !collapsed) && <span>Sign out</span>}
+          </button>
+        </div>
+      )}
+
+      {/* Collapse Toggle — desktop only */}
+      {!isMobile && (
         <div className="px-2 pb-4 pt-2 border-t border-subtle">
           <Button
             data-testid="sidebar-toggle"
@@ -309,7 +321,24 @@ export default function Sidebar() {
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </Button>
         </div>
-      </aside>
+      )}
+    </aside>
+  );
+
+  // Desktop: render sidebar directly
+  if (!isMobile) return <TooltipProvider delayDuration={0}>{sidebarContent}</TooltipProvider>;
+
+  // Mobile: render as drawer with overlay
+  if (!isMobileMenuOpen) return null;
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+        onClick={onClose}
+      />
+      {sidebarContent}
     </TooltipProvider>
   );
 }

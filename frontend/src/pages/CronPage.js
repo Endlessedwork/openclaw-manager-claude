@@ -54,12 +54,12 @@ export default function CronPage() {
 
   return (
     <div data-testid="cron-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Cron Jobs</h1>
           <p className="text-sm text-theme-faint mt-1">Schedule recurring agent tasks</p>
         </div>
-        <Button data-testid="create-cron-btn" onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+        <Button data-testid="create-cron-btn" onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] w-fit">
           <Plus className="w-4 h-4 mr-2" /> New Job
         </Button>
       </div>
@@ -120,7 +120,7 @@ export default function CronPage() {
             <div><Label className="text-theme-muted text-xs">Schedule (cron syntax)</Label><Input value={form.schedule} onChange={e => setForm({...form, schedule: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" placeholder="*/15 * * * *" /></div>
             <div><Label className="text-theme-muted text-xs">Agent ID</Label><Input value={form.agent_id} onChange={e => setForm({...form, agent_id: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" /></div>
             <div><Label className="text-theme-muted text-xs">Task</Label><Textarea value={form.task} onChange={e => setForm({...form, task: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 text-sm mt-1" rows={3} /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label className="text-theme-muted text-xs">Max Concurrent</Label><Input type="number" value={form.max_concurrent} onChange={e => setForm({...form, max_concurrent: parseInt(e.target.value) || 1})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" /></div>
               <div><Label className="text-theme-muted text-xs">Timeout (seconds)</Label><Input type="number" value={form.timeout_seconds} onChange={e => setForm({...form, timeout_seconds: parseInt(e.target.value) || 300})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" /></div>
             </div>

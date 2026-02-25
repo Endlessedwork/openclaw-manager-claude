@@ -95,12 +95,12 @@ export default function AgentsPage() {
 
   return (
     <div data-testid="agents-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Agents</h1>
           <p className="text-sm text-theme-faint mt-1">Manage agent configurations</p>
         </div>
-        <Button data-testid="create-agent-btn" onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+        <Button data-testid="create-agent-btn" onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] w-fit">
           <Plus className="w-4 h-4 mr-2" /> New Agent
         </Button>
       </div>
@@ -113,7 +113,7 @@ export default function AgentsPage() {
           <p className="text-theme-faint">No agents configured</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {agents.map(agent => (
             <div key={agent.id} data-testid={`agent-card-${agent.id}`} className="bg-surface-card border border-subtle rounded-lg hover:border-orange-500/20 transition-all duration-300 animate-fade-in">
               <div className="p-5">
@@ -167,7 +167,7 @@ export default function AgentsPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-surface-card border-subtle max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-surface-card border-subtle w-full max-w-2xl mx-4 md:mx-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
               {editing ? 'Edit Agent' : 'Create Agent'}
@@ -272,7 +272,7 @@ export default function AgentsPage() {
               </div>
             </TabsContent>
             <TabsContent value="advanced" className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-theme-muted text-xs">Heartbeat Interval</Label>
                   <Input value={form.heartbeat_every} onChange={e => setForm({...form, heartbeat_every: e.target.value})}

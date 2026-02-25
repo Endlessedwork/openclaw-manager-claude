@@ -91,7 +91,7 @@ export default function ModelsPage() {
   return (
     <div data-testid="models-page" className="space-y-8">
       {/* === Active Models from CLI === */}
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Models</h1>
           <p className="text-sm text-theme-faint mt-1">Active models from gateway (config + environment)</p>
@@ -121,15 +121,15 @@ export default function ModelsPage() {
           {models.length === 0 ? (
             <div className="text-center py-12 text-theme-faint">No models available</div>
           ) : viewMode === 'list' ? (
-            <div className="bg-surface-card border border-subtle rounded-lg overflow-hidden" data-testid="models-list-view">
+            <div className="bg-surface-card border border-subtle rounded-lg overflow-x-auto" data-testid="models-list-view">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-[10px] font-semibold uppercase tracking-wider text-theme-faint border-b border-subtle">
                     <th className="text-left py-2 pl-4 pr-2 w-10">#</th>
                     <th className="w-6"></th>
                     <th className="text-left py-2 px-2">Model</th>
-                    <th className="text-left py-2 px-2">Provider</th>
-                    <th className="text-right py-2 px-2">Context</th>
+                    <th className="text-left py-2 px-2 hidden md:table-cell">Provider</th>
+                    <th className="text-right py-2 px-2 hidden md:table-cell">Context</th>
                     <th className="text-left py-2 pl-2 pr-4">Tags</th>
                   </tr>
                 </thead>
@@ -151,8 +151,8 @@ export default function ModelsPage() {
                         <div className="font-semibold text-theme-primary leading-tight">{m.name}</div>
                         <div className="font-mono text-[10px] text-theme-faint leading-tight">{m.key}</div>
                       </td>
-                      <td className="py-2 px-2 font-mono text-theme-muted align-middle">{m.provider_id || '—'}</td>
-                      <td className="py-2 px-2 font-mono text-theme-muted text-right align-middle whitespace-nowrap">{m.context_window ? `${Number(m.context_window).toLocaleString()}` : '—'}</td>
+                      <td className="py-2 px-2 font-mono text-theme-muted align-middle hidden md:table-cell">{m.provider_id || '—'}</td>
+                      <td className="py-2 px-2 font-mono text-theme-muted text-right align-middle whitespace-nowrap hidden md:table-cell">{m.context_window ? `${Number(m.context_window).toLocaleString()}` : '—'}</td>
                       <td className="py-2 pl-2 pr-4 align-middle">
                         <div className="flex flex-wrap gap-1">
                           {m.is_primary && <Star className="w-3.5 h-3.5 text-orange-500 fill-orange-500 shrink-0" />}
@@ -169,7 +169,7 @@ export default function ModelsPage() {
               </table>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {models.map(m => (
                 <div key={m.id} className={`bg-surface-card border rounded-lg hover:border-orange-500/20 transition-all duration-300 ${m.is_primary ? 'border-orange-500/30 shadow-[0_0_15px_rgba(249,115,22,0.08)]' : 'border-subtle'}`}>
                   <div className="p-5">

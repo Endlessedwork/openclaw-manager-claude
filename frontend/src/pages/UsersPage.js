@@ -98,7 +98,7 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-theme-primary flex items-center gap-2">
             <Users className="w-6 h-6 text-orange-500" /> User Management
@@ -107,7 +107,7 @@ export default function UsersPage() {
         </div>
         <button
           onClick={() => { setShowCreate(true); setEditUser(null); setForm({ username: '', password: '', name: '', role: 'viewer' }); }}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm font-medium text-white transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm font-medium text-white transition-colors w-fit"
         >
           <Plus className="w-4 h-4" /> Add User
         </button>
@@ -162,14 +162,14 @@ export default function UsersPage() {
         </div>
       )}
 
-      <div className="bg-surface-card border border-subtle rounded-xl overflow-hidden">
+      <div className="bg-surface-card border border-subtle rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-subtle">
               <th className="text-left px-4 py-3 text-theme-faint font-medium">User</th>
               <th className="text-left px-4 py-3 text-theme-faint font-medium">Role</th>
-              <th className="text-left px-4 py-3 text-theme-faint font-medium">Status</th>
-              <th className="text-left px-4 py-3 text-theme-faint font-medium">Last Login</th>
+              <th className="text-left px-4 py-3 text-theme-faint font-medium hidden md:table-cell">Status</th>
+              <th className="text-left px-4 py-3 text-theme-faint font-medium hidden md:table-cell">Last Login</th>
               <th className="text-right px-4 py-3 text-theme-faint font-medium">Actions</th>
             </tr>
           </thead>
@@ -188,13 +188,13 @@ export default function UsersPage() {
                       <RoleIcon className="w-3 h-3" /> {roleConfig.label}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 hidden md:table-cell">
                     <button onClick={() => handleToggleActive(u)}
                       className={`text-xs px-2 py-1 rounded ${u.is_active ? 'text-green-400 bg-green-500/10' : 'text-zinc-500 bg-zinc-500/10'}`}>
                       {u.is_active ? 'Active' : 'Disabled'}
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-theme-faint text-xs">
+                  <td className="px-4 py-3 text-theme-faint text-xs hidden md:table-cell">
                     {u.last_login ? new Date(u.last_login).toLocaleString() : 'Never'}
                   </td>
                   <td className="px-4 py-3 text-right">
