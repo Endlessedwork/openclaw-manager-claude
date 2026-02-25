@@ -9,7 +9,7 @@ import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 
-const ROLES = ['guest', 'member', 'vip', 'admin', 'blocked'];
+const ROLES = ['guest', 'member', 'vip', 'admin', 'owner', 'developer', 'blocked'];
 const STATUSES = ['new', 'active', 'inactive', 'blocked'];
 const PLATFORMS = ['line', 'telegram'];
 
@@ -90,11 +90,13 @@ export default function WorkspaceUsersPage() {
 
   const roleBadge = (role) => {
     const config = {
-      admin:   { bg: 'bg-orange-500', text: 'text-white', icon: '👑' },
-      vip:     { bg: 'bg-purple-500', text: 'text-white', icon: '⭐' },
-      member:  { bg: 'bg-sky-500',    text: 'text-white', icon: '👤' },
-      guest:   { bg: 'bg-zinc-600',   text: 'text-zinc-100', icon: '🔹' },
-      blocked: { bg: 'bg-red-600',    text: 'text-white', icon: '🚫' },
+      owner:     { bg: 'bg-amber-500',  text: 'text-white', icon: '🏆' },
+      admin:     { bg: 'bg-orange-500',  text: 'text-white', icon: '👑' },
+      developer: { bg: 'bg-emerald-500', text: 'text-white', icon: '💻' },
+      vip:       { bg: 'bg-purple-500',  text: 'text-white', icon: '⭐' },
+      member:    { bg: 'bg-sky-500',     text: 'text-white', icon: '👤' },
+      guest:     { bg: 'bg-zinc-600',    text: 'text-zinc-100', icon: '🔹' },
+      blocked:   { bg: 'bg-red-600',     text: 'text-white', icon: '🚫' },
     };
     const c = config[role] || config.guest;
     return (
