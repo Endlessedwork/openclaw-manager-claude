@@ -51,9 +51,9 @@ function LogLine({ log, searchTerm }) {
         log.level === 'ERROR' ? 'bg-red-500/[0.04]' : log.level === 'WARN' ? 'bg-amber-500/[0.02]' : ''
       }`}
     >
-      <span className="text-zinc-600 w-[95px] shrink-0 tabular-nums select-all">{timeStr}</span>
+      <span className="text-zinc-600 w-[95px] shrink-0 tabular-nums select-all hidden md:inline">{timeStr}</span>
       <span className={`w-[52px] shrink-0 font-semibold ${levelColor(log.level)}`}>{log.level}</span>
-      <span className={`w-[160px] shrink-0 truncate ${sourceColor(log.source)}`}>[{log.source}]</span>
+      <span className={`w-[160px] shrink-0 truncate ${sourceColor(log.source)} hidden md:inline`}>[{log.source}]</span>
       <span className="text-zinc-300 flex-1 break-words">{searchTerm ? highlightText(log.message) : log.message}</span>
     </div>
   );
@@ -207,9 +207,9 @@ export default function LogsPage() {
   };
 
   return (
-    <div data-testid="logs-page" className="flex flex-col h-[calc(100vh-64px)]">
+    <div data-testid="logs-page" className="flex flex-col h-[calc(100vh-120px)] md:h-[calc(100vh-64px)]">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between mb-4">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Logs</h1>
           <p className="text-sm text-theme-faint mt-1"><span className="font-mono">openclaw logs --follow</span></p>
