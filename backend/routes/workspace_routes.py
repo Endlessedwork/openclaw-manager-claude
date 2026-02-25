@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from auth import get_current_user, require_role
 
 workspace_router = APIRouter(prefix="/workspace", tags=["workspace"])
@@ -73,3 +73,76 @@ async def patch_workspace_group(
     data.update(updates)
     filepath.write_text(json.dumps(data, indent=4, ensure_ascii=False), encoding="utf-8")
     return data
+
+
+@workspace_router.get("/knowledge")
+async def list_knowledge_base(user=Depends(get_current_user)):
+    kb_dir = SHARED_DIR / "knowledge_base"
+    if not kb_dir.is_dir():
+        return []
+    results = []
+    for domain_dir in sorted(kb_dir.iterdir()):
+        if not domain_dir.is_dir():
+            continue
+        domain = domain_dir.name
+        for f in sorted(domain_dir.rglob("*.md")):
+            stat = f.stat()
+            results.append({
+                "name": f.stem,
+                "filename": f.name,
+                "domain": domain,
+                "path": str(f.relative_to(SHARED_DIR)),
+                "size": stat.st_size,
+                "modified": stat.st_mtime,
+            })
+    return results
+
+
+@workspace_router.get("/knowledge/content")
+async def get_knowledge_content(
+    path: str = Query(...),
+    user=Depends(get_current_user),
+):
+    resolved = (SHARED_DIR / path).resolve()
+    if not resolved.is_relative_to(SHARED_DIR.resolve()):
+        raise HTTPException(403, "Access denied")
+    if not resolved.is_file() or resolved.suffix != ".md":
+        raise HTTPException(404, "Article not found")
+    return {"content": resolved.read_text(encoding="utf-8"), "path": path}
+
+
+@workspace_router.get("/documents")
+async def list_workspace_documents(user=Depends(get_current_user)):
+    docs_dir = SHARED_DIR / "documents"
+    if not docs_dir.is_dir():
+        return []
+    results = []
+    for domain_dir in sorted(docs_dir.iterdir()):
+        if not domain_dir.is_dir():
+            continue
+        domain = domain_dir.name
+        for f in sorted(domain_dir.iterdir()):
+            if f.name.startswith(".") or f.name.endswith(".metadata.json"):
+                continue
+            if not f.is_file():
+                continue
+            meta_file = f.parent / f"{f.name}.metadata.json"
+            meta = {}
+            if meta_file.is_file():
+                try:
+                    meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    pass
+            stat = f.stat()
+            results.append({
+                "name": f.name,
+                "domain": domain,
+                "path": str(f.relative_to(SHARED_DIR)),
+                "size": stat.st_size,
+                "modified": stat.st_mtime,
+                "type": f.suffix.lstrip(".") or "unknown",
+                "sensitivity": meta.get("sensitivity", ""),
+                "uploaded_by": meta.get("source", {}).get("uploaded_by", ""),
+                "approved_by": meta.get("approved_by", ""),
+            })
+    return results
