@@ -89,15 +89,17 @@ export default function WorkspaceUsersPage() {
   };
 
   const roleBadge = (role) => {
-    const colors = {
-      admin: 'bg-orange-500/20 text-orange-400',
-      vip: 'bg-purple-500/20 text-purple-400',
-      member: 'bg-sky-500/20 text-sky-400',
-      guest: 'bg-zinc-500/20 text-zinc-400',
-      blocked: 'bg-red-500/20 text-red-400',
+    const config = {
+      admin:   { bg: 'bg-orange-500', text: 'text-white', icon: '👑' },
+      vip:     { bg: 'bg-purple-500', text: 'text-white', icon: '⭐' },
+      member:  { bg: 'bg-sky-500',    text: 'text-white', icon: '👤' },
+      guest:   { bg: 'bg-zinc-600',   text: 'text-zinc-100', icon: '🔹' },
+      blocked: { bg: 'bg-red-600',    text: 'text-white', icon: '🚫' },
     };
+    const c = config[role] || config.guest;
     return (
-      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[role] || colors.guest}`}>
+      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold shadow-sm ${c.bg} ${c.text}`}>
+        <span className="text-[10px]">{c.icon}</span>
         {role}
       </span>
     );
