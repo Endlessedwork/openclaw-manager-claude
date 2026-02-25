@@ -150,4 +150,13 @@ export const createUser = (data) => api.post('/users', data);
 export const updateUser = (id, data) => api.put(`/users/${id}`, data);
 export const deleteUser = (id) => api.delete(`/users/${id}`);
 
+// Workspace
+export const getWorkspaceUsers = () => api.get('/workspace/users');
+export const patchWorkspaceUser = (filename, data) => api.patch(`/workspace/users/${filename}`, data);
+export const getWorkspaceGroups = () => api.get('/workspace/groups');
+export const patchWorkspaceGroup = (filename, data) => api.patch(`/workspace/groups/${filename}`, data);
+export const getWorkspaceKnowledge = () => api.get('/workspace/knowledge');
+export const getWorkspaceKnowledgeContent = (path) => api.get(`/workspace/knowledge/content?path=${encodeURIComponent(path)}`);
+export const getWorkspaceDocuments = () => api.get('/workspace/documents');
+
 export default api;
