@@ -61,6 +61,11 @@ export default function WorkspaceUsersPage() {
     }
     if (filterPlatform !== 'all') list = list.filter(u => u.platform === filterPlatform);
     if (filterRole !== 'all') list = list.filter(u => u.role === filterRole);
+    list = [...list].sort((a, b) => {
+      const ta = a.last_seen_at ? new Date(a.last_seen_at).getTime() : 0;
+      const tb = b.last_seen_at ? new Date(b.last_seen_at).getTime() : 0;
+      return tb - ta;
+    });
     return list;
   }, [users, search, filterPlatform, filterRole]);
 
