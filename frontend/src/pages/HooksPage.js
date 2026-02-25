@@ -70,7 +70,7 @@ export default function HooksPage() {
 
   return (
     <div data-testid="hooks-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Hooks</h1>
           <p className="text-sm text-theme-faint mt-1">Manage webhook endpoints and hook mappings</p>
@@ -89,7 +89,7 @@ export default function HooksPage() {
       {config && (
         <div className="bg-surface-card border border-subtle rounded-lg p-5">
           <h3 className="text-xs font-mono text-theme-faint uppercase tracking-wider mb-3">Hook Configuration</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
             <div>
               <span className="text-theme-dimmed">Status</span>
               <p className={`font-mono mt-0.5 ${config.enabled ? 'text-emerald-500' : 'text-red-500'}`}>{config.enabled ? 'ENABLED' : 'DISABLED'}</p>
@@ -166,11 +166,11 @@ export default function HooksPage() {
         <DialogContent className="bg-surface-card border-subtle max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>{editing ? 'Edit Hook' : 'New Hook'}</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label className="text-theme-muted text-xs">Name</Label><Input data-testid="hook-name-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 text-sm mt-1" /></div>
               <div><Label className="text-theme-muted text-xs">Path</Label><Input value={form.path} onChange={e => setForm({...form, path: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" placeholder="gmail" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label className="text-theme-muted text-xs">Action</Label>
                 <Select value={form.action} onValueChange={v => setForm({...form, action: v})}>
                   <SelectTrigger className="bg-surface-sunken border-subtle text-sm mt-1"><SelectValue /></SelectTrigger>
@@ -184,7 +184,7 @@ export default function HooksPage() {
             </div>
             <div><Label className="text-theme-muted text-xs">Session Key</Label><Input value={form.session_key} onChange={e => setForm({...form, session_key: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" placeholder="hook:gmail:{{messages[0].id}}" /></div>
             <div><Label className="text-theme-muted text-xs">Message Template</Label><Textarea value={form.message_template} onChange={e => setForm({...form, message_template: e.target.value})} className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm mt-1" rows={3} placeholder="From: {{messages[0].from}}" /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label className="text-theme-muted text-xs">Wake Mode</Label>
                 <Select value={form.wake_mode} onValueChange={v => setForm({...form, wake_mode: v})}>
                   <SelectTrigger className="bg-surface-sunken border-subtle text-sm mt-1"><SelectValue /></SelectTrigger>
