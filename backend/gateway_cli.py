@@ -1,11 +1,15 @@
 import asyncio
 import json
+import shutil
 import time
 import os
 from pathlib import Path
 
 OPENCLAW_CONFIG = Path.home() / ".openclaw" / "openclaw.json"
-OPENCLAW_BIN = os.environ.get("OPENCLAW_BIN", str(Path.home() / ".npm-global" / "bin" / "openclaw"))
+OPENCLAW_BIN = os.environ.get(
+    "OPENCLAW_BIN",
+    shutil.which("openclaw") or str(Path.home() / ".npm-global" / "bin" / "openclaw"),
+)
 
 
 class CLICache:
