@@ -21,6 +21,7 @@ from auth import get_current_user, require_role
 from routes.auth_routes import auth_router
 from routes.user_routes import user_router
 from routes.file_routes import file_router
+from routes.workspace_routes import workspace_router
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -86,6 +87,7 @@ api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
 api_router.include_router(user_router)
 api_router.include_router(file_router)
+api_router.include_router(workspace_router)
 
 
 # ===== HELPER =====
