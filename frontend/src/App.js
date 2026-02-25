@@ -27,6 +27,10 @@ import HealthPage from "./pages/HealthPage";
 import FilesPage from "./pages/FilesPage";
 import ProvidersPage from "./pages/ProvidersPage";
 import UsagePage from "./pages/UsagePage";
+import WorkspaceUsersPage from "./pages/WorkspaceUsersPage";
+import WorkspaceGroupsPage from "./pages/WorkspaceGroupsPage";
+import WorkspaceKBPage from "./pages/WorkspaceKBPage";
+import WorkspaceDocsPage from "./pages/WorkspaceDocsPage";
 
 function ThemedToaster() {
   const { isDark } = useTheme();
@@ -61,6 +65,10 @@ function App() {
                 <Route path="/logs" element={<LogsPage />} />
                 <Route path="/clawhub" element={<ClawHubPage />} />
                 <Route path="/hooks" element={<HooksPage />} />
+                <Route path="/workspace/users" element={<WorkspaceUsersPage />} />
+                <Route path="/workspace/groups" element={<WorkspaceGroupsPage />} />
+                <Route path="/workspace/kb" element={<WorkspaceKBPage />} />
+                <Route path="/workspace/docs" element={<WorkspaceDocsPage />} />
                 <Route path="/users" element={<ProtectedRoute roles={["admin"]}><UsersPage /></ProtectedRoute>} />
               </Route>
             </Routes>

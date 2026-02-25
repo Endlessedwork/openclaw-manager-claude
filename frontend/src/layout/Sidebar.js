@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Bot, Zap, Wrench, Cpu, Radio, MessageSquare,
   Clock, FileCode, Server, ChevronLeft, ChevronRight, ChevronDown, Activity,
   Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
-  BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins
+  BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins,
+  Database, UserCircle, UsersRound, BookOpen, FileText
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -68,6 +69,17 @@ const navGroups = [
       { path: '/activities', label: 'Activities', icon: MonitorDot },
       { path: '/logs', label: 'Logs', icon: ScrollText },
       { path: '/health', label: 'Health', icon: Activity },
+    ],
+  },
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    icon: Database,
+    items: [
+      { path: '/workspace/users', label: 'Bot Users', icon: UserCircle },
+      { path: '/workspace/groups', label: 'Groups', icon: UsersRound },
+      { path: '/workspace/kb', label: 'Knowledge Base', icon: BookOpen },
+      { path: '/workspace/docs', label: 'Documents', icon: FileText },
     ],
   },
   {
