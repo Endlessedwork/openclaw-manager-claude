@@ -228,13 +228,13 @@ export default function ProvidersPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Providers</h1>
           <p className="text-sm text-theme-faint mt-1">All LLM providers powering the gateway — custom and built-in</p>
         </div>
         {canEdit() && (
-          <Button onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+          <Button onClick={openCreate} className="bg-orange-600 hover:bg-orange-700 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] w-fit">
             <Plus className="w-4 h-4 mr-2" /> Add Provider
           </Button>
         )}
@@ -253,7 +253,7 @@ export default function ProvidersPage() {
                 Custom Providers
                 <span className="text-xs font-normal text-theme-dimmed ml-2">from openclaw.json</span>
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {customProviders.map(p => {
                   const color = getColor(p.id);
                   return (
@@ -342,7 +342,7 @@ export default function ProvidersPage() {
                 Built-in Providers
                 <span className="text-xs font-normal text-theme-dimmed ml-2">from environment &amp; gateway defaults</span>
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {builtinProviders.map(p => {
                   const color = getColor(p.id);
                   return (
@@ -441,7 +441,7 @@ export default function ProvidersPage() {
           {!editing && showTemplates ? (
             <div className="space-y-3 mt-2">
               <p className="text-xs text-theme-faint">Select a provider to auto-fill settings, or configure manually.</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {PROVIDER_TEMPLATES.filter(t => !providers.some(p => p.id === t.id)).map(tpl => {
                   const color = getColor(tpl.id);
                   return (
@@ -577,13 +577,13 @@ export default function ProvidersPage() {
               )}
               <div className="space-y-2">
                 {modelRows.map((row, i) => (
-                  <div key={i} className="flex items-center gap-2">
+                  <div key={i} className="flex flex-wrap items-center gap-2">
                     <Input value={row.id} onChange={e => updateModelRow(i, 'id', e.target.value)}
-                      className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm flex-[2]" placeholder="model-id" />
+                      className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm flex-[2] min-w-[120px]" placeholder="model-id" />
                     <Input value={row.name} onChange={e => updateModelRow(i, 'name', e.target.value)}
-                      className="bg-surface-sunken border-subtle focus:border-orange-500 text-sm flex-[2]" placeholder="Display Name" />
+                      className="bg-surface-sunken border-subtle focus:border-orange-500 text-sm flex-[2] min-w-[120px]" placeholder="Display Name" />
                     <Input value={row.contextWindow} onChange={e => updateModelRow(i, 'contextWindow', e.target.value)}
-                      className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm flex-1" placeholder="Context" type="number" />
+                      className="bg-surface-sunken border-subtle focus:border-orange-500 font-mono text-sm flex-1 min-w-[80px]" placeholder="Context" type="number" />
                     <button type="button" onClick={() => removeModelRow(i)} className="p-1 text-theme-dimmed hover:text-red-400 shrink-0">
                       <X className="w-4 h-4" />
                     </button>
