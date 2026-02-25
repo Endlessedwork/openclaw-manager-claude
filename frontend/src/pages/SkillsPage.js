@@ -31,7 +31,7 @@ export default function SkillsPage() {
 
   return (
     <div data-testid="skills-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Skills</h1>
           <p className="text-sm text-theme-faint mt-1">Agent skills and capabilities</p>

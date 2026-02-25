@@ -191,12 +191,12 @@ export default function ConfigPage() {
 
   return (
     <div data-testid="config-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Configuration</h1>
           <p className="text-sm text-theme-faint mt-1">Edit openclaw.json gateway configuration</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={load} className="border-strong text-theme-muted hover:bg-muted">
             <RotateCcw className="w-4 h-4 mr-2" /> Reset
           </Button>

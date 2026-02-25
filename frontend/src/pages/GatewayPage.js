@@ -31,7 +31,7 @@ export default function GatewayPage() {
 
   return (
     <div data-testid="gateway-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Gateway</h1>
           <p className="text-sm text-theme-faint mt-1">Monitor and control the gateway</p>
@@ -50,7 +50,7 @@ export default function GatewayPage() {
 
       {/* Status Cards */}
       {status && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-surface-card border border-subtle rounded-lg p-5">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-3 h-3 rounded-full bg-emerald-500" style={{ boxShadow: '0 0 12px rgba(16,185,129,0.6)' }} />

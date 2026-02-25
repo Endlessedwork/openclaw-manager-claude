@@ -62,7 +62,7 @@ export default function SessionsPage() {
 
   return (
     <div data-testid="sessions-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>Sessions</h1>
           <p className="text-sm text-theme-faint mt-1">Live sessions from gateway ({sessions.length} total)</p>
