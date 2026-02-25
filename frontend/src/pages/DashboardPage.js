@@ -80,7 +80,7 @@ export default function DashboardPage() {
       })()}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Bot} label="Agents" value={data?.agents || 0} color="orange" />
         <StatCard icon={Zap} label="Skills" value={data?.skills?.total || 0} sub={`${data?.skills?.active || 0} active`} color="blue" />
         <StatCard icon={Radio} label="Channels" value={data?.channels?.total || 0} sub={`${data?.channels?.active || 0} active`} color="green" />
