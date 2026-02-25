@@ -117,6 +117,22 @@ export default function WorkspaceUsersPage() {
     );
   };
 
+  const statusBadge = (status) => {
+    const config = {
+      active:   { bg: 'bg-green-500',  text: 'text-white', dot: 'bg-green-200' },
+      new:      { bg: 'bg-blue-500',   text: 'text-white', dot: 'bg-blue-200' },
+      inactive: { bg: 'bg-zinc-600',   text: 'text-zinc-100', dot: 'bg-zinc-300' },
+      blocked:  { bg: 'bg-red-600',    text: 'text-white', dot: 'bg-red-200' },
+    };
+    const c = config[status] || config.new;
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold shadow-sm ${c.bg} ${c.text}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+        {status || 'unknown'}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -195,7 +211,7 @@ export default function WorkspaceUsersPage() {
                   </td>
                   <td className="px-4 py-3">{platformBadge(u.platform)}</td>
                   <td className="px-4 py-3">{roleBadge(u.role)}</td>
-                  <td className="px-4 py-3 text-theme-secondary text-xs">{u.status || '—'}</td>
+                  <td className="px-4 py-3">{statusBadge(u.status)}</td>
                   <td className="px-4 py-3 text-theme-faint text-xs">{timeAgo(u.last_seen_at)}</td>
                   {canEdit() && (
                     <td className="px-4 py-3 text-right">
