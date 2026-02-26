@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { getWorkspaceKnowledge, getWorkspaceKnowledgeContent } from '../lib/api';
-import { BookOpen, RefreshCw, Search, Loader2, FileText } from 'lucide-react';
+import { BookOpen, RefreshCw, Search, Loader2, FileText, LayoutGrid, List } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -32,6 +32,7 @@ export default function WorkspaceKBPage() {
   const [viewContent, setViewContent] = useState('');
   const [viewTitle, setViewTitle] = useState('');
   const [loadingContent, setLoadingContent] = useState(false);
+  const [viewMode, setViewMode] = useState('grid');
 
   const load = async () => {
     setLoading(true);
@@ -89,10 +90,28 @@ export default function WorkspaceKBPage() {
           </h1>
           <p className="text-theme-faint text-sm mt-1">{articles.length} articles across {DOMAINS.length} domains</p>
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}
-          className="border-subtle text-theme-secondary hover:text-theme-primary">
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 rounded transition-colors ${viewMode === 'grid' ? 'bg-orange-500/15 text-orange-500' : 'text-theme-faint hover:text-theme-secondary'}`}
+              aria-label="Grid view"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded transition-colors ${viewMode === 'list' ? 'bg-orange-500/15 text-orange-500' : 'text-theme-faint hover:text-theme-secondary'}`}
+              aria-label="List view"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}
+            className="border-subtle text-theme-secondary hover:text-theme-primary">
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -134,24 +153,57 @@ export default function WorkspaceKBPage() {
                 <span className={`w-2 h-2 rounded-full ${DOMAIN_COLORS[domain]?.split(' ')[1] || 'bg-zinc-500'}`} />
                 {domain} <span className="text-theme-dimmed font-normal">({items.length})</span>
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {items.map(a => (
-                  <button key={a.path} onClick={() => openArticle(a)}
-                    className="text-left bg-surface-card border border-subtle rounded-lg p-4 hover:border-orange-500/30 hover:bg-muted/30 transition-all group">
-                    <div className="flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-theme-faint group-hover:text-orange-400 shrink-0 mt-0.5" />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-theme-primary font-medium truncate group-hover:text-orange-400">
-                          {a.name}
-                        </div>
-                        <div className="text-theme-faint text-xs mt-1">
-                          {formatSize(a.size)} · {new Date(a.modified * 1000).toLocaleDateString()}
+              {viewMode === 'grid' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {items.map(a => (
+                    <button key={a.path} onClick={() => openArticle(a)}
+                      className="text-left bg-surface-card border border-subtle rounded-lg p-4 hover:border-orange-500/30 hover:bg-muted/30 transition-all group">
+                      <div className="flex items-start gap-3">
+                        <FileText className="w-5 h-5 text-theme-faint group-hover:text-orange-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-theme-primary font-medium truncate group-hover:text-orange-400">
+                            {a.name}
+                          </div>
+                          <div className="text-theme-faint text-xs mt-1">
+                            {formatSize(a.size)} · {new Date(a.modified * 1000).toLocaleDateString()}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-surface-card border border-subtle rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-subtle">
+                        <th className="text-left px-4 py-2.5 text-theme-faint font-medium">Name</th>
+                        <th className="text-left px-4 py-2.5 text-theme-faint font-medium hidden md:table-cell">Path</th>
+                        <th className="text-left px-4 py-2.5 text-theme-faint font-medium">Size</th>
+                        <th className="text-left px-4 py-2.5 text-theme-faint font-medium">Modified</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map(a => (
+                        <tr key={a.path} onClick={() => openArticle(a)}
+                          className="border-b border-subtle last:border-0 hover:bg-muted/30 transition-colors cursor-pointer">
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-theme-faint shrink-0" />
+                              <span className="text-theme-primary font-medium truncate">{a.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 hidden md:table-cell">
+                            <span className="text-xs font-mono text-theme-faint">{a.path}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-theme-faint text-xs">{formatSize(a.size)}</td>
+                          <td className="px-4 py-2.5 text-theme-faint text-xs">{new Date(a.modified * 1000).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           ))}
         </div>
