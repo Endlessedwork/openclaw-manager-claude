@@ -9,20 +9,20 @@ import { toast } from 'sonner';
 const DOMAINS = ['financial', 'legal', 'strategic', 'operations', 'production', 'hr', 'commercial', 'uncategorized'];
 
 const DOMAIN_COLORS = {
-  financial: 'bg-emerald-500/20 text-emerald-400',
-  legal: 'bg-yellow-500/20 text-yellow-400',
-  strategic: 'bg-purple-500/20 text-purple-400',
-  operations: 'bg-sky-500/20 text-sky-400',
-  production: 'bg-amber-500/20 text-amber-400',
-  hr: 'bg-pink-500/20 text-pink-400',
-  commercial: 'bg-blue-500/20 text-blue-400',
-  uncategorized: 'bg-zinc-500/20 text-zinc-400',
+  financial: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+  legal: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20',
+  strategic: 'text-purple-500 bg-purple-500/10 border-purple-500/20',
+  operations: 'text-sky-500 bg-sky-500/10 border-sky-500/20',
+  production: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
+  hr: 'text-pink-500 bg-pink-500/10 border-pink-500/20',
+  commercial: 'text-blue-500 bg-blue-500/10 border-blue-500/20',
+  uncategorized: 'text-theme-faint bg-muted border-strong',
 };
 
 const SENSITIVITY_COLORS = {
-  INTERNAL: 'bg-yellow-500/20 text-yellow-400',
-  CONFIDENTIAL: 'bg-red-500/20 text-red-400',
-  PUBLIC: 'bg-green-500/20 text-green-400',
+  INTERNAL: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20',
+  CONFIDENTIAL: 'text-red-500 bg-red-500/10 border-red-500/20',
+  PUBLIC: 'text-green-500 bg-green-500/10 border-green-500/20',
 };
 
 function fileIcon(type) {
@@ -136,7 +136,7 @@ export default function WorkspaceDocsPage() {
           {Object.entries(grouped).map(([domain, items]) => (
             <div key={domain}>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-theme-faint mb-3 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${(DOMAIN_COLORS[domain] || 'bg-zinc-500/20').split(' ')[0]}`} />
+                <span className={`w-2 h-2 rounded-full ${(DOMAIN_COLORS[domain] || 'text-theme-faint bg-muted border-strong').split(' ')[1]}`} />
                 {domain} <span className="text-theme-dimmed font-normal">({items.length})</span>
               </h2>
               <div className="bg-surface-card border border-subtle rounded-xl overflow-hidden">
@@ -171,7 +171,7 @@ export default function WorkspaceDocsPage() {
                           <td className="px-4 py-2.5 text-theme-secondary text-xs">{d.uploaded_by || '—'}</td>
                           <td className="px-4 py-2.5">
                             {d.sensitivity ? (
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SENSITIVITY_COLORS[d.sensitivity] || 'bg-zinc-500/20 text-zinc-400'}`}>
+                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${SENSITIVITY_COLORS[d.sensitivity] || 'text-theme-faint bg-muted border-strong'}`}>
                                 {d.sensitivity}
                               </span>
                             ) : '—'}

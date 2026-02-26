@@ -9,12 +9,12 @@ import { toast } from 'sonner';
 const DOMAINS = ['financial', 'strategic', 'operations', 'production', 'hr', 'commercial'];
 
 const DOMAIN_COLORS = {
-  financial: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  strategic: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  operations: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
-  production: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  hr: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
-  commercial: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  financial: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+  strategic: 'text-purple-500 bg-purple-500/10 border-purple-500/20',
+  operations: 'text-sky-500 bg-sky-500/10 border-sky-500/20',
+  production: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
+  hr: 'text-pink-500 bg-pink-500/10 border-pink-500/20',
+  commercial: 'text-blue-500 bg-blue-500/10 border-blue-500/20',
 };
 
 function formatSize(bytes) {
@@ -104,14 +104,14 @@ export default function WorkspaceKBPage() {
         </div>
         <div className="flex gap-1.5 flex-wrap">
           <button onClick={() => setFilterDomain('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+            className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider border transition-colors ${
               filterDomain === 'all'
-                ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+                ? 'text-orange-500 bg-orange-500/10 border-orange-500/20'
                 : 'bg-surface-card text-theme-faint border-subtle hover:text-theme-secondary'
             }`}>All</button>
           {DOMAINS.map(d => (
             <button key={d} onClick={() => setFilterDomain(d)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+              className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider border transition-colors ${
                 filterDomain === d
                   ? DOMAIN_COLORS[d]
                   : 'bg-surface-card text-theme-faint border-subtle hover:text-theme-secondary'
@@ -131,7 +131,7 @@ export default function WorkspaceKBPage() {
           {Object.entries(grouped).map(([domain, items]) => (
             <div key={domain}>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-theme-faint mb-3 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${DOMAIN_COLORS[domain]?.split(' ')[0] || 'bg-zinc-500'}`} />
+                <span className={`w-2 h-2 rounded-full ${DOMAIN_COLORS[domain]?.split(' ')[1] || 'bg-zinc-500'}`} />
                 {domain} <span className="text-theme-dimmed font-normal">({items.length})</span>
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

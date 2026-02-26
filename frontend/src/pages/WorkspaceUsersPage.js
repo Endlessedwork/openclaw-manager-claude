@@ -94,19 +94,17 @@ export default function WorkspaceUsersPage() {
   };
 
   const roleBadge = (role) => {
-    const config = {
-      owner:     { bg: 'bg-amber-500',  text: 'text-white', icon: '🏆' },
-      admin:     { bg: 'bg-orange-500',  text: 'text-white', icon: '👑' },
-      developer: { bg: 'bg-emerald-500', text: 'text-white', icon: '💻' },
-      vip:       { bg: 'bg-purple-500',  text: 'text-white', icon: '⭐' },
-      member:    { bg: 'bg-sky-500',     text: 'text-white', icon: '👤' },
-      guest:     { bg: 'bg-zinc-600',    text: 'text-zinc-100', icon: '🔹' },
-      blocked:   { bg: 'bg-red-600',     text: 'text-white', icon: '🚫' },
+    const colors = {
+      owner:     'text-amber-500 bg-amber-500/10 border-amber-500/20',
+      admin:     'text-orange-500 bg-orange-500/10 border-orange-500/20',
+      developer: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+      vip:       'text-purple-500 bg-purple-500/10 border-purple-500/20',
+      member:    'text-sky-500 bg-sky-500/10 border-sky-500/20',
+      guest:     'text-theme-faint bg-muted border-strong',
+      blocked:   'text-red-500 bg-red-500/10 border-red-500/20',
     };
-    const c = config[role] || config.guest;
     return (
-      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold shadow-sm ${c.bg} ${c.text}`}>
-        <span className="text-[10px]">{c.icon}</span>
+      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${colors[role] || colors.guest}`}>
         {role}
       </span>
     );
@@ -114,27 +112,25 @@ export default function WorkspaceUsersPage() {
 
   const platformBadge = (platform) => {
     const colors = {
-      line: 'bg-green-500/20 text-green-400',
-      telegram: 'bg-blue-500/20 text-blue-400',
+      line: 'text-green-500 bg-green-500/10 border-green-500/20',
+      telegram: 'text-blue-500 bg-blue-500/10 border-blue-500/20',
     };
     return (
-      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[platform] || 'bg-zinc-500/20 text-zinc-400'}`}>
+      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${colors[platform] || 'text-theme-faint bg-muted border-strong'}`}>
         {platform}
       </span>
     );
   };
 
   const statusBadge = (status) => {
-    const config = {
-      active:   { bg: 'bg-green-500',  text: 'text-white', dot: 'bg-green-200' },
-      new:      { bg: 'bg-blue-500',   text: 'text-white', dot: 'bg-blue-200' },
-      inactive: { bg: 'bg-zinc-600',   text: 'text-zinc-100', dot: 'bg-zinc-300' },
-      blocked:  { bg: 'bg-red-600',    text: 'text-white', dot: 'bg-red-200' },
+    const colors = {
+      active:   'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+      new:      'text-sky-500 bg-sky-500/10 border-sky-500/20',
+      inactive: 'text-theme-faint bg-muted border-strong',
+      blocked:  'text-red-500 bg-red-500/10 border-red-500/20',
     };
-    const c = config[status] || config.new;
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold shadow-sm ${c.bg} ${c.text}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${colors[status] || colors.new}`}>
         {status || 'unknown'}
       </span>
     );

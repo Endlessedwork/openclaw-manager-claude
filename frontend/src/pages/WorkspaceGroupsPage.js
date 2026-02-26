@@ -83,12 +83,12 @@ export default function WorkspaceGroupsPage() {
 
   const statusBadge = (status) => {
     const colors = {
-      active: 'bg-green-500/20 text-green-400',
-      inactive: 'bg-zinc-500/20 text-zinc-400',
-      blocked: 'bg-red-500/20 text-red-400',
+      active: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+      inactive: 'text-theme-faint bg-muted border-strong',
+      blocked: 'text-red-500 bg-red-500/10 border-red-500/20',
     };
     return (
-      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || colors.active}`}>
+      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${colors[status] || colors.active}`}>
         {status}
       </span>
     );
@@ -168,8 +168,8 @@ export default function WorkspaceGroupsPage() {
                         <div className="text-theme-faint text-xs font-mono">{g.group_id}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          g.platform === 'line' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                          g.platform === 'line' ? 'text-green-500 bg-green-500/10 border-green-500/20' : 'text-blue-500 bg-blue-500/10 border-blue-500/20'
                         }`}>{g.platform}</span>
                       </td>
                       <td className="px-4 py-3">{statusBadge(g.status)}</td>
