@@ -5,6 +5,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 import jwt
 import os
+import uuid as _uuid
+
+from sqlmodel import select
 
 SECRET_KEY = os.environ.get("JWT_SECRET")
 if not SECRET_KEY:
@@ -54,8 +57,8 @@ def decode_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-def _get_db(request: Request):
-    return request.app.state.db
+def _get_async_session(request: Request):
+    return request.app.state.async_session
 
 
 async def get_current_user(
@@ -67,16 +70,23 @@ async def get_current_user(
     payload = decode_token(credentials.credentials)
     if payload.get("type") != "access":
         raise HTTPException(status_code=401, detail="Invalid token type")
-    db = _get_db(request)
-    from bson import ObjectId
-    user = await db.users.find_one({"_id": ObjectId(payload["sub"]), "is_active": True})
+    session_factory = _get_async_session(request)
+    from models.user import User
+    try:
+        user_uuid = _uuid.UUID(payload["sub"])
+    except (ValueError, KeyError):
+        raise HTTPException(status_code=401, detail="Invalid user ID in token")
+    async with session_factory() as session:
+        user = (await session.execute(
+            select(User).where(User.id == user_uuid, User.is_active == True)
+        )).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return {
-        "id": str(user["_id"]),
-        "username": user["username"],
-        "name": user["name"],
-        "role": user["role"],
+        "id": str(user.id),
+        "username": user.username,
+        "name": user.name,
+        "role": user.role,
     }
 
 

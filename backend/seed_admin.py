@@ -8,23 +8,27 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from motor.motor_asyncio import AsyncIOMotorClient
 
 load_dotenv(Path(__file__).parent / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent))
 from auth import hash_password
+from database import async_session, init_db
+from models.user import User
+from sqlmodel import select
 
 
 async def seed():
-    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db = client[os.environ["DB_NAME"]]
+    # Ensure tables exist
+    await init_db()
 
-    existing = await db.users.find_one({"role": "admin"})
-    if existing:
-        print(f"Admin already exists: {existing['username']}")
-        client.close()
-        return
+    async with async_session() as session:
+        existing = (await session.execute(
+            select(User).where(User.role == "admin")
+        )).scalar_one_or_none()
+        if existing:
+            print(f"Admin already exists: {existing.username}")
+            return
 
     username = input("Admin username: ").strip()
     name = input("Admin display name: ").strip() or username
@@ -32,25 +36,18 @@ async def seed():
 
     if not username or not password:
         print("Username and password are required")
-        client.close()
         sys.exit(1)
 
-    now = datetime.now(timezone.utc)
-    await db.users.insert_one({
-        "username": username,
-        "hashed_password": hash_password(password),
-        "name": name,
-        "role": "admin",
-        "is_active": True,
-        "created_at": now,
-        "updated_at": now,
-        "last_login": None,
-    })
-
-    await db.users.create_index("username", unique=True)
+    async with async_session() as session:
+        session.add(User(
+            username=username,
+            hashed_password=hash_password(password),
+            name=name,
+            role="admin",
+        ))
+        await session.commit()
 
     print(f"Admin user created: {username}")
-    client.close()
 
 
 if __name__ == "__main__":

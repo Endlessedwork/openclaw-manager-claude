@@ -1,7 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import json
 import logging
@@ -12,10 +11,19 @@ from datetime import datetime, timedelta, timezone
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 import ssl
+import datetime as dt
+
+from sqlmodel import select
+from sqlalchemy import func, or_, desc, case
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+from database import engine, async_session
+from models.usage import DailyUsage
+from models.activity import ActivityLog, AgentActivity, SystemLog
+from models.fallback import AgentFallback
+from models.clawhub import ClawHubSkill
 from gateway_cli import gateway
 from auth import get_current_user, require_role
 from routes.auth_routes import auth_router
@@ -23,17 +31,12 @@ from routes.user_routes import user_router
 from routes.file_routes import file_router
 from routes.workspace_routes import workspace_router
 
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
-
 app = FastAPI()
 
 
 @app.on_event("startup")
 async def set_db():
-    app.state.db = db
-    await db.daily_usage.create_index("date", unique=True)
+    app.state.async_session = async_session
     async def _warmup():
         await gateway.warmup()
         # Pre-build dashboard after CLI cache is warm
@@ -45,6 +48,32 @@ async def set_db():
     asyncio.create_task(_usage_collector())
 
 
+async def _upsert_daily_usage(daily: list):
+    """Upsert a list of daily usage records into PostgreSQL."""
+    async with async_session() as session:
+        for d in daily:
+            if not d.get("date"):
+                continue
+            date_val = dt.date.fromisoformat(d["date"])
+            existing = (await session.execute(
+                select(DailyUsage).where(DailyUsage.date == date_val)
+            )).scalar_one_or_none()
+            cost_breakdown = {k: v for k, v in d.items() if k not in ("date", "totalTokens", "totalCost")}
+            if existing:
+                existing.total_tokens = d.get("totalTokens", 0)
+                existing.total_cost = d.get("totalCost", 0.0)
+                existing.cost_breakdown = cost_breakdown or None
+                existing.updated_at = dt.datetime.now(dt.timezone.utc)
+            else:
+                session.add(DailyUsage(
+                    date=date_val,
+                    total_tokens=d.get("totalTokens", 0),
+                    total_cost=d.get("totalCost", 0.0),
+                    cost_breakdown=cost_breakdown or None,
+                ))
+        await session.commit()
+
+
 async def _usage_collector():
     """Background task: backfill 90d on start, then upsert hourly."""
     logger = logging.getLogger("usage_collector")
@@ -53,14 +82,7 @@ async def _usage_collector():
     try:
         data = await gateway.usage_cost_raw(days=90)
         daily = data.get("daily", []) if isinstance(data, dict) else []
-        for d in daily:
-            if not d.get("date"):
-                continue
-            await db.daily_usage.update_one(
-                {"date": d["date"]},
-                {"$set": {**d, "updated_at": datetime.now(timezone.utc).isoformat()}},
-                upsert=True,
-            )
+        await _upsert_daily_usage(daily)
         logger.info(f"Backfilled {len(daily)} daily usage records")
     except Exception as e:
         logger.warning(f"Usage backfill failed: {e}")
@@ -71,14 +93,7 @@ async def _usage_collector():
         try:
             data = await gateway.usage_cost_raw(days=1)
             daily = data.get("daily", []) if isinstance(data, dict) else []
-            for d in daily:
-                if not d.get("date"):
-                    continue
-                await db.daily_usage.update_one(
-                    {"date": d["date"]},
-                    {"$set": {**d, "updated_at": datetime.now(timezone.utc).isoformat()}},
-                    upsert=True,
-                )
+            await _upsert_daily_usage(daily)
         except Exception as e:
             logger.warning(f"Usage hourly sync failed: {e}")
 
@@ -92,15 +107,12 @@ api_router.include_router(workspace_router)
 
 # ===== HELPER =====
 async def log_activity(action: str, entity_type: str, entity_id: str = "", details: str = ""):
-    log = {
-        "id": str(uuid.uuid4()),
-        "action": action,
-        "entity_type": entity_type,
-        "entity_id": entity_id,
-        "details": details,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    await db.activity_logs.insert_one(log)
+    async with async_session() as session:
+        session.add(ActivityLog(
+            action=action, entity_type=entity_type,
+            entity_id=entity_id, details=details,
+        ))
+        await session.commit()
 
 
 # ===== DASHBOARD =====
@@ -772,9 +784,11 @@ async def get_fallbacks(user=Depends(get_current_user)):
     image_cfg = defaults.get("imageModel", {})
     agents_list = config.get("agents", {}).get("list", [])
 
-    # Load agent-specific fallbacks from MongoDB
-    agent_fb_docs = await db.agent_fallbacks.find().to_list(length=100)
-    agent_fb_map = {d["agent_id"]: d.get("fallbacks", []) for d in agent_fb_docs}
+    # Load agent-specific fallbacks from PostgreSQL
+    async with async_session() as session:
+        result = await session.execute(select(AgentFallback))
+        agent_fb_rows = result.scalars().all()
+    agent_fb_map = {row.agent_id: row.fallbacks for row in agent_fb_rows}
 
     return {
         "model": {
@@ -844,17 +858,22 @@ async def update_agent_fallbacks(agent_id: str, body: dict, user=Depends(require
     if need_config_write:
         await gateway.config_write(config)
 
-    # Store agent-specific fallbacks in MongoDB (not in openclaw.json)
+    # Store agent-specific fallbacks in PostgreSQL (not in openclaw.json)
     if "fallbacks" in body:
         fallbacks = body["fallbacks"]
-        if fallbacks:
-            await db.agent_fallbacks.update_one(
-                {"agent_id": agent_id},
-                {"$set": {"agent_id": agent_id, "fallbacks": fallbacks}},
-                upsert=True,
-            )
-        else:
-            await db.agent_fallbacks.delete_one({"agent_id": agent_id})
+        async with async_session() as session:
+            existing = (await session.execute(
+                select(AgentFallback).where(AgentFallback.agent_id == agent_id)
+            )).scalar_one_or_none()
+            if fallbacks:
+                if existing:
+                    existing.fallbacks = fallbacks
+                else:
+                    session.add(AgentFallback(agent_id=agent_id, fallbacks=fallbacks))
+            else:
+                if existing:
+                    await session.delete(existing)
+            await session.commit()
 
     await log_activity("update", "fallbacks", agent_id, f"Updated fallbacks for agent {agent_id}")
     return {"status": "ok", "restart_needed": need_config_write}
@@ -947,20 +966,35 @@ async def get_usage_cost(
         date_end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         date_start = (datetime.now(timezone.utc) - timedelta(days=d - 1)).strftime("%Y-%m-%d")
 
-    # Read from MongoDB
-    records = await db.daily_usage.find(
-        {"date": {"$gte": date_start, "$lte": date_end}},
-        {"_id": 0, "updated_at": 0},
-    ).sort("date", 1).to_list(None)
+    # Read from PostgreSQL
+    start_date = dt.date.fromisoformat(date_start)
+    end_date = dt.date.fromisoformat(date_end)
+    async with async_session() as session:
+        result = await session.execute(
+            select(DailyUsage)
+            .where(DailyUsage.date >= start_date, DailyUsage.date <= end_date)
+            .order_by(DailyUsage.date)
+        )
+        rows = result.scalars().all()
 
-    if records:
+    if rows:
+        records = []
+        for r in rows:
+            rec = {
+                "date": r.date.isoformat(),
+                "totalTokens": r.total_tokens,
+                "totalCost": r.total_cost,
+            }
+            if r.cost_breakdown:
+                rec.update(r.cost_breakdown)
+            records.append(rec)
         totals = {
-            "totalTokens": sum(r.get("totalTokens", 0) for r in records),
-            "totalCost": sum(r.get("totalCost", 0) for r in records),
+            "totalTokens": sum(r.total_tokens for r in rows),
+            "totalCost": sum(r.total_cost for r in rows),
         }
         return {"daily": records, "totals": totals}
 
-    # Fallback to CLI if MongoDB is empty
+    # Fallback to CLI if PostgreSQL is empty
     if not start:
         try:
             return await gateway.usage_cost(days or 30)
@@ -977,49 +1011,62 @@ async def get_usage_breakdown(
     end: str = Query(None),
     user=Depends(get_current_user),
 ):
+    # Build base filter
+    base_filter = [AgentActivity.event_type == "llm_request"]
     if start and end:
-        match = {"event_type": "llm_request", "timestamp": {"$gte": start, "$lte": end}}
+        base_filter.append(AgentActivity.timestamp >= start)
+        base_filter.append(AgentActivity.timestamp <= end)
     else:
         d = days or 30
-        cutoff = datetime.now(timezone.utc).timestamp() - (d * 86400)
-        cutoff_iso = datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat()
-        match = {"event_type": "llm_request", "timestamp": {"$gte": cutoff_iso}}
+        cutoff = datetime.now(timezone.utc) - timedelta(days=d)
+        base_filter.append(AgentActivity.timestamp >= cutoff)
 
-    by_agent = await db.agent_activities.aggregate([
-        {"$match": match},
-        {"$group": {
-            "_id": "$agent_name",
-            "tokens_in": {"$sum": "$tokens_in"},
-            "tokens_out": {"$sum": "$tokens_out"},
-            "count": {"$sum": 1},
-        }},
-        {"$sort": {"tokens_out": -1}},
-        {"$limit": 20},
-    ]).to_list(20)
+    async with async_session() as session:
+        # By agent
+        q_agent = (
+            select(
+                AgentActivity.agent_name.label("_id"),
+                func.coalesce(func.sum(AgentActivity.tokens_in), 0).label("tokens_in"),
+                func.coalesce(func.sum(AgentActivity.tokens_out), 0).label("tokens_out"),
+                func.count().label("count"),
+            )
+            .where(*base_filter)
+            .group_by(AgentActivity.agent_name)
+            .order_by(desc(func.coalesce(func.sum(AgentActivity.tokens_out), 0)))
+            .limit(20)
+        )
+        by_agent = [dict(r._mapping) for r in (await session.execute(q_agent)).all()]
 
-    by_model = await db.agent_activities.aggregate([
-        {"$match": match},
-        {"$group": {
-            "_id": "$model_used",
-            "tokens_in": {"$sum": "$tokens_in"},
-            "tokens_out": {"$sum": "$tokens_out"},
-            "count": {"$sum": 1},
-            "avg_ms": {"$avg": "$duration_ms"},
-        }},
-        {"$sort": {"tokens_out": -1}},
-        {"$limit": 20},
-    ]).to_list(20)
+        # By model
+        q_model = (
+            select(
+                AgentActivity.model_used.label("_id"),
+                func.coalesce(func.sum(AgentActivity.tokens_in), 0).label("tokens_in"),
+                func.coalesce(func.sum(AgentActivity.tokens_out), 0).label("tokens_out"),
+                func.count().label("count"),
+                func.avg(AgentActivity.duration_ms).label("avg_ms"),
+            )
+            .where(*base_filter)
+            .group_by(AgentActivity.model_used)
+            .order_by(desc(func.coalesce(func.sum(AgentActivity.tokens_out), 0)))
+            .limit(20)
+        )
+        by_model = [dict(r._mapping) for r in (await session.execute(q_model)).all()]
 
-    by_channel = await db.agent_activities.aggregate([
-        {"$match": match},
-        {"$group": {
-            "_id": "$channel",
-            "tokens_in": {"$sum": "$tokens_in"},
-            "tokens_out": {"$sum": "$tokens_out"},
-            "count": {"$sum": 1},
-        }},
-        {"$sort": {"tokens_out": -1}},
-    ]).to_list(20)
+        # By channel
+        q_channel = (
+            select(
+                AgentActivity.channel.label("_id"),
+                func.coalesce(func.sum(AgentActivity.tokens_in), 0).label("tokens_in"),
+                func.coalesce(func.sum(AgentActivity.tokens_out), 0).label("tokens_out"),
+                func.count().label("count"),
+            )
+            .where(*base_filter)
+            .group_by(AgentActivity.channel)
+            .order_by(desc(func.coalesce(func.sum(AgentActivity.tokens_out), 0)))
+            .limit(20)
+        )
+        by_channel = [dict(r._mapping) for r in (await session.execute(q_channel)).all()]
 
     return {"by_agent": by_agent, "by_model": by_model, "by_channel": by_channel}
 
@@ -1163,7 +1210,22 @@ async def get_hook_mappings(user=Depends(get_current_user)):
 # ===== ACTIVITY LOGS =====
 @api_router.get("/logs")
 async def get_logs(limit: int = Query(50, le=500), user=Depends(get_current_user)):
-    return await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
+    async with async_session() as session:
+        result = await session.execute(
+            select(ActivityLog).order_by(desc(ActivityLog.timestamp)).limit(limit)
+        )
+        logs = result.scalars().all()
+    return [
+        {
+            "id": str(l.id),
+            "action": l.action,
+            "entity_type": l.entity_type,
+            "entity_id": l.entity_id,
+            "details": l.details,
+            "timestamp": l.timestamp.isoformat() if l.timestamp else None,
+        }
+        for l in logs
+    ]
 
 
 # ===== SYSTEM LOGS (from DB, populated by WebSocket) =====
@@ -1176,38 +1238,88 @@ async def list_system_logs(
     since_id: str = Query("", max_length=100),
     user=Depends(get_current_user),
 ):
-    query = {}
+    filters = []
     if level:
-        query["level"] = level
+        filters.append(SystemLog.level == level)
     if source:
-        query["source"] = source
+        filters.append(SystemLog.source == source)
     if search:
-        query["message"] = {"$regex": search, "$options": "i"}
+        filters.append(SystemLog.message.ilike(f"%{search}%"))
     if since_id:
-        ref = await db.system_logs.find_one({"id": since_id}, {"_id": 0})
-        if ref:
-            query["timestamp"] = {"$gt": ref["timestamp"]}
-    logs = await db.system_logs.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
-    return logs
+        async with async_session() as session:
+            ref = (await session.execute(
+                select(SystemLog).where(SystemLog.id == uuid.UUID(since_id))
+            )).scalar_one_or_none()
+            if ref:
+                filters.append(SystemLog.timestamp > ref.timestamp)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(SystemLog).where(*filters).order_by(desc(SystemLog.timestamp)).limit(limit)
+        )
+        logs = result.scalars().all()
+    return [
+        {
+            "id": str(l.id),
+            "timestamp": l.timestamp.isoformat() if l.timestamp else None,
+            "level": l.level,
+            "source": l.source,
+            "message": l.message,
+            "raw": l.raw,
+        }
+        for l in logs
+    ]
 
 
 @api_router.get("/system-logs/stats")
 async def system_logs_stats(user=Depends(get_current_user)):
-    total = await db.system_logs.count_documents({})
-    errors = await db.system_logs.count_documents({"level": "ERROR"})
-    warns = await db.system_logs.count_documents({"level": "WARN"})
-    by_source = await db.system_logs.aggregate([
-        {"$group": {"_id": "$source", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}
-    ]).to_list(20)
-    by_level = await db.system_logs.aggregate([
-        {"$group": {"_id": "$level", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}
-    ]).to_list(10)
+    async with async_session() as session:
+        total = (await session.execute(select(func.count()).select_from(SystemLog))).scalar() or 0
+        errors = (await session.execute(
+            select(func.count()).select_from(SystemLog).where(SystemLog.level == "ERROR")
+        )).scalar() or 0
+        warns = (await session.execute(
+            select(func.count()).select_from(SystemLog).where(SystemLog.level == "WARN")
+        )).scalar() or 0
+
+        by_source_result = await session.execute(
+            select(SystemLog.source.label("_id"), func.count().label("count"))
+            .group_by(SystemLog.source)
+            .order_by(desc(func.count()))
+            .limit(20)
+        )
+        by_source = [dict(r._mapping) for r in by_source_result.all()]
+
+        by_level_result = await session.execute(
+            select(SystemLog.level.label("_id"), func.count().label("count"))
+            .group_by(SystemLog.level)
+            .order_by(desc(func.count()))
+            .limit(10)
+        )
+        by_level = [dict(r._mapping) for r in by_level_result.all()]
+
     return {"total": total, "errors": errors, "warnings": warns, "by_source": by_source, "by_level": by_level}
 
 
 # ===== AGENT ACTIVITIES (from DB, populated by WebSocket) =====
+def _activity_to_dict(a: AgentActivity) -> dict:
+    return {
+        "id": str(a.id),
+        "agent_id": a.agent_id,
+        "agent_name": a.agent_name,
+        "event_type": a.event_type,
+        "tool_name": a.tool_name or "",
+        "status": a.status,
+        "duration_ms": a.duration_ms or 0,
+        "tokens_in": a.tokens_in or 0,
+        "tokens_out": a.tokens_out or 0,
+        "channel": a.channel or "",
+        "model_used": a.model_used or "",
+        "message": a.message,
+        "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+    }
+
+
 @api_router.get("/activities")
 async def list_activities(
     agent_id: str = Query("", max_length=100),
@@ -1217,43 +1329,79 @@ async def list_activities(
     since_id: str = Query("", max_length=100),
     user=Depends(get_current_user),
 ):
-    query = {}
+    filters = []
     if agent_id:
-        query["agent_id"] = agent_id
+        filters.append(AgentActivity.agent_id == agent_id)
     if event_type:
-        query["event_type"] = event_type
+        filters.append(AgentActivity.event_type == event_type)
     if status:
-        query["status"] = status
+        filters.append(AgentActivity.status == status)
     if since_id:
-        ref = await db.agent_activities.find_one({"id": since_id}, {"_id": 0})
-        if ref:
-            query["timestamp"] = {"$gt": ref["timestamp"]}
-    activities = await db.agent_activities.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
-    return activities
+        async with async_session() as session:
+            ref = (await session.execute(
+                select(AgentActivity).where(AgentActivity.id == uuid.UUID(since_id))
+            )).scalar_one_or_none()
+            if ref:
+                filters.append(AgentActivity.timestamp > ref.timestamp)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(AgentActivity).where(*filters).order_by(desc(AgentActivity.timestamp)).limit(limit)
+        )
+        activities = result.scalars().all()
+    return [_activity_to_dict(a) for a in activities]
 
 
 @api_router.get("/activities/stats")
 async def activities_stats(user=Depends(get_current_user)):
-    pipeline_agent = [
-        {"$group": {"_id": "$agent_name", "count": {"$sum": 1}, "errors": {"$sum": {"$cond": [{"$eq": ["$status", "error"]}, 1, 0]}}}},
-        {"$sort": {"count": -1}}
-    ]
-    pipeline_tools = [
-        {"$match": {"event_type": "tool_call"}},
-        {"$group": {"_id": "$tool_name", "count": {"$sum": 1}, "avg_ms": {"$avg": "$duration_ms"}}},
-        {"$sort": {"count": -1}},
-        {"$limit": 15}
-    ]
-    pipeline_types = [
-        {"$group": {"_id": "$event_type", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}
-    ]
-    agent_stats = await db.agent_activities.aggregate(pipeline_agent).to_list(50)
-    tool_stats = await db.agent_activities.aggregate(pipeline_tools).to_list(15)
-    type_stats = await db.agent_activities.aggregate(pipeline_types).to_list(20)
-    total = await db.agent_activities.count_documents({})
-    running = await db.agent_activities.count_documents({"status": "running"})
-    errors = await db.agent_activities.count_documents({"status": "error"})
+    async with async_session() as session:
+        # By agent: count + errors
+        q_agent = (
+            select(
+                AgentActivity.agent_name.label("_id"),
+                func.count().label("count"),
+                func.sum(case((AgentActivity.status == "error", 1), else_=0)).label("errors"),
+            )
+            .group_by(AgentActivity.agent_name)
+            .order_by(desc(func.count()))
+            .limit(50)
+        )
+        agent_stats = [dict(r._mapping) for r in (await session.execute(q_agent)).all()]
+
+        # By tool
+        q_tools = (
+            select(
+                AgentActivity.tool_name.label("_id"),
+                func.count().label("count"),
+                func.avg(AgentActivity.duration_ms).label("avg_ms"),
+            )
+            .where(AgentActivity.event_type == "tool_call")
+            .group_by(AgentActivity.tool_name)
+            .order_by(desc(func.count()))
+            .limit(15)
+        )
+        tool_stats = [dict(r._mapping) for r in (await session.execute(q_tools)).all()]
+
+        # By type
+        q_types = (
+            select(
+                AgentActivity.event_type.label("_id"),
+                func.count().label("count"),
+            )
+            .group_by(AgentActivity.event_type)
+            .order_by(desc(func.count()))
+            .limit(20)
+        )
+        type_stats = [dict(r._mapping) for r in (await session.execute(q_types)).all()]
+
+        total = (await session.execute(select(func.count()).select_from(AgentActivity))).scalar() or 0
+        running = (await session.execute(
+            select(func.count()).select_from(AgentActivity).where(AgentActivity.status == "running")
+        )).scalar() or 0
+        errors = (await session.execute(
+            select(func.count()).select_from(AgentActivity).where(AgentActivity.status == "error")
+        )).scalar() or 0
+
     return {
         "total": total,
         "running": running,
@@ -1266,60 +1414,90 @@ async def activities_stats(user=Depends(get_current_user)):
 
 @api_router.get("/activities/{activity_id}")
 async def get_activity(activity_id: str, user=Depends(get_current_user)):
-    act = await db.agent_activities.find_one({"id": activity_id}, {"_id": 0})
+    async with async_session() as session:
+        act = (await session.execute(
+            select(AgentActivity).where(AgentActivity.id == uuid.UUID(activity_id))
+        )).scalar_one_or_none()
     if not act:
         raise HTTPException(404, "Activity not found")
-    return act
+    return _activity_to_dict(act)
 
 
-# ===== CLAWHUB MARKETPLACE (kept with MongoDB) =====
+# ===== CLAWHUB MARKETPLACE =====
+def _clawhub_to_dict(s: ClawHubSkill) -> dict:
+    return {
+        "id": s.id,
+        "slug": s.slug,
+        "name": s.name,
+        "description": s.description,
+        "category": s.category,
+        "tags": s.tags or [],
+        "downloads": s.downloads,
+        "version": s.version,
+        "installed": s.installed,
+        "installed_version": s.installed_version,
+    }
+
+
 @api_router.get("/clawhub")
 async def list_clawhub_skills(search: str = Query("", max_length=100), category: str = Query("all"), user=Depends(get_current_user)):
-    query = {}
+    filters = []
     if search:
-        query["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"slug": {"$regex": search, "$options": "i"}},
-            {"description": {"$regex": search, "$options": "i"}},
-            {"tags": {"$regex": search, "$options": "i"}},
-        ]
+        pattern = f"%{search}%"
+        filters.append(or_(
+            ClawHubSkill.name.ilike(pattern),
+            ClawHubSkill.slug.ilike(pattern),
+            ClawHubSkill.description.ilike(pattern),
+        ))
     if category != "all":
-        query["category"] = category
-    return await db.clawhub_skills.find(query, {"_id": 0}).sort("downloads", -1).to_list(200)
+        filters.append(ClawHubSkill.category == category)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(ClawHubSkill).where(*filters).order_by(desc(ClawHubSkill.downloads)).limit(200)
+        )
+        skills = result.scalars().all()
+    return [_clawhub_to_dict(s) for s in skills]
 
 
 @api_router.post("/clawhub/install/{skill_id}")
 async def install_clawhub_skill(skill_id: str, body: dict = None, user=Depends(require_role("admin", "editor"))):
-    skill = await db.clawhub_skills.find_one({"id": skill_id}, {"_id": 0})
-    if not skill:
-        raise HTTPException(404, "Skill not found")
-    # Save env vars to openclaw .env file if provided
-    env_vars = (body or {}).get("env_vars", {})
-    if env_vars:
-        import aiofiles
-        env_file = Path.home() / ".openclaw" / ".env"
-        existing = {}
-        if env_file.exists():
-            async with aiofiles.open(env_file, "r") as f:
-                for line in (await f.read()).splitlines():
-                    if "=" in line and not line.startswith("#"):
-                        k, v = line.split("=", 1)
-                        existing[k.strip()] = v.strip()
-        existing.update(env_vars)
-        async with aiofiles.open(env_file, "w") as f:
-            await f.write("\n".join(f"{k}={v}" for k, v in existing.items()) + "\n")
-    await db.clawhub_skills.update_one({"id": skill_id}, {"$set": {"installed": True, "installed_version": skill["version"]}})
-    await log_activity("install", "clawhub", skill_id, f"Installed skill: {skill['slug']}")
-    return {"status": "installed", "slug": skill["slug"]}
+    async with async_session() as session:
+        skill = await session.get(ClawHubSkill, skill_id)
+        if not skill:
+            raise HTTPException(404, "Skill not found")
+        # Save env vars to openclaw .env file if provided
+        env_vars = (body or {}).get("env_vars", {})
+        if env_vars:
+            import aiofiles
+            env_file = Path.home() / ".openclaw" / ".env"
+            existing = {}
+            if env_file.exists():
+                async with aiofiles.open(env_file, "r") as f:
+                    for line in (await f.read()).splitlines():
+                        if "=" in line and not line.startswith("#"):
+                            k, v = line.split("=", 1)
+                            existing[k.strip()] = v.strip()
+            existing.update(env_vars)
+            async with aiofiles.open(env_file, "w") as f:
+                await f.write("\n".join(f"{k}={v}" for k, v in existing.items()) + "\n")
+        skill.installed = True
+        skill.installed_version = skill.version
+        await session.commit()
+    await log_activity("install", "clawhub", skill_id, f"Installed skill: {skill.slug}")
+    return {"status": "installed", "slug": skill.slug}
 
 
 @api_router.post("/clawhub/uninstall/{skill_id}")
 async def uninstall_clawhub_skill(skill_id: str, user=Depends(require_role("admin", "editor"))):
-    skill = await db.clawhub_skills.find_one({"id": skill_id}, {"_id": 0})
-    if not skill:
-        raise HTTPException(404, "Skill not found")
-    await db.clawhub_skills.update_one({"id": skill_id}, {"$set": {"installed": False, "installed_version": ""}})
-    await log_activity("uninstall", "clawhub", skill_id, f"Uninstalled skill: {skill['slug']}")
+    async with async_session() as session:
+        skill = await session.get(ClawHubSkill, skill_id)
+        if not skill:
+            raise HTTPException(404, "Skill not found")
+        skill.installed = False
+        skill.installed_version = ""
+        await session.commit()
+    await log_activity("uninstall", "clawhub", skill_id, f"Uninstalled skill: {skill.slug}")
     return {"status": "uninstalled"}
 
 
@@ -1547,7 +1725,12 @@ async def ws_activities(websocket: WebSocket):
     try:
         proc = await gateway.logs_stream()
         # Send recent activities from DB on init
-        recent = await db.agent_activities.find({}, {"_id": 0}).sort("timestamp", -1).limit(100).to_list(100)
+        async with async_session() as session:
+            result = await session.execute(
+                select(AgentActivity).order_by(desc(AgentActivity.timestamp)).limit(100)
+            )
+            recent_rows = result.scalars().all()
+        recent = [_activity_to_dict(a) for a in recent_rows]
         await websocket.send_json({"type": "init", "data": recent})
         buffer = []
 
@@ -1577,7 +1760,19 @@ async def ws_activities(websocket: WebSocket):
                             "message": msg,
                         }
                         buffer.append(activity)
-                        await db.agent_activities.insert_one({**activity})
+                        async with async_session() as sess:
+                            sess.add(AgentActivity(
+                                id=uuid.UUID(activity["id"]),
+                                agent_id=activity["agent_id"],
+                                agent_name=activity["agent_name"],
+                                event_type=activity["event_type"],
+                                tool_name=activity["tool_name"] or None,
+                                status=activity["status"],
+                                duration_ms=activity["duration_ms"] or None,
+                                channel=activity["channel"] or None,
+                                message=activity["message"],
+                            ))
+                            await sess.commit()
                 except json.JSONDecodeError:
                     pass
 
@@ -1614,4 +1809,4 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    await engine.dispose()

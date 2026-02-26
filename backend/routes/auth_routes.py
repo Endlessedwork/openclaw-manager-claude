@@ -1,12 +1,15 @@
 from fastapi import APIRouter, HTTPException, Request, Response, Depends
 from pydantic import BaseModel
 from datetime import datetime, timezone
-from bson import ObjectId
+import uuid as _uuid
+
+from sqlmodel import select
 
 from auth import (
     verify_password, create_access_token, create_refresh_token,
     decode_token, get_current_user,
 )
+from models.user import User
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -18,47 +21,48 @@ class LoginRequest(BaseModel):
 
 @auth_router.post("/login")
 async def login(body: LoginRequest, request: Request, response: Response):
-    db = request.app.state.db
-    user = await db.users.find_one({"username": body.username})
-    if not user or not verify_password(body.password, user["hashed_password"]):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    if not user.get("is_active", True):
-        raise HTTPException(status_code=403, detail="Account is disabled")
+    session_factory = request.app.state.async_session
+    async with session_factory() as session:
+        user = (await session.execute(
+            select(User).where(User.username == body.username)
+        )).scalar_one_or_none()
+        if not user or not verify_password(body.password, user.hashed_password):
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account is disabled")
 
-    user_id = str(user["_id"])
-    access_token = create_access_token(user_id, user["username"], user["role"])
-    refresh_token = create_refresh_token(user_id)
+        user_id = str(user.id)
+        access_token = create_access_token(user_id, user.username, user.role)
+        refresh_token = create_refresh_token(user_id)
 
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=7 * 24 * 3600,
-        path="/api/auth",
-    )
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=7 * 24 * 3600,
+            path="/api/auth",
+        )
 
-    await db.users.update_one(
-        {"_id": user["_id"]},
-        {"$set": {"last_login": datetime.now(timezone.utc)}}
-    )
+        user.last_login = datetime.now(timezone.utc)
+        await session.commit()
 
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "user": {
             "id": user_id,
-            "username": user["username"],
-            "name": user["name"],
-            "role": user["role"],
+            "username": user.username,
+            "name": user.name,
+            "role": user.role,
         },
     }
 
 
 @auth_router.post("/refresh")
 async def refresh(request: Request, response: Response):
-    db = request.app.state.db
+    session_factory = request.app.state.async_session
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token")
@@ -67,13 +71,21 @@ async def refresh(request: Request, response: Response):
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Invalid token type")
 
-    user = await db.users.find_one({"_id": ObjectId(payload["sub"]), "is_active": True})
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found or inactive")
+    try:
+        user_uuid = _uuid.UUID(payload["sub"])
+    except (ValueError, KeyError):
+        raise HTTPException(status_code=401, detail="Invalid user ID in token")
 
-    user_id = str(user["_id"])
-    new_access = create_access_token(user_id, user["username"], user["role"])
-    new_refresh = create_refresh_token(user_id)
+    async with session_factory() as session:
+        user = (await session.execute(
+            select(User).where(User.id == user_uuid, User.is_active == True)
+        )).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found or inactive")
+
+        user_id = str(user.id)
+        new_access = create_access_token(user_id, user.username, user.role)
+        new_refresh = create_refresh_token(user_id)
 
     response.set_cookie(
         key="refresh_token",
@@ -90,9 +102,9 @@ async def refresh(request: Request, response: Response):
         "token_type": "bearer",
         "user": {
             "id": user_id,
-            "username": user["username"],
-            "name": user["name"],
-            "role": user["role"],
+            "username": user.username,
+            "name": user.name,
+            "role": user.role,
         },
     }
 
