@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { getWorkspaceUsers, patchWorkspaceUser } from '../lib/api';
-import { UserCircle, RefreshCw, Search, Loader2, Pencil } from 'lucide-react';
+import { UserCircle, RefreshCw, Search, Loader2, Pencil, User, Calendar, Clock, FileText } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -34,6 +35,8 @@ export default function WorkspaceUsersPage() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ role: '', status: '', notes: '' });
   const [saving, setSaving] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailUser, setDetailUser] = useState(null);
   const { canEdit } = useAuth();
 
   const load = async () => {
@@ -69,7 +72,13 @@ export default function WorkspaceUsersPage() {
     return list;
   }, [users, search, filterPlatform, filterRole]);
 
+  const openDetail = (u) => {
+    setDetailUser(u);
+    setDetailOpen(true);
+  };
+
   const openEdit = (u) => {
+    setDetailOpen(false);
     setEditing(u);
     setForm({ role: u.role || 'guest', status: u.status || 'new', notes: u.notes || '' });
     setDialogOpen(true);
@@ -207,10 +216,20 @@ export default function WorkspaceUsersPage() {
             </thead>
             <tbody>
               {filtered.map(u => (
-                <tr key={u._file} className="border-b border-subtle last:border-0 hover:bg-muted/30 transition-colors">
+                <tr key={u._file} className="border-b border-subtle last:border-0 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => openDetail(u)}>
                   <td className="px-4 py-3">
-                    <div className="text-theme-primary font-medium">{u.display_name || 'Unknown'}</div>
-                    <div className="text-theme-faint text-xs font-mono">{u.user_id}</div>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        {u.avatar_url && <AvatarImage src={u.avatar_url} alt={u.display_name} />}
+                        <AvatarFallback className="bg-muted text-theme-faint text-xs">
+                          <User className="w-4 h-4" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="text-theme-primary font-medium">{u.display_name || 'Unknown'}</div>
+                        <div className="text-theme-faint text-xs font-mono">{u.user_id}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3">{platformBadge(u.platform)}</td>
                   <td className="px-4 py-3">{roleBadge(u.role)}</td>
@@ -218,7 +237,7 @@ export default function WorkspaceUsersPage() {
                   <td className="px-4 py-3 text-theme-faint text-xs">{timeAgo(u.last_seen_at)}</td>
                   {canEdit() && (
                     <td className="px-4 py-3 text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(u)}
+                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEdit(u); }}
                         data-testid={`edit-user-${u._file}`}
                         className="text-theme-faint hover:text-orange-400">
                         <Pencil className="w-3.5 h-3.5" />
@@ -231,6 +250,60 @@ export default function WorkspaceUsersPage() {
           </table>
         </div>
       )}
+
+      {/* Detail Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="bg-surface-card border-subtle max-w-md">
+          {detailUser && (
+            <>
+              <div className="flex flex-col items-center gap-3 pt-2">
+                <Avatar className="h-20 w-20">
+                  {detailUser.avatar_url && <AvatarImage src={detailUser.avatar_url} alt={detailUser.display_name} />}
+                  <AvatarFallback className="bg-muted text-theme-faint">
+                    <User className="w-8 h-8" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="text-center">
+                  <h2 className="text-lg font-bold text-theme-primary">{detailUser.display_name || 'Unknown'}</h2>
+                  <p className="text-theme-faint text-xs font-mono mt-0.5">{detailUser.user_id}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {platformBadge(detailUser.platform)}
+                  {roleBadge(detailUser.role)}
+                  {statusBadge(detailUser.status)}
+                </div>
+              </div>
+              <div className="space-y-3 pt-4 border-t border-subtle mt-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <Calendar className="w-4 h-4 text-theme-faint shrink-0" />
+                  <span className="text-theme-faint">Created</span>
+                  <span className="text-theme-primary ml-auto">{detailUser.created_at ? new Date(detailUser.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-theme-faint shrink-0" />
+                  <span className="text-theme-faint">Last seen</span>
+                  <span className="text-theme-primary ml-auto">{timeAgo(detailUser.last_seen_at)}</span>
+                </div>
+                {detailUser.notes && (
+                  <div className="flex gap-2 text-sm">
+                    <FileText className="w-4 h-4 text-theme-faint shrink-0 mt-0.5" />
+                    <span className="text-theme-faint">Notes</span>
+                    <span className="text-theme-secondary ml-auto text-right">{detailUser.notes}</span>
+                  </div>
+                )}
+              </div>
+              {canEdit() && (
+                <div className="flex justify-end pt-3 border-t border-subtle mt-3">
+                  <Button variant="outline" size="sm" onClick={() => openEdit(detailUser)}
+                    className="border-subtle text-theme-secondary hover:text-orange-400">
+                    <Pencil className="w-3.5 h-3.5 mr-2" /> Edit
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
