@@ -30,6 +30,9 @@ from routes.auth_routes import auth_router
 from routes.user_routes import user_router
 from routes.file_routes import file_router
 from routes.workspace_routes import workspace_router
+from routes.conversation_routes import conversation_router
+from routes.session_routes import session_router
+from routes.memory_routes import memory_router
 
 app = FastAPI()
 
@@ -103,6 +106,9 @@ api_router.include_router(auth_router)
 api_router.include_router(user_router)
 api_router.include_router(file_router)
 api_router.include_router(workspace_router)
+api_router.include_router(conversation_router)
+api_router.include_router(session_router)
+api_router.include_router(memory_router)
 
 
 # ===== HELPER =====
