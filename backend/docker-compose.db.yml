@@ -1,0 +1,16 @@
+services:
+  openclaw-postgres:
+    image: postgres:16-alpine
+    container_name: openclaw-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - openclaw_pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: openclaw_manager
+      POSTGRES_USER: openclaw
+      POSTGRES_PASSWORD: oc_pg_s3cur3_2026
+
+volumes:
+  openclaw_pgdata:
