@@ -66,7 +66,7 @@ async def _upsert_daily_usage(daily: list):
                 existing.total_tokens = d.get("totalTokens", 0)
                 existing.total_cost = d.get("totalCost", 0.0)
                 existing.cost_breakdown = cost_breakdown or None
-                existing.updated_at = dt.datetime.now(dt.timezone.utc)
+                existing.updated_at = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
             else:
                 session.add(DailyUsage(
                     date=date_val,

@@ -1,8 +1,9 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy import ARRAY, Text
+from utils import utcnow
 
 
 class KnowledgeArticle(SQLModel, table=True):
@@ -16,5 +17,5 @@ class KnowledgeArticle(SQLModel, table=True):
     status: str = "published"  # draft / published
     created_by: Optional[str] = None
     updated_by: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)

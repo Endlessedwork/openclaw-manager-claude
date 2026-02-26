@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field
+from utils import utcnow
 
 
 class ActivityLog(SQLModel, table=True):
@@ -12,9 +13,7 @@ class ActivityLog(SQLModel, table=True):
     entity_type: str
     entity_id: str = ""
     details: str = ""
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), index=True
-    )
+    timestamp: datetime = Field(default_factory=utcnow, index=True)
 
 
 class AgentActivity(SQLModel, table=True):
@@ -32,9 +31,7 @@ class AgentActivity(SQLModel, table=True):
     channel: Optional[str] = None
     model_used: Optional[str] = None
     message: str = ""
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), index=True
-    )
+    timestamp: datetime = Field(default_factory=utcnow, index=True)
 
 
 class SystemLog(SQLModel, table=True):
@@ -45,6 +42,4 @@ class SystemLog(SQLModel, table=True):
     source: str = Field(default="", index=True)
     message: str = ""
     raw: str = ""
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), index=True
-    )
+    timestamp: datetime = Field(default_factory=utcnow, index=True)

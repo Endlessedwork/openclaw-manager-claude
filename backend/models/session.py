@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field
+from utils import utcnow
 
 
 class Session(SQLModel, table=True):
@@ -15,6 +16,6 @@ class Session(SQLModel, table=True):
     model_used: Optional[str] = None
     total_tokens: int = 0
     status: str = Field(default="active", index=True)  # active / ended / reset
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    last_activity_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = Field(default_factory=utcnow)
+    last_activity_at: datetime = Field(default_factory=utcnow)
     context_summary: Optional[str] = None

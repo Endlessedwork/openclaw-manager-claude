@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field
+from utils import utcnow
 
 
 class User(SQLModel, table=True):
@@ -13,6 +14,6 @@ class User(SQLModel, table=True):
     name: str
     role: str = Field(default="viewer")  # admin / editor / viewer
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
     last_login: Optional[datetime] = None

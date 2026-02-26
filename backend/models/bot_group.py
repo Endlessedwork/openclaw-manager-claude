@@ -1,8 +1,9 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy import JSON
+from utils import utcnow
 
 
 class BotGroup(SQLModel, table=True):
@@ -17,5 +18,5 @@ class BotGroup(SQLModel, table=True):
     members: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     assigned_agent_id: Optional[str] = None
     meta: Optional[dict] = Field(default=None, sa_column=Column("metadata", JSON))
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)

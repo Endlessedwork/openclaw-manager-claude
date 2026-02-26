@@ -1,8 +1,9 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy import JSON
+from utils import utcnow
 
 
 class Conversation(SQLModel, table=True):
@@ -19,6 +20,4 @@ class Conversation(SQLModel, table=True):
     message: str = ""
     message_type: str = "text"  # text / image / tool_call / tool_result
     meta: Optional[dict] = Field(default=None, sa_column=Column("metadata", JSON))
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), index=True
-    )
+    timestamp: datetime = Field(default_factory=utcnow, index=True)

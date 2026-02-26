@@ -3,6 +3,9 @@ from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
+# Re-export utcnow for backward compatibility
+from utils import utcnow  # noqa: F401
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 engine = create_async_engine(DATABASE_URL, echo=False, pool_size=10, max_overflow=20)

@@ -1,8 +1,9 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional, Any
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy import JSON
+from utils import utcnow
 
 
 class BotUser(SQLModel, table=True):
@@ -19,5 +20,5 @@ class BotUser(SQLModel, table=True):
     meta: Optional[dict] = Field(default=None, sa_column=Column("metadata", JSON))
     first_seen_at: Optional[datetime] = None
     last_seen_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)

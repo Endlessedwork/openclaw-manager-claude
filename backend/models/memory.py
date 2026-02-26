@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field
+from utils import utcnow
 
 
 class AgentMemory(SQLModel, table=True):
@@ -15,5 +16,5 @@ class AgentMemory(SQLModel, table=True):
     source_session_id: Optional[uuid.UUID] = Field(default=None, foreign_key="sessions.id")
     relevance_score: Optional[float] = None
     # embedding: pgvector column — add later via Alembic migration
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)

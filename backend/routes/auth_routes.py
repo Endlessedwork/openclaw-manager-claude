@@ -45,7 +45,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
             path="/api/auth",
         )
 
-        user.last_login = datetime.now(timezone.utc)
+        user.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
         await session.commit()
 
     return {

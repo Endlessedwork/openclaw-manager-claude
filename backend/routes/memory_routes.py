@@ -106,7 +106,7 @@ async def update_memory(
             entry.source = body.source
         if body.relevance_score is not None:
             entry.relevance_score = body.relevance_score
-        entry.updated_at = datetime.now(timezone.utc)
+        entry.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await session.commit()
         await session.refresh(entry)
     return _memory_to_dict(entry)
