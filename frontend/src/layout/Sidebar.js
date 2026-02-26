@@ -308,9 +308,16 @@ export default function Sidebar({ isMobileMenuOpen, onClose }) {
         </div>
       )}
 
+      {/* Version label */}
+      <div className={`px-3 pb-1 ${!isMobile && collapsed ? 'text-center' : ''}`}>
+        <span className="text-[10px] text-theme-faint/40 tracking-wider font-mono">
+          {(isMobile || !collapsed) ? 'W.I.N.E. 3.0' : '3.0'}
+        </span>
+      </div>
+
       {/* Collapse Toggle — desktop only */}
       {!isMobile && (
-        <div className="px-2 pb-4 pt-2 border-t border-subtle">
+        <div className="px-2 pb-4 pt-1 border-t border-subtle">
           <Button
             data-testid="sidebar-toggle"
             variant="ghost"

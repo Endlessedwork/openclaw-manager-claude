@@ -21,6 +21,8 @@ async def list_workspace_users(user=Depends(get_current_user)):
     return [
         {
             "id": str(u.id),
+            "_file": str(u.id),
+            "user_id": u.platform_user_id,
             "platform_user_id": u.platform_user_id,
             "platform": u.platform,
             "display_name": u.display_name,
@@ -64,6 +66,8 @@ async def patch_workspace_user(
         await session.refresh(bot_user)
     return {
         "id": str(bot_user.id),
+        "_file": str(bot_user.id),
+        "user_id": bot_user.platform_user_id,
         "platform_user_id": bot_user.platform_user_id,
         "platform": bot_user.platform,
         "display_name": bot_user.display_name,
@@ -87,9 +91,12 @@ async def list_workspace_groups(user=Depends(get_current_user)):
     return [
         {
             "id": str(g.id),
+            "_file": str(g.id),
+            "group_id": g.platform_group_id,
             "platform_group_id": g.platform_group_id,
-            "platform": g.platform,
+            "group_name": g.name,
             "name": g.name,
+            "platform": g.platform,
             "status": g.status,
             "member_count": g.member_count,
             "members": g.members,
@@ -128,9 +135,12 @@ async def patch_workspace_group(
         await session.refresh(group)
     return {
         "id": str(group.id),
+        "_file": str(group.id),
+        "group_id": group.platform_group_id,
         "platform_group_id": group.platform_group_id,
-        "platform": group.platform,
+        "group_name": group.name,
         "name": group.name,
+        "platform": group.platform,
         "status": group.status,
         "member_count": group.member_count,
         "members": group.members,

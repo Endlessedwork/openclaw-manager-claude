@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime, timezone
+from utils import utcnow
 import uuid as _uuid
 
 from sqlmodel import select
@@ -104,7 +104,7 @@ async def update_user(user_id: str, body: UpdateUserRequest, request: Request, u
             target.is_active = body.is_active
         if body.password is not None:
             target.hashed_password = hash_password(body.password)
-        target.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        target.updated_at = utcnow()
         await session.commit()
 
     return {"status": "ok", "id": user_id}

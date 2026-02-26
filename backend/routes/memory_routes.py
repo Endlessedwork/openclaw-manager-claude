@@ -1,5 +1,5 @@
 import uuid as _uuid
-from datetime import datetime, timezone
+from utils import utcnow
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
@@ -106,7 +106,7 @@ async def update_memory(
             entry.source = body.source
         if body.relevance_score is not None:
             entry.relevance_score = body.relevance_score
-        entry.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        entry.updated_at = utcnow()
         await session.commit()
         await session.refresh(entry)
     return _memory_to_dict(entry)

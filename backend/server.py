@@ -20,6 +20,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 from database import engine, async_session
+from utils import utcnow
 from models.usage import DailyUsage
 from models.activity import ActivityLog, AgentActivity, SystemLog
 from models.fallback import AgentFallback
@@ -66,7 +67,7 @@ async def _upsert_daily_usage(daily: list):
                 existing.total_tokens = d.get("totalTokens", 0)
                 existing.total_cost = d.get("totalCost", 0.0)
                 existing.cost_breakdown = cost_breakdown or None
-                existing.updated_at = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+                existing.updated_at = utcnow()
             else:
                 session.add(DailyUsage(
                     date=date_val,
@@ -969,8 +970,8 @@ async def get_usage_cost(
         date_start, date_end = start, end
     else:
         d = days or 30
-        date_end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        date_start = (datetime.now(timezone.utc) - timedelta(days=d - 1)).strftime("%Y-%m-%d")
+        date_end = utcnow().strftime("%Y-%m-%d")
+        date_start = (utcnow() - timedelta(days=d - 1)).strftime("%Y-%m-%d")
 
     # Read from PostgreSQL
     start_date = dt.date.fromisoformat(date_start)
@@ -1024,7 +1025,7 @@ async def get_usage_breakdown(
         base_filter.append(AgentActivity.timestamp <= end)
     else:
         d = days or 30
-        cutoff = datetime.now(timezone.utc) - timedelta(days=d)
+        cutoff = utcnow() - timedelta(days=d)
         base_filter.append(AgentActivity.timestamp >= cutoff)
 
     async with async_session() as session:
@@ -1605,7 +1606,7 @@ def _collect_system_health():
     # Uptime & boot time
     boot_time_ts = psutil.boot_time()
     uptime_seconds = round(time.time() - boot_time_ts)
-    boot_time_iso = datetime.fromtimestamp(boot_time_ts, tz=timezone.utc).isoformat()
+    boot_time_iso = datetime.fromtimestamp(boot_time_ts).isoformat()
 
     # Temperatures (not available on all systems)
     temperatures = None
@@ -1684,7 +1685,7 @@ async def ws_logs(websocket: WebSocket):
                 except json.JSONDecodeError:
                     buffer.append({
                         "id": str(uuid.uuid4()),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": utcnow().isoformat(),
                         "level": "INFO",
                         "source": "gateway",
                         "message": text,

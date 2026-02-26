@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Response, Depends
 from pydantic import BaseModel
-from datetime import datetime, timezone
+from utils import utcnow
 import uuid as _uuid
 
 from sqlmodel import select
@@ -45,7 +45,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
             path="/api/auth",
         )
 
-        user.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
+        user.last_login = utcnow()
         await session.commit()
 
     return {

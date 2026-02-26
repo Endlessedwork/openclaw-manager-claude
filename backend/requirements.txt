@@ -28,3 +28,5 @@ sqlmodel>=0.0.22
 asyncpg>=0.30.0
 alembic>=1.14.0
 greenlet>=3.0.0
+aiofiles>=23.2.1
+websockets>=12.0
