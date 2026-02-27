@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getDashboard } from '../lib/api';
-import { Activity, Bot, Zap, Radio, MessageSquare, Cpu, Clock, Server } from 'lucide-react';
+import { Activity, Bot, Zap, Radio, MessageSquare, Cpu, Clock, Server, AlertTriangle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 function StatCard({ icon: Icon, label, value, sub, color = 'orange' }) {
@@ -78,6 +79,20 @@ export default function DashboardPage() {
           </div>
         );
       })()}
+
+      {/* Fallback Alert */}
+      {data?.fallback_sessions > 0 && (
+        <Link to="/sessions" className="block">
+          <div className="flex items-center gap-3 px-5 py-4 rounded-lg border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition-colors cursor-pointer">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div className="text-sm flex-1">
+              <span className="text-amber-400 font-semibold">{data.fallback_sessions} session{data.fallback_sessions > 1 ? 's' : ''}</span>
+              <span className="text-theme-faint"> using fallback models instead of primary</span>
+            </div>
+            <span className="text-xs text-theme-dimmed">View →</span>
+          </div>
+        </Link>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">

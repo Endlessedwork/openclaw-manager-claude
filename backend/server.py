@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, Depends, Body
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
@@ -130,17 +130,38 @@ async def _build_dashboard():
         gateway.skills(),
         gateway.cron_jobs(),
         gateway.config_read(),
+        gateway.sessions(),
         return_exceptions=True,
     )
     health = results[0] if not isinstance(results[0], Exception) else {}
     skills = results[1] if not isinstance(results[1], Exception) else {}
     cron = results[2] if not isinstance(results[2], Exception) else {}
     config = results[3] if not isinstance(results[3], Exception) else {}
+    sessions_raw = results[4] if not isinstance(results[4], Exception) else {}
     skill_list = skills.get("skills", [])
     active_skills = [s for s in skill_list if s.get("eligible") and not s.get("disabled")]
     channel_list = health.get("channels", {})
     active_channels = [k for k, v in channel_list.items() if v.get("configured")]
     session_data = health.get("sessions", {})
+
+    # Count fallback sessions
+    primary = config.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
+    agent_overrides = {
+        a["id"]: a["model"]
+        for a in config.get("agents", {}).get("list", [])
+        if a.get("model") and isinstance(a["model"], str)
+    }
+    fallback_count = 0
+    for s in sessions_raw.get("sessions", []):
+        key = s.get("key", "")
+        agent = key.split(":")[1] if ":" in key else "main"
+        expected = agent_overrides.get(agent, primary)
+        actual = s.get("model", "")
+        actual_short = actual.split("/")[-1] if actual else ""
+        expected_short = expected.split("/")[-1] if expected else ""
+        if actual_short and actual_short != expected_short:
+            fallback_count += 1
+
     return {
         "agents": len(health.get("agents", [])),
         "skills": {"total": len(skill_list), "active": len(active_skills)},
@@ -149,6 +170,7 @@ async def _build_dashboard():
         "cron_jobs": len(cron.get("jobs", [])),
         "model_providers": len(config.get("models", {}).get("providers", {})),
         "gateway_status": "running" if health.get("ok") else "offline",
+        "fallback_sessions": fallback_count,
         "recent_activity": [],
     }
 
@@ -937,24 +959,46 @@ async def update_channel(channel_id: str, body: dict, user=Depends(require_role(
 # ===== SESSIONS (from CLI) =====
 @api_router.get("/sessions")
 async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current_user)):
-    raw = await gateway.sessions()
+    raw, cfg = await asyncio.gather(gateway.sessions(), gateway.config_read())
     sessions = raw.get("sessions", [])[:limit]
-    return [
-        {
+
+    # Resolve expected model per agent
+    primary = (
+        cfg.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
+    )
+    agent_overrides = {
+        a["id"]: a["model"]
+        for a in cfg.get("agents", {}).get("list", [])
+        if a.get("model") and isinstance(a["model"], str)
+    }
+
+    result = []
+    for s in sessions:
+        key = s.get("key", "")
+        agent = key.split(":")[1] if ":" in key else "main"
+        expected = agent_overrides.get(agent, primary)
+        actual = s.get("model", "")
+        # Compare short names (strip provider prefix)
+        actual_short = actual.split("/")[-1] if actual else ""
+        expected_short = expected.split("/")[-1] if expected else ""
+        is_fallback = bool(actual_short) and actual_short != expected_short
+
+        result.append({
             "id": s.get("sessionId", s.get("key")),
-            "session_key": s["key"],
+            "session_key": key,
             "kind": s.get("kind", "direct"),
-            "agent": s["key"].split(":")[1] if ":" in s["key"] else "main",
-            "channel": s["key"].split(":")[2] if s["key"].count(":") >= 2 else "",
-            "model": s.get("model", ""),
+            "agent": agent,
+            "channel": key.split(":")[2] if key.count(":") >= 2 else "",
+            "model": actual,
+            "is_fallback": is_fallback,
+            "primary_model": expected,
             "total_tokens": s.get("totalTokens", 0),
             "context_tokens": s.get("contextTokens", 0),
             "updated_at": s.get("updatedAt"),
             "age_ms": s.get("ageMs", 0),
             "message_count": (s.get("inputTokens", 0) + s.get("outputTokens", 0)) // 100,
-        }
-        for s in sessions
-    ]
+        })
+    return result
 
 
 # ===== USAGE ANALYTICS =====
@@ -1212,6 +1256,141 @@ async def get_hook_mappings(user=Depends(get_current_user)):
         }
         for i, m in enumerate(mappings)
     ]
+
+
+# ===== BINDINGS (agent-group routing in openclaw.json) =====
+@api_router.get("/bindings")
+async def get_bindings(user=Depends(get_current_user)):
+    config = await gateway.config_read()
+    bindings = config.get("bindings", [])
+
+    # Resolve group names from DB
+    # DB stores as "line_C0e9b8fa..." but bindings use just "C0e9b8fa..."
+    group_names = {}
+    async with async_session() as session:
+        from models.bot_group import BotGroup
+        result = await session.execute(select(BotGroup))
+        for g in result.scalars().all():
+            group_names[g.platform_group_id] = g.name
+            # Also map without platform prefix (e.g. "line_Cxxx" → map "Cxxx" too)
+            if "_" in g.platform_group_id:
+                short_id = g.platform_group_id.split("_", 1)[1]
+                group_names[short_id] = g.name
+
+    # Also build agents list for display
+    agents_list = config.get("agents", {}).get("list", [])
+    agent_names = {}
+    for a in agents_list:
+        aid = a.get("id", "")
+        identity = a.get("identity", {})
+        agent_names[aid] = identity.get("name", aid)
+
+    results = []
+    for i, b in enumerate(bindings):
+        match = b.get("match", {})
+        peer = match.get("peer", {})
+        raw_id = peer.get("id", "")
+        # bindings use "group:C0e9b8fa..." format, strip prefix
+        group_id = raw_id.replace("group:", "") if raw_id.startswith("group:") else raw_id
+        agent_id = b.get("agentId", "main")
+        results.append({
+            "id": str(i),
+            "agent_id": agent_id,
+            "agent_name": agent_names.get(agent_id, agent_id),
+            "channel": match.get("channel", ""),
+            "group_id": group_id,
+            "group_name": group_names.get(group_id, group_id[:12] + "..."),
+        })
+    return results
+
+
+@api_router.get("/bindings/options")
+async def get_binding_options(user=Depends(get_current_user)):
+    """Return available groups and agents for binding dropdowns."""
+    config = await gateway.config_read()
+    agents_list = config.get("agents", {}).get("list", [])
+    agents = []
+    for a in agents_list:
+        aid = a.get("id", "")
+        identity = a.get("identity", {})
+        agents.append({"id": aid, "name": identity.get("name", aid), "emoji": identity.get("emoji", "")})
+
+    async with async_session() as session:
+        from models.bot_group import BotGroup
+        result = await session.execute(select(BotGroup))
+        groups = [
+            {
+                "id": g.platform_group_id.split("_", 1)[1] if "_" in g.platform_group_id else g.platform_group_id,
+                "name": g.name or g.platform_group_id,
+                "platform": g.platform,
+            }
+            for g in result.scalars().all()
+        ]
+    return {"agents": agents, "groups": groups}
+
+
+@api_router.post("/bindings")
+async def create_binding(body: dict = Body(...), user=Depends(require_role("admin", "editor"))):
+    agent_id = body.get("agent_id", "").strip()
+    group_id = body.get("group_id", "").strip()
+    channel = body.get("channel", "line").strip()
+    if not agent_id or not group_id:
+        raise HTTPException(400, "agent_id and group_id are required")
+
+    config = await gateway.config_read()
+    if "bindings" not in config:
+        config["bindings"] = []
+    config["bindings"].append({
+        "agentId": agent_id,
+        "match": {
+            "channel": channel,
+            "peer": {"kind": "group", "id": f"group:{group_id}"}
+        }
+    })
+    await gateway.config_write(config)
+    await log_activity("create", "binding", group_id, f"Bound group {group_id} to agent {agent_id}")
+    return {"status": "ok", "restart_needed": True}
+
+
+@api_router.put("/bindings/{binding_id}")
+async def update_binding(binding_id: str, body: dict = Body(...), user=Depends(require_role("admin", "editor"))):
+    idx = int(binding_id)
+    config = await gateway.config_read()
+    bindings = config.get("bindings", [])
+    if idx < 0 or idx >= len(bindings):
+        raise HTTPException(404, "Binding not found")
+
+    agent_id = body.get("agent_id", "").strip()
+    group_id = body.get("group_id", "").strip()
+    channel = body.get("channel", "line").strip()
+    if not agent_id or not group_id:
+        raise HTTPException(400, "agent_id and group_id are required")
+
+    bindings[idx] = {
+        "agentId": agent_id,
+        "match": {
+            "channel": channel,
+            "peer": {"kind": "group", "id": f"group:{group_id}"}
+        }
+    }
+    await gateway.config_write(config)
+    await log_activity("update", "binding", group_id, f"Updated binding: group {group_id} → agent {agent_id}")
+    return {"status": "ok", "restart_needed": True}
+
+
+@api_router.delete("/bindings/{binding_id}")
+async def delete_binding(binding_id: str, user=Depends(require_role("admin", "editor"))):
+    idx = int(binding_id)
+    config = await gateway.config_read()
+    bindings = config.get("bindings", [])
+    if idx < 0 or idx >= len(bindings):
+        raise HTTPException(404, "Binding not found")
+
+    removed = bindings.pop(idx)
+    await gateway.config_write(config)
+    gid = removed.get("match", {}).get("peer", {}).get("id", "")
+    await log_activity("delete", "binding", gid, f"Removed binding for {gid}")
+    return {"status": "ok", "restart_needed": True}
 
 
 # ===== ACTIVITY LOGS =====
