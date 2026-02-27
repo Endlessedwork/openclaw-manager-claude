@@ -45,6 +45,8 @@ export const updateChannel = (id, data) => api.put(`/channels/${id}`, data);
 
 // Sessions (read-only)
 export const getSessions = (limit = 50) => api.get(`/sessions?limit=${limit}`);
+export const getSessionConversations = (sessionKey) =>
+  api.get(`/conversations/by-session-key?session_key=${encodeURIComponent(sessionKey)}`);
 
 // Usage analytics
 export const getUsageCost = (params = {}) => {

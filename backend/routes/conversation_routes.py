@@ -6,6 +6,8 @@ from sqlalchemy import desc
 from auth import get_current_user
 from database import async_session
 from models.conversation import Conversation
+from models.session import Session
+from models.bot_user import BotUser
 
 conversation_router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -61,18 +63,56 @@ async def list_conversations(
     return [_conversation_to_dict(c) for c in rows]
 
 
-@conversation_router.get("/{conversation_id}")
-async def get_conversation(conversation_id: str, user=Depends(get_current_user)):
-    try:
-        cid = _uuid.UUID(conversation_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid conversation ID")
-
+@conversation_router.get("/by-session-key")
+async def get_conversations_by_session_key(
+    session_key: str = Query(..., min_length=1, max_length=300),
+    limit: int = Query(500, ge=1, le=2000),
+    user=Depends(get_current_user),
+):
     async with async_session() as session:
-        conv = await session.get(Conversation, cid)
-    if not conv:
-        raise HTTPException(404, "Conversation message not found")
-    return _conversation_to_dict(conv)
+        result = await session.execute(
+            select(Session).where(Session.session_key == session_key)
+        )
+        sess = result.scalar_one_or_none()
+        if not sess:
+            return []
+        result = await session.execute(
+            select(Conversation)
+            .where(Conversation.session_id == sess.id)
+            .order_by(Conversation.timestamp)
+            .limit(limit)
+        )
+        convos = result.scalars().all()
+
+        # Look up user profiles by sender_platform_id.
+        # Both tables now use raw IDs (e.g. "U...", "123") — no platform prefix.
+        platform_ids = {
+            c.sender_platform_id
+            for c in convos
+            if c.sender_platform_id
+        }
+        user_lookup: dict = {}
+        if platform_ids:
+            result = await session.execute(
+                select(BotUser).where(
+                    BotUser.platform_user_id.in_(platform_ids)
+                )
+            )
+            for bu in result.scalars().all():
+                user_lookup[bu.platform_user_id] = {
+                    "display_name": bu.display_name,
+                    "avatar_url": bu.avatar_url,
+                }
+
+        enriched = []
+        for c in convos:
+            d = _conversation_to_dict(c)
+            profile = user_lookup.get(c.sender_platform_id, {})
+            d["display_name"] = profile.get("display_name", "")
+            d["avatar_url"] = profile.get("avatar_url")
+            enriched.append(d)
+
+        return enriched
 
 
 @conversation_router.get("/session/{session_id}")
@@ -95,3 +135,17 @@ async def get_session_conversations(
         )
         rows = result.scalars().all()
     return [_conversation_to_dict(c) for c in rows]
+
+
+@conversation_router.get("/{conversation_id}")
+async def get_conversation(conversation_id: str, user=Depends(get_current_user)):
+    try:
+        cid = _uuid.UUID(conversation_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid conversation ID")
+
+    async with async_session() as session:
+        conv = await session.get(Conversation, cid)
+    if not conv:
+        raise HTTPException(404, "Conversation message not found")
+    return _conversation_to_dict(conv)

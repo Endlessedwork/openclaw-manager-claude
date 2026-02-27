@@ -123,14 +123,18 @@ async def import_bot_users(session: AsyncSession) -> int:
             print(f"  [WARN] Skipping {fpath.name}: {exc}")
             continue
 
-        # The JSON files use "user_id" (not "platform_user_id")
+        # Use raw user_id without platform prefix — the `platform` column
+        # already stores "line"/"telegram"/etc. separately.
         platform_user_id = data.get("user_id", "")
-        platform = data.get("platform", "")
-        if platform and platform_user_id:
-            platform_user_id = f"{platform}_{platform_user_id}"
-        elif not platform_user_id:
-            # Derive from filename, e.g. "line_U2191ce..." or "telegram_5386..."
-            platform_user_id = fpath.stem
+        if not platform_user_id:
+            # Derive from filename, stripping any platform prefix
+            # e.g. "line_U2191ce..." → "U2191ce..."
+            stem = fpath.stem
+            platform = data.get("platform", "")
+            if platform and stem.startswith(f"{platform}_"):
+                platform_user_id = stem[len(platform) + 1 :]
+            else:
+                platform_user_id = stem
 
         # Determine first_seen_at and last_seen_at
         first_seen = parse_iso(data.get("first_seen_at") or data.get("created_at"))
@@ -199,13 +203,17 @@ async def import_bot_groups(session: AsyncSession) -> int:
             print(f"  [WARN] Skipping {fpath.name}: {exc}")
             continue
 
-        # The JSON files use "group_id" (not "platform_group_id")
+        # Use raw group_id without platform prefix — the `platform` column
+        # already stores "line"/"telegram"/etc. separately.
         platform_group_id = data.get("group_id", "")
-        platform = data.get("platform", "")
-        if platform and platform_group_id:
-            platform_group_id = f"{platform}_{platform_group_id}"
-        elif not platform_group_id:
-            platform_group_id = fpath.stem
+        if not platform_group_id:
+            # Derive from filename, stripping any platform prefix
+            stem = fpath.stem
+            platform = data.get("platform", "")
+            if platform and stem.startswith(f"{platform}_"):
+                platform_group_id = stem[len(platform) + 1 :]
+            else:
+                platform_group_id = stem
 
         members = data.get("members", {})
         member_count = len(members) if isinstance(members, dict) else 0

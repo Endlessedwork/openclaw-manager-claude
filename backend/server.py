@@ -1057,11 +1057,56 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
         if a.get("model") and isinstance(a["model"], str)
     }
 
+    # Extract platform IDs from session keys to resolve display names
+    # Key format: agent:<agent>:<channel>:<kind>:<id>
+    direct_ids = set()
+    group_ids = set()
+    for s in sessions:
+        key = s.get("key", "")
+        parts = key.split(":")
+        if len(parts) >= 5:
+            kind = parts[3]
+            pid = parts[-1]
+            if kind == "direct":
+                direct_ids.add(pid)
+            elif kind == "group":
+                group_ids.add(pid)
+
+    # Batch-lookup display names from PostgreSQL
+    # Session keys use lowercase IDs but DB stores with original case (e.g. U..., C...)
+    # so we use case-insensitive matching via func.lower()
+    user_names = {}  # lowercase pid -> display_name
+    group_names = {}  # lowercase pid -> name
+    if direct_ids or group_ids:
+        from models.bot_user import BotUser
+        from models.bot_group import BotGroup
+        async with async_session() as db:
+            if direct_ids:
+                res = await db.execute(
+                    select(BotUser.platform_user_id, BotUser.display_name)
+                    .where(func.lower(BotUser.platform_user_id).in_([x.lower() for x in direct_ids]))
+                )
+                user_names = {r[0].lower(): r[1] for r in res.all() if r[1]}
+            if group_ids:
+                res = await db.execute(
+                    select(BotGroup.platform_group_id, BotGroup.name)
+                    .where(func.lower(BotGroup.platform_group_id).in_([x.lower() for x in group_ids]))
+                )
+                group_names = {r[0].lower(): r[1] for r in res.all() if r[1]}
+
     result = []
     for s in sessions:
         key = s.get("key", "")
         agent = key.split(":")[1] if ":" in key else "main"
         expected = agent_overrides.get(agent, primary)
+        parts = key.split(":")
+        kind = parts[3] if len(parts) >= 4 else s.get("kind", "direct")
+        pid = parts[-1] if len(parts) >= 5 else ""
+        display_name = ""
+        if kind == "direct":
+            display_name = user_names.get(pid.lower(), "")
+        elif kind == "group":
+            display_name = group_names.get(pid.lower(), "")
         result.append({
             "id": s.get("sessionId", s.get("key")),
             "session_key": key,
@@ -1076,6 +1121,7 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
             "updated_at": s.get("updatedAt"),
             "age_ms": s.get("ageMs", 0),
             "message_count": (s.get("inputTokens", 0) + s.get("outputTokens", 0)) // 100,
+            "display_name": display_name,
         })
     return result
 

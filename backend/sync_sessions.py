@@ -162,7 +162,7 @@ async def sync_all():
                 print(f"  Skipping non-UUID file: {jsonl_path.name}")
                 continue
 
-            # Check if session already exists in DB
+            # Check if session already exists in DB (by UUID or by session_key)
             async with async_session() as session:
                 existing = await session.get(Session, session_uuid)
                 if existing:
@@ -276,6 +276,27 @@ async def sync_all():
 
             # Create session and conversation records
             async with async_session() as session:
+                # Check if a session with this key already exists (different UUID, same chat room)
+                existing_by_key = await session.execute(
+                    select(Session).where(Session.session_key == session_key)
+                )
+                existing_sess = existing_by_key.scalar_one_or_none()
+
+                if existing_sess:
+                    # Reuse existing session — update metadata, append conversations
+                    target_session_id = existing_sess.id
+                    existing_sess.model_used = model_used or existing_sess.model_used
+                    existing_sess.total_tokens = max(total_tokens, existing_sess.total_tokens)
+                    if last_ts and last_ts > existing_sess.last_activity_at:
+                        existing_sess.last_activity_at = last_ts
+                    for msg in messages:
+                        msg.session_id = target_session_id
+                        session.add(msg)
+                    await session.commit()
+                    total_messages += len(messages)
+                    print(f"  Appended: {jsonl_path.name} ({len(messages)} messages to existing key={session_key})")
+                    continue
+
                 new_session = Session(
                     id=session_uuid,
                     session_key=session_key,

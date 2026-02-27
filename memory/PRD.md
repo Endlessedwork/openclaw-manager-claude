@@ -5,8 +5,9 @@
 
 ## Architecture
 - **Frontend**: React + Tailwind CSS + shadcn/ui (Dark theme, "Tech-Noir" aesthetic)
-- **Backend**: FastAPI + MongoDB (Motor async driver)
-- **Database**: MongoDB with collections: agents, skills, tools_config, model_providers, channels, sessions, cron_jobs, gateway_config, activity_logs
+- **Backend**: FastAPI + MongoDB (Motor async driver) + PostgreSQL (SQLAlchemy async + SQLModel)
+- **Database (MongoDB)**: collections: `users`, `activity_logs`, `agent_activities`, `system_logs`, `clawhub_skills`
+- **Database (PostgreSQL)**: tables: `sessions`, `conversations`, `bot_users`, `bot_groups` — persistent bot data synced from gateway files
 
 ## User Personas
 1. **System Administrator** - Manages OpenClaw gateway, channels, and security policies
@@ -31,12 +32,15 @@
 - [x] Tools configuration (categories, allow/deny, tool groups reference, enable/disable)
 - [x] Model providers (provider catalog, models, API keys, primary/fallback, toggle)
 - [x] Channels (10+ channel types, DM policies, group policies, enable/disable)
-- [x] Sessions (list, details, peer/channel info, delete)
+- [x] Sessions (list, details, peer/channel info, delete, **chat transcript viewer with user profile thumbnails**)
 - [x] Cron Jobs (schedule, task, agent, concurrent limits, toggle)
 - [x] Config editor (raw JSON5 editor, config reference, settings overview)
 - [x] Gateway (status, restart, activity logs viewer)
 - [x] Sidebar navigation with collapse/expand
 - [x] Seed data with realistic OpenClaw defaults
+- [x] Workspace management (Bot Users, Groups, Knowledge Base, Documents)
+- [x] Live session chat viewer (slide-in panel with profile avatars, tool call display, enriched messages)
+- [x] Real-time WebSocket logs and activities streaming
 
 ## Testing Results
 - Backend: 100% (35/35 tests passed)
@@ -49,10 +53,10 @@
 - All core CRUD operations
 - Dashboard overview
 - Gateway monitoring
+- Real-time WebSocket connection to OpenClaw gateway (logs + activities)
+- Live session transcript viewer with profile enrichment
 
 ### P1
-- Real-time WebSocket connection to OpenClaw gateway
-- Live session transcript viewer
 - Config validation before save
 - Import/export configuration
 
@@ -65,8 +69,8 @@
 - Node management (macOS/iOS/Android)
 
 ## Next Tasks
-1. Connect to real OpenClaw gateway via WebSocket for live data
-2. Add config validation and schema-aware editor
-3. Implement webhook/hooks management UI
-4. Add session transcript history viewer
-5. Add real-time notifications for gateway events
+1. Add config validation and schema-aware editor
+2. Implement webhook/hooks management UI
+3. Add real-time notifications for gateway events
+4. Session analytics charts
+5. Import/export configuration
