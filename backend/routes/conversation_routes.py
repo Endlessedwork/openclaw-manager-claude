@@ -1,7 +1,7 @@
 import uuid as _uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import select
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 
 from auth import get_current_user
 from database import async_session
@@ -93,13 +93,16 @@ async def get_conversations_by_session_key(
         }
         user_lookup: dict = {}
         if platform_ids:
+            # Case-insensitive matching: session keys use lowercase IDs
+            # but bot_users stores original case (e.g. "Ubc9c7dda..." vs "ubc9c7dda...")
+            lower_ids = [pid.lower() for pid in platform_ids]
             result = await session.execute(
                 select(BotUser).where(
-                    BotUser.platform_user_id.in_(platform_ids)
+                    func.lower(BotUser.platform_user_id).in_(lower_ids)
                 )
             )
             for bu in result.scalars().all():
-                user_lookup[bu.platform_user_id] = {
+                user_lookup[bu.platform_user_id.lower()] = {
                     "display_name": bu.display_name,
                     "avatar_url": bu.avatar_url,
                 }
@@ -107,7 +110,7 @@ async def get_conversations_by_session_key(
         enriched = []
         for c in convos:
             d = _conversation_to_dict(c)
-            profile = user_lookup.get(c.sender_platform_id, {})
+            profile = user_lookup.get((c.sender_platform_id or "").lower(), {})
             d["display_name"] = profile.get("display_name", "")
             d["avatar_url"] = profile.get("avatar_url")
             enriched.append(d)

@@ -489,8 +489,10 @@ async def main():
     # Verify counts in DB
     print()
     print("Verification (row counts in database):")
+    # Table names are hardcoded — safe from injection
+    _VERIFY_TABLES = ["bot_users", "bot_groups", "knowledge_articles", "workspace_documents"]
     async with engine.connect() as conn:
-        for table in ["bot_users", "bot_groups", "knowledge_articles", "workspace_documents"]:
+        for table in _VERIFY_TABLES:
             result = await conn.execute(text(f"SELECT count(*) FROM {table}"))
             db_count = result.scalar()
             print(f"  {table}: {db_count}")

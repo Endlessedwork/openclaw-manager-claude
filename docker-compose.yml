@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_DB: openclaw_manager
       POSTGRES_USER: openclaw
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oc_pg_s3cur3_2026}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U openclaw -d openclaw_manager"]
       interval: 5s
@@ -27,8 +27,8 @@ services:
     volumes:
       - ${OPENCLAW_DIR:-~/.openclaw}:/root/.openclaw
     environment:
-      DATABASE_URL: postgresql+asyncpg://openclaw:${POSTGRES_PASSWORD:-oc_pg_s3cur3_2026}@postgres:5432/openclaw_manager
-      JWT_SECRET: ${JWT_SECRET:-changeme_generate_a_real_secret}
+      DATABASE_URL: postgresql+asyncpg://openclaw:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/openclaw_manager
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       OPENCLAW_BIN: /usr/local/bin/openclaw
       ADMIN_USER: ${ADMIN_USER:-admin}

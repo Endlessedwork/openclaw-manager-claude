@@ -695,7 +695,9 @@ def _resolve_api_key(provider_id: str) -> str:
     return _resolve_all_api_keys().get(provider_id, "")
 
 
-# Cache gateway process env to avoid repeated pgrep + /proc reads
+# Cache gateway process env to avoid repeated pgrep + /proc reads.
+# Note: concurrent requests may redundantly refresh the cache (benign race);
+# the GIL protects dict mutations and worst case is duplicate /proc reads.
 _gateway_env_cache = {"data": {}, "ts": 0}
 
 
@@ -1479,7 +1481,10 @@ async def create_binding(body: dict = Body(...), user=Depends(require_role("supe
 
 @api_router.put("/bindings/{binding_id}")
 async def update_binding(binding_id: str, body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
-    idx = int(binding_id)
+    try:
+        idx = int(binding_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid binding ID")
     config = await gateway.config_read()
     bindings = config.get("bindings", [])
     if idx < 0 or idx >= len(bindings):
@@ -1505,7 +1510,10 @@ async def update_binding(binding_id: str, body: dict = Body(...), user=Depends(r
 
 @api_router.delete("/bindings/{binding_id}")
 async def delete_binding(binding_id: str, user=Depends(require_role("superadmin", "admin"))):
-    idx = int(binding_id)
+    try:
+        idx = int(binding_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid binding ID")
     config = await gateway.config_read()
     bindings = config.get("bindings", [])
     if idx < 0 or idx >= len(bindings):
@@ -1555,7 +1563,8 @@ async def list_system_logs(
     if source:
         filters.append(SystemLog.source == source)
     if search:
-        filters.append(SystemLog.message.ilike(f"%{search}%"))
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        filters.append(SystemLog.message.ilike(f"%{escaped}%", escape="\\"))
     if since_id:
         async with async_session() as session:
             ref = (await session.execute(
@@ -2109,7 +2118,7 @@ async def ws_activities(websocket: WebSocket):
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=os.environ.get('CORS_ORIGINS', 'http://localhost:3000').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
