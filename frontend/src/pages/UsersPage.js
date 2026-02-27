@@ -5,9 +5,9 @@ import { toast } from 'sonner';
 import { Users, Plus, Pencil, Trash2, Shield, Eye, Edit3, Loader2 } from 'lucide-react';
 
 const ROLE_CONFIG = {
-  admin: { label: 'Admin', icon: Shield, color: 'text-red-400 bg-red-500/10 border-red-500/20' },
-  editor: { label: 'Editor', icon: Edit3, color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
-  viewer: { label: 'Viewer', icon: Eye, color: 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20' },
+  superadmin: { label: 'Superadmin', icon: Shield, color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+  admin: { label: 'Admin', icon: Edit3, color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+  user: { label: 'User', icon: Eye, color: 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20' },
 };
 
 export default function UsersPage() {
@@ -16,7 +16,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState(null);
-  const [form, setForm] = useState({ username: '', password: '', name: '', role: 'viewer' });
+  const [form, setForm] = useState({ username: '', password: '', name: '', role: 'user' });
   const [saving, setSaving] = useState(false);
 
   const fetchUsers = useCallback(async () => {
@@ -39,7 +39,7 @@ export default function UsersPage() {
       await createUser(form);
       toast.success('User created');
       setShowCreate(false);
-      setForm({ username: '', password: '', name: '', role: 'viewer' });
+      setForm({ username: '', password: '', name: '', role: 'user' });
       fetchUsers();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to create user');
@@ -106,7 +106,7 @@ export default function UsersPage() {
           <p className="text-sm text-theme-faint mt-1">{users.length} users</p>
         </div>
         <button
-          onClick={() => { setShowCreate(true); setEditUser(null); setForm({ username: '', password: '', name: '', role: 'viewer' }); }}
+          onClick={() => { setShowCreate(true); setEditUser(null); setForm({ username: '', password: '', name: '', role: 'user' }); }}
           className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm font-medium text-white transition-colors w-fit"
         >
           <Plus className="w-4 h-4" /> Add User
@@ -143,9 +143,9 @@ export default function UsersPage() {
               <label className="block text-sm font-medium text-theme-muted mb-1">Role</label>
               <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
                 className="w-full px-3 py-2 bg-surface-page border border-subtle rounded-lg text-theme-primary text-sm focus:outline-none focus:border-orange-500/50">
-                <option value="viewer">Viewer</option>
-                <option value="editor">Editor</option>
+                <option value="user">User</option>
                 <option value="admin">Admin</option>
+                <option value="superadmin">Superadmin</option>
               </select>
             </div>
             <div className="sm:col-span-2 flex gap-2">
@@ -175,7 +175,7 @@ export default function UsersPage() {
           </thead>
           <tbody>
             {users.map((u) => {
-              const roleConfig = ROLE_CONFIG[u.role] || ROLE_CONFIG.viewer;
+              const roleConfig = ROLE_CONFIG[u.role] || ROLE_CONFIG.user;
               const RoleIcon = roleConfig.icon;
               return (
                 <tr key={u.id} className="border-b border-subtle hover:bg-muted/30">

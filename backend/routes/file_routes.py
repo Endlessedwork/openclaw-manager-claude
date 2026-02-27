@@ -267,7 +267,7 @@ class SaveFileRequest(BaseModel):
 async def save_file_content(
     body: SaveFileRequest,
     path: str = Query(...),
-    user=Depends(require_role("admin", "editor")),
+    user=Depends(require_role("superadmin", "admin")),
 ):
     """Save text file content. Blocks editing credential files."""
     target = _safe_path(path)

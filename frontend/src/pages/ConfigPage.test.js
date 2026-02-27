@@ -289,7 +289,7 @@ describe('ConfigPage', () => {
     });
   });
 
-  it('hides Save and Validate buttons for viewer role', async () => {
+  it('hides Save and Validate buttons for user role', async () => {
     // Override useAuth to return canEdit = false
     const authMock = require('../contexts/AuthContext');
     const originalUseAuth = authMock.useAuth;

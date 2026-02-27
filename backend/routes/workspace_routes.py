@@ -44,7 +44,7 @@ async def list_workspace_users(user=Depends(get_current_user)):
 async def patch_workspace_user(
     user_id: str,
     updates: dict = Body(...),
-    user=Depends(require_role("admin", "editor")),
+    user=Depends(require_role("superadmin", "admin")),
 ):
     allowed = {"role", "status", "notes"}
     invalid = set(updates.keys()) - allowed
@@ -113,7 +113,7 @@ async def list_workspace_groups(user=Depends(get_current_user)):
 async def patch_workspace_group(
     group_id: str,
     updates: dict = Body(...),
-    user=Depends(require_role("admin", "editor")),
+    user=Depends(require_role("superadmin", "admin")),
 ):
     allowed = {"status"}
     invalid = set(updates.keys()) - allowed

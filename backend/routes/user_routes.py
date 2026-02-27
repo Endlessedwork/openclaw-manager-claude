@@ -11,14 +11,14 @@ from models.user import User
 
 user_router = APIRouter(prefix="/users", tags=["users"])
 
-VALID_ROLES = {"admin", "editor", "viewer"}
+VALID_ROLES = {"superadmin", "admin", "user"}
 
 
 class CreateUserRequest(BaseModel):
     username: str
     password: str  # min 8 chars enforced below
     name: str
-    role: str = "viewer"
+    role: str = "user"
 
 
 class UpdateUserRequest(BaseModel):
@@ -29,7 +29,7 @@ class UpdateUserRequest(BaseModel):
 
 
 @user_router.get("")
-async def list_users(request: Request, user=Depends(require_role("admin"))):
+async def list_users(request: Request, user=Depends(require_role("superadmin"))):
     session_factory = request.app.state.async_session
     async with session_factory() as session:
         result = await session.execute(select(User))
@@ -49,7 +49,7 @@ async def list_users(request: Request, user=Depends(require_role("admin"))):
 
 
 @user_router.post("")
-async def create_user(body: CreateUserRequest, request: Request, user=Depends(require_role("admin"))):
+async def create_user(body: CreateUserRequest, request: Request, user=Depends(require_role("superadmin"))):
     session_factory = request.app.state.async_session
     if len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
@@ -75,7 +75,7 @@ async def create_user(body: CreateUserRequest, request: Request, user=Depends(re
 
 
 @user_router.put("/{user_id}")
-async def update_user(user_id: str, body: UpdateUserRequest, request: Request, user=Depends(require_role("admin"))):
+async def update_user(user_id: str, body: UpdateUserRequest, request: Request, user=Depends(require_role("superadmin"))):
     session_factory = request.app.state.async_session
     try:
         user_uuid = _uuid.UUID(user_id)
@@ -89,8 +89,8 @@ async def update_user(user_id: str, body: UpdateUserRequest, request: Request, u
 
         # Prevent admin from locking themselves out
         if user_id == user["id"]:
-            if body.role is not None and body.role != "admin":
-                raise HTTPException(400, "Cannot demote your own admin account")
+            if body.role is not None and body.role != "superadmin":
+                raise HTTPException(400, "Cannot demote your own superadmin account")
             if body.is_active is not None and not body.is_active:
                 raise HTTPException(400, "Cannot deactivate your own account")
 
@@ -111,7 +111,7 @@ async def update_user(user_id: str, body: UpdateUserRequest, request: Request, u
 
 
 @user_router.delete("/{user_id}")
-async def delete_user(user_id: str, request: Request, user=Depends(require_role("admin"))):
+async def delete_user(user_id: str, request: Request, user=Depends(require_role("superadmin"))):
     session_factory = request.app.state.async_session
     try:
         user_uuid = _uuid.UUID(user_id)

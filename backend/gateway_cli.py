@@ -106,13 +106,13 @@ class GatewayCLI:
         return await self.cache.get("agents", lambda: self._run("agents", "list"), 60)
 
     async def sessions(self):
-        return await self.cache.get("sessions", lambda: self._run("sessions", "list"), 30)
+        return await self.cache.get("sessions", lambda: self._run("sessions", "list"), 30, stale_ok=True)
 
     async def skills(self):
         return await self.cache.get("skills", lambda: self._run("skills", "list"), 120)
 
     async def health(self):
-        return await self.cache.get("health", lambda: self._run("health"), 30)
+        return await self.cache.get("health", lambda: self._run("health"), 30, stale_ok=True)
 
     async def cron_jobs(self):
         return await self.cache.get("cron", lambda: self._run("cron", "list"), 60)
@@ -123,9 +123,10 @@ class GatewayCLI:
     async def warmup(self):
         """Pre-populate cache on startup. Dashboard deps first."""
         try:
-            # Phase 1: Dashboard dependencies (health has agents+sessions+channels)
+            # Phase 1: Dashboard + Sessions dependencies
             await asyncio.gather(
                 self.health(),
+                self.sessions(),
                 self.skills(),
                 self.cron_jobs(),
                 self.config_read(),
@@ -133,7 +134,6 @@ class GatewayCLI:
             # Phase 2: Other pages (lower priority)
             await asyncio.gather(
                 self.agents(),
-                self.sessions(),
                 self.models(),
             )
         except Exception:

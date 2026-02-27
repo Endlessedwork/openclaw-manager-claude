@@ -68,7 +68,7 @@ async def list_memory(
 @memory_router.post("")
 async def create_memory(
     body: CreateMemoryRequest,
-    user=Depends(require_role("admin", "editor")),
+    user=Depends(require_role("superadmin", "admin")),
 ):
     async with async_session() as session:
         entry = AgentMemory(
@@ -87,7 +87,7 @@ async def create_memory(
 async def update_memory(
     memory_id: str,
     body: UpdateMemoryRequest,
-    user=Depends(require_role("admin", "editor")),
+    user=Depends(require_role("superadmin", "admin")),
 ):
     try:
         mid = _uuid.UUID(memory_id)
@@ -115,7 +115,7 @@ async def update_memory(
 @memory_router.delete("/{memory_id}")
 async def delete_memory(
     memory_id: str,
-    user=Depends(require_role("admin", "editor")),
+    user=Depends(require_role("superadmin", "admin")),
 ):
     try:
         mid = _uuid.UUID(memory_id)

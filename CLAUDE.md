@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenClaw Manager is a web dashboard for managing an OpenClaw bot gateway. It provides a UI to view/manage agents, skills, models, channels, sessions, cron jobs, hooks, and configuration. The backend is a thin orchestration layer that bridges the frontend to the `openclaw` CLI tool and a MongoDB database.
+OpenClaw Manager is a web dashboard for managing an OpenClaw bot gateway. It provides a UI to view/manage agents, skills, models, channels, sessions, cron jobs, hooks, and configuration. The backend is a thin orchestration layer that bridges the frontend to the `openclaw` CLI tool, a MongoDB database, and a PostgreSQL database.
 
 ## Commands
 
@@ -42,7 +42,7 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 ```
 
 ### Environment
-- Backend requires `backend/.env` with: `MONGO_URL`, `DB_NAME`, `JWT_SECRET`
+- Backend requires `backend/.env` with: `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, `DATABASE_URL`
 - Frontend uses `REACT_APP_BACKEND_URL` (defaults to same origin)
 - Python 3.12, venv at `./venv/`
 
@@ -55,7 +55,21 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 - **`routes/auth_routes.py`** — login/logout/refresh/me endpoints
 - **`routes/user_routes.py`** — admin-only user CRUD
 - **MongoDB** (via motor async driver) stores: `users`, `activity_logs`, `agent_activities`, `system_logs`, `clawhub_skills`
+- **PostgreSQL** (via SQLAlchemy async + SQLModel) stores persistent bot data:
+  - `sessions` — synced from gateway JSONL files via `sync_sessions.py`
+  - `conversations` — chat messages linked to sessions via `session_id`
+  - `bot_users` — user profiles (display_name, avatar_url, platform, platform_user_id). IDs are stored as **raw platform IDs** (e.g. `Ubc9c7dda...`, `90988085`) without platform prefix — the `platform` column stores the platform separately.
+  - `bot_groups` — group profiles (group_subject, avatar_url, platform, platform_group_id). Same raw ID convention as bot_users.
+  - Database config: `database.py` with async engine, connection pool (10+20)
+  - Data import: `import_file_data.py` imports user/group profiles from JSON files
+- **`routes/conversation_routes.py`** — conversation query endpoints including `/by-session-key` (enriches messages with user profiles)
+- **`routes/workspace_routes.py`** — CRUD for bot_users and bot_groups
 - **WebSocket endpoints** at `/api/ws/logs` and `/api/ws/activities` — stream real-time data from `openclaw logs --follow --json`
+
+### Session keys & platform ID matching
+- **Session key format**: `agent:<agent>:<channel>:<kind>:<id>` (e.g. `agent:main:line:direct:ubc9c7ddaa81fca73cf03b226d93af03b`). Some keys have extra segments (e.g. `agent:main:line:group:group:<id>`) — always use `parts[-1]` for the platform ID and `parts[3]` for kind.
+- **IMPORTANT — Case mismatch**: Gateway session keys use **lowercase** IDs (e.g. `ubc9c7dda...`, `c4d64d62...`) but PostgreSQL `bot_users.platform_user_id` and `bot_groups.platform_group_id` store IDs with **original case** (e.g. `Ubc9c7dda...`, `C4d64d62...`). Always use **case-insensitive matching** (`func.lower()`) when joining session keys to bot_users/bot_groups.
+- Telegram IDs are numeric strings (e.g. `90988085`, `-1003838276320`) and don't have case issues.
 
 ### Data flow pattern
 Most resources (agents, skills, models, channels, sessions, cron) are **read-only from the CLI**. The backend calls `openclaw <resource> list --json`, caches the result, and transforms it for the frontend. Write operations go through config modification (`openclaw.json` at `~/.openclaw/openclaw.json`) followed by `gateway reload`. Only model providers and ClawHub skills have full CRUD.
@@ -115,6 +129,7 @@ backend-1)   backend, uvicorn
 | `repo-backend-1` | repo-backend | `:8000` | WINE app backend (PostgreSQL) |
 | `repo-db-1` | postgres:16-alpine | `:5432` | PostgreSQL for WINE app |
 | `openclaw-mongo` | mongo:7 | `:27017` | MongoDB for OpenClaw Manager |
+| `openclaw-pg` | postgres:16-alpine | `:5433` | PostgreSQL for OpenClaw Manager (bot data) |
 
 Docker network: `repo_wine-network` (172.18.0.0/16), gateway `172.18.0.1` = host.
 
@@ -122,6 +137,7 @@ Docker network: `repo_wine-network` (172.18.0.0/16), gateway `172.18.0.1` = host
 - Runs on **HOST** (not Docker): `uvicorn` on port **8001**
 - Activated via: `source venv/bin/activate && cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 8001`
 - Uses MongoDB at `localhost:27017` (openclaw-mongo container)
+- Uses PostgreSQL at `localhost:5433` (openclaw-pg container)
 
 #### How to Deploy Frontend (IMPORTANT)
 

@@ -53,7 +53,7 @@ async def list_rules(user=Depends(get_current_user)):
 
 
 @notification_router.post("/rules")
-async def create_rule(body: dict = Body(...), user=Depends(require_role("admin", "editor"))):
+async def create_rule(body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
     event_type = body.get("event_type", "").strip()
     channel = body.get("channel", "telegram").strip()
     target = body.get("target", "").strip()
@@ -76,7 +76,7 @@ async def create_rule(body: dict = Body(...), user=Depends(require_role("admin",
 
 
 @notification_router.put("/rules/{rule_id}")
-async def update_rule(rule_id: str, body: dict = Body(...), user=Depends(require_role("admin", "editor"))):
+async def update_rule(rule_id: str, body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
     async with async_session() as session:
         rule = await session.get(NotificationRule, uuid.UUID(rule_id))
         if not rule:
@@ -91,7 +91,7 @@ async def update_rule(rule_id: str, body: dict = Body(...), user=Depends(require
 
 
 @notification_router.delete("/rules/{rule_id}")
-async def delete_rule(rule_id: str, user=Depends(require_role("admin", "editor"))):
+async def delete_rule(rule_id: str, user=Depends(require_role("superadmin", "admin"))):
     async with async_session() as session:
         rule = await session.get(NotificationRule, uuid.UUID(rule_id))
         if not rule:
@@ -102,7 +102,7 @@ async def delete_rule(rule_id: str, user=Depends(require_role("admin", "editor")
 
 
 @notification_router.post("/test")
-async def test_notification(body: dict = Body(...), user=Depends(require_role("admin", "editor"))):
+async def test_notification(body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
     """Send a test notification to verify the target is reachable."""
     channel = body.get("channel", "telegram")
     target = body.get("target", "")

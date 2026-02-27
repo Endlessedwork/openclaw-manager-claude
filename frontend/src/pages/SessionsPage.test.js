@@ -6,12 +6,20 @@ jest.mock('sonner', () => ({ toast: { error: jest.fn(), success: jest.fn() } }))
 
 jest.mock('lucide-react', () => {
   const icon = (name) => (props) => <svg data-testid={`icon-${name}`} {...props} />;
-  return { MessageSquare: icon('msg'), RefreshCw: icon('refresh'), Clock: icon('clock'), Cpu: icon('cpu') };
+  return {
+    MessageSquare: icon('msg'), RefreshCw: icon('refresh'), Clock: icon('clock'),
+    Cpu: icon('cpu'), Bot: icon('bot'), Hash: icon('hash'), AlertTriangle: icon('alert'),
+    Users: icon('users'), User: icon('user'),
+  };
 });
 
 jest.mock('../components/ui/button', () => ({
   Button: ({ children, onClick, ...props }) => <button onClick={onClick} {...props}>{children}</button>,
 }));
+
+jest.mock('../components/SessionChatSheet', () => ({ open, session }) =>
+  open && session ? <div data-testid="session-chat-sheet">Session Chat: {session.agent}</div> : null
+);
 
 let mockGetSessions;
 jest.mock('../lib/api', () => ({
@@ -44,12 +52,13 @@ describe('SessionsPage', () => {
     expect(screen.getByTestId('session-row-sess-2')).toBeInTheDocument();
   });
 
-  it('displays session keys', async () => {
+  it('displays session short IDs', async () => {
     render(<SessionsPage />);
     await waitFor(() => {
-      expect(screen.getByText('direct:main:telegram:user1')).toBeInTheDocument();
+      // parseSessionKey extracts the last segment of the key
+      expect(screen.getByText('user1')).toBeInTheDocument();
     });
-    expect(screen.getByText('group:coder:discord:chan1')).toBeInTheDocument();
+    expect(screen.getByText('chan1')).toBeInTheDocument();
   });
 
   it('shows empty state when no sessions', async () => {
@@ -133,6 +142,18 @@ describe('SessionsPage', () => {
     render(<SessionsPage />);
     await waitFor(() => {
       expect(screen.getByText('claude-sonnet-4-5')).toBeInTheDocument();
+    });
+  });
+
+  it('opens chat sheet when clicking a session row', async () => {
+    render(<SessionsPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('session-row-sess-1')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('session-row-sess-1'));
+    await waitFor(() => {
+      expect(screen.getByTestId('session-chat-sheet')).toBeInTheDocument();
+      expect(screen.getByText('Session Chat: main')).toBeInTheDocument();
     });
   });
 });

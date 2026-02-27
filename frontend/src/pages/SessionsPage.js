@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { getSessions } from '../lib/api';
-import { MessageSquare, RefreshCw, Clock, Cpu, Bot, Hash, AlertTriangle } from 'lucide-react';
+import { MessageSquare, RefreshCw, Clock, Cpu, Bot, Hash, AlertTriangle, User, Users } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
+import SessionChatSheet from '../components/SessionChatSheet';
 
 function formatAge(ms) {
   if (!ms) return '-';
@@ -24,6 +25,8 @@ function formatTokens(n) {
 export default function SessionsPage() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -91,13 +94,21 @@ export default function SessionsPage() {
       ) : (
         <div className="bg-surface-card border border-subtle rounded-lg divide-y divide-subtle">
           {sessions.map(s => (
-            <div key={s.id} data-testid={`session-row-${s.id}`} className="px-5 py-4 hover:bg-muted/30 transition-colors">
+            <div key={s.id} data-testid={`session-row-${s.id}`} className="px-5 py-4 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => { setSelectedSession(s); setSheetOpen(true); }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className={`w-8 h-8 rounded-lg border flex items-center justify-center ${channelStyle(s.channel).bg}`}>
-                    <MessageSquare className={`w-4 h-4 ${channelStyle(s.channel).color}`} />
+                    {s.kind === 'group'
+                      ? <Users className={`w-4 h-4 ${channelStyle(s.channel).color}`} />
+                      : <User className={`w-4 h-4 ${channelStyle(s.channel).color}`} />
+                    }
                   </div>
                   <div className="min-w-0 flex-1">
+                    {s.display_name && (
+                      <div className="mb-1">
+                        <span className="text-sm font-semibold text-theme-primary truncate" style={{ fontFamily: 'Manrope, sans-serif' }}>{s.display_name}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border bg-orange-500/10 border-orange-500/20 text-orange-400">
                         <Bot className="w-3 h-3" />
@@ -108,9 +119,6 @@ export default function SessionsPage() {
                           {s.channel}
                         </span>
                       )}
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md border uppercase tracking-wider ${kindStyle(s.kind)}`}>
-                        {s.kind}
-                      </span>
                       <span className="text-[11px] font-mono text-theme-dimmed flex items-center gap-1">
                         <Hash className="w-3 h-3" />
                         {parseSessionKey(s.session_key)}
@@ -122,9 +130,7 @@ export default function SessionsPage() {
                           <Cpu className={`w-3 h-3 ${s.is_fallback ? 'text-amber-400' : 'text-violet-400'}`} />
                           <span className={`font-mono ${s.is_fallback ? 'text-amber-400' : 'text-violet-400'}`}>{s.model}</span>
                           {s.is_fallback && (
-                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/10 border-amber-500/20 text-amber-400 uppercase tracking-wider" title={`Expected: ${s.primary_model}`}>
-                              fallback
-                            </span>
+                            <AlertTriangle className="w-3 h-3 text-amber-400" title={`Expected: ${s.primary_model}`} />
                           )}
                         </span>
                       )}
@@ -145,6 +151,7 @@ export default function SessionsPage() {
           ))}
         </div>
       )}
+      <SessionChatSheet open={sheetOpen} onOpenChange={setSheetOpen} session={selectedSession} />
     </div>
   );
 }
