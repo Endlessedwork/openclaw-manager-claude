@@ -102,6 +102,13 @@ export const getFileRaw = (path) => api.get(`/files/raw?path=${encodeURIComponen
 export const getHooksConfig = () => api.get('/hooks/config');
 export const getHookMappings = () => api.get('/hooks/mappings');
 
+// Bindings (agent-group routing)
+export const getBindings = () => api.get('/bindings');
+export const getBindingOptions = () => api.get('/bindings/options');
+export const createBinding = (data) => api.post('/bindings', data);
+export const updateBinding = (id, data) => api.put(`/bindings/${id}`, data);
+export const deleteBinding = (id) => api.delete(`/bindings/${id}`);
+
 // Config Validation
 export const validateConfig = (data) => api.post('/config/validate', data);
 
