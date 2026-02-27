@@ -156,25 +156,107 @@ result = await session.execute(
 
 ---
 
-## ข้อเสนอแนะ (Suggestions) — ทำได้ถ้ามีเวลา
+## ข้อเสนอแนะ (Suggestions) — ยังไม่ได้ทำ รอกลับมาทำ
 
-| # | เรื่อง | รายละเอียด |
-|---|--------|-----------|
-| S1 | ย้าย role migration ออกจาก startup | ควรเป็น Alembic data migration ครั้งเดียว ไม่ใช่รันทุกครั้งที่ server เริ่ม |
-| S2 | Session injection ไม่สม่ำเสมอ | บาง route import `async_session` ตรง บาง route ใช้ `request.app.state` — ควรใช้วิธีเดียวกัน |
-| S3 | `server.py` ยาว 2,124 บรรทัด | ควรแยกเป็น route modules (เช่น `binding_routes.py`, `model_routes.py`) |
-| S4 | ใช้ `@app.on_event` ที่ deprecated | ควรเปลี่ยนเป็น `lifespan` context manager |
-| S5 | ไม่มี pagination ใน workspace list endpoints | ข้อมูลมากขึ้นจะช้า |
-| S6 | ไม่มี test สำหรับหน้าใหม่ | NotificationsPage, BindingsPage, SessionChatSheet ยังไม่มี test |
+### S1. ย้าย role migration ออกจาก startup
+
+**ไฟล์:** `backend/server.py` (startup event)
+
+ตอนนี้ทุกครั้งที่ server เริ่ม จะรัน UPDATE เปลี่ยนชื่อ role (admin→superadmin, editor→admin, viewer→user) ซึ่งไม่จำเป็นหลัง migrate ครั้งแรก
+
+**สิ่งที่ต้องทำ:**
+- สร้าง Alembic data migration ใหม่สำหรับเปลี่ยนชื่อ role
+- ลบ UPDATE statements ออกจาก startup event
+- รัน `alembic upgrade head` ครั้งเดียว
+
+### S2. Session injection ไม่สม่ำเสมอ
+
+**ไฟล์ที่ import `async_session` ตรง (ควรเปลี่ยน):**
+- `backend/routes/conversation_routes.py`
+- `backend/routes/notification_routes.py`
+- `backend/routes/session_routes.py`
+- `backend/routes/memory_routes.py`
+- `backend/routes/workspace_routes.py`
+
+**ไฟล์ที่ใช้ `request.app.state.async_session` (pattern ที่ถูกต้อง):**
+- `backend/routes/auth_routes.py`
+- `backend/routes/user_routes.py`
+
+**สิ่งที่ต้องทำ:**
+- เปลี่ยนทุก route ให้ใช้ `request.app.state.async_session` แทน import ตรง
+- จะทำให้ test ง่ายขึ้น (inject mock session ได้)
+
+### S3. แยก `server.py` เป็น route modules
+
+**ไฟล์:** `backend/server.py` (2,124+ บรรทัด)
+
+**สิ่งที่ต้องทำ:** แยกเป็นไฟล์ใน `backend/routes/`:
+- `routes/binding_routes.py` — CRUD bindings
+- `routes/model_routes.py` — models & providers
+- `routes/dashboard_routes.py` — dashboard stats, usage
+- `routes/agent_routes.py` — agents, skills
+- `routes/channel_routes.py` — channels
+- `routes/cron_routes.py` — cron jobs
+- `routes/system_log_routes.py` — system logs
+- `routes/tool_routes.py` — tools
+
+เหลือใน `server.py` แค่ app setup, middleware, startup/shutdown, WebSocket
+
+### S4. เปลี่ยน `@app.on_event` เป็น `lifespan`
+
+**ไฟล์:** `backend/server.py`
+
+FastAPI versions ใหม่แนะนำใช้ `lifespan` context manager แทน `@app.on_event("startup")` / `@app.on_event("shutdown")`
+
+**สิ่งที่ต้องทำ:**
+```python
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup
+    await set_db()
+    yield
+    # shutdown
+    await engine.dispose()
+
+app = FastAPI(lifespan=lifespan)
+```
+
+### S5. เพิ่ม pagination ใน workspace endpoints
+
+**ไฟล์:** `backend/routes/workspace_routes.py`
+
+Endpoints เหล่านี้คืนข้อมูลทั้งหมดโดยไม่มี pagination:
+- `GET /workspace/users`
+- `GET /workspace/groups`
+- `GET /workspace/knowledge`
+- `GET /workspace/documents`
+
+**สิ่งที่ต้องทำ:**
+- เพิ่ม `page: int = Query(1)` และ `per_page: int = Query(50, le=200)`
+- ใช้ `.offset((page-1)*per_page).limit(per_page)`
+- Return `{ items: [...], total: N, page: N, per_page: N }`
+- อัพเดท frontend ให้รองรับ pagination
+
+### S6. เพิ่ม test สำหรับหน้าใหม่
+
+**หน้าที่ยังไม่มี test:**
+- `frontend/src/pages/NotificationsPage.js`
+- `frontend/src/pages/BindingsPage.js`
+- `frontend/src/components/SessionChatSheet.js`
+
+**สิ่งที่ต้องทำ:**
+- สร้าง `NotificationsPage.test.js` — test render, create/edit/delete rule
+- สร้าง `BindingsPage.test.js` — test render, create/edit/delete binding
+- สร้าง `SessionChatSheet.test.js` — test render, message display, profile enrichment
 
 ---
 
 ## สรุป
 
-| ระดับ | จำนวน |
-|-------|-------|
-| วิกฤต (Critical) | 5 |
-| สำคัญ (Important) | 9 |
-| ข้อเสนอแนะ (Suggestions) | 6 |
-
-**ลำดับความสำคัญในการแก้:** C1 (รหัสผ่านรั่ว) → C4 (CORS) → C5 (cookie ไม่ secure) → C3 (crash 500) → C2 (wildcard injection) → I2 (case matching) → ที่เหลือ
+| ระดับ | จำนวน | สถานะ |
+|-------|-------|-------|
+| วิกฤต (Critical) | 5 | แก้แล้วทั้งหมด (commit `cc4bd66`) |
+| สำคัญ (Important) | 9 | แก้แล้วทั้งหมด (commit `cc4bd66`) |
+| ข้อเสนอแนะ (Suggestions) | 6 | ยังไม่ได้ทำ — รอกลับมาทำ |
