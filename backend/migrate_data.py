@@ -107,7 +107,7 @@ async def migrate_users(mongo_db, session_factory):
             username=doc["username"],
             hashed_password=doc["hashed_password"],
             name=doc.get("name", ""),
-            role=doc.get("role", "viewer"),
+            role=doc.get("role", "user"),
             is_active=doc.get("is_active", True),
             created_at=parse_datetime(doc.get("created_at")),
             updated_at=parse_datetime(doc.get("updated_at")),

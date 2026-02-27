@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the first admin user for OpenClaw Manager."""
+"""Create the first superadmin user for OpenClaw Manager."""
 import asyncio
 import getpass
 import os
@@ -24,15 +24,15 @@ async def seed():
 
     async with async_session() as session:
         existing = (await session.execute(
-            select(User).where(User.role == "admin")
+            select(User).where(User.role == "superadmin")
         )).scalar_one_or_none()
         if existing:
-            print(f"Admin already exists: {existing.username}")
+            print(f"Superadmin already exists: {existing.username}")
             return
 
-    username = input("Admin username: ").strip()
-    name = input("Admin display name: ").strip() or username
-    password = getpass.getpass("Admin password: ").strip()
+    username = input("Superadmin username: ").strip()
+    name = input("Superadmin display name: ").strip() or username
+    password = getpass.getpass("Superadmin password: ").strip()
 
     if not username or not password:
         print("Username and password are required")
@@ -43,11 +43,11 @@ async def seed():
             username=username,
             hashed_password=hash_password(password),
             name=name,
-            role="admin",
+            role="superadmin",
         ))
         await session.commit()
 
-    print(f"Admin user created: {username}")
+    print(f"Superadmin user created: {username}")
 
 
 if __name__ == "__main__":

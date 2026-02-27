@@ -42,6 +42,15 @@ app = FastAPI()
 @app.on_event("startup")
 async def set_db():
     app.state.async_session = async_session
+    # Migrate old role names to new names (one-time, idempotent)
+    async with async_session() as session:
+        from sqlmodel import update
+        from models.user import User
+        # Order matters: admin→superadmin first, then editor→admin
+        await session.execute(update(User).where(User.role == "admin").values(role="superadmin"))
+        await session.execute(update(User).where(User.role == "editor").values(role="admin"))
+        await session.execute(update(User).where(User.role == "viewer").values(role="user"))
+        await session.commit()
     async def _warmup():
         await gateway.warmup()
         # Pre-build dashboard after CLI cache is warm
@@ -319,7 +328,7 @@ async def get_agent(agent_id: str, user=Depends(get_current_user)):
 
 
 @api_router.put("/agents/{agent_id}/md")
-async def update_agent_md(agent_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
+async def update_agent_md(agent_id: str, body: dict, user=Depends(require_role("superadmin", "admin"))):
     raw = await gateway.agents()
     agent = None
     for a in raw:
@@ -505,7 +514,7 @@ async def list_providers(user=Depends(get_current_user)):
 
 
 @api_router.post("/models/providers")
-async def create_provider(body: dict, user=Depends(require_role("admin", "editor"))):
+async def create_provider(body: dict, user=Depends(require_role("superadmin", "admin"))):
     config = await gateway.config_read()
     if "models" not in config:
         config["models"] = {"mode": "merge", "providers": {}}
@@ -531,7 +540,7 @@ async def create_provider(body: dict, user=Depends(require_role("admin", "editor
 
 
 @api_router.put("/models/providers/{provider_id}")
-async def update_provider(provider_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
+async def update_provider(provider_id: str, body: dict, user=Depends(require_role("superadmin", "admin"))):
     config = await gateway.config_read()
     if "models" not in config:
         config["models"] = {"mode": "merge", "providers": {}}
@@ -554,7 +563,7 @@ async def update_provider(provider_id: str, body: dict, user=Depends(require_rol
 
 
 @api_router.delete("/models/providers/{provider_id}")
-async def delete_provider(provider_id: str, user=Depends(require_role("admin", "editor"))):
+async def delete_provider(provider_id: str, user=Depends(require_role("superadmin", "admin"))):
     config = await gateway.config_read()
     providers = config.get("models", {}).get("providers", {})
     if provider_id not in providers:
@@ -588,7 +597,7 @@ PROVIDER_BASE_URLS = {
 
 
 @api_router.post("/models/providers/{provider_id}/test")
-async def test_provider_connection(provider_id: str, user=Depends(require_role("admin", "editor"))):
+async def test_provider_connection(provider_id: str, user=Depends(require_role("superadmin", "admin"))):
     config = await gateway.config_read()
     providers = config.get("models", {}).get("providers", {})
     pdata = providers.get(provider_id, {})
@@ -799,7 +808,7 @@ def _save_api_key(provider_id: str, api_key: str):
 
 
 @api_router.post("/models/providers/{provider_id}/fetch-models")
-async def fetch_provider_models(provider_id: str, body: dict = None, user=Depends(require_role("admin", "editor"))):
+async def fetch_provider_models(provider_id: str, body: dict = None, user=Depends(require_role("superadmin", "admin"))):
     """Fetch available models from a provider's /models endpoint."""
     # Allow passing base_url/api_key directly or read from config
     base_url = (body or {}).get("base_url", "").rstrip("/") if body else ""
@@ -918,7 +927,7 @@ async def get_fallbacks(user=Depends(get_current_user)):
 
 
 @api_router.put("/models/fallbacks")
-async def update_fallbacks(body: dict, user=Depends(require_role("admin", "editor"))):
+async def update_fallbacks(body: dict, user=Depends(require_role("superadmin", "admin"))):
     config = json.loads(json.dumps(await gateway.config_read()))
     if "agents" not in config:
         config["agents"] = {}
@@ -944,7 +953,7 @@ async def update_fallbacks(body: dict, user=Depends(require_role("admin", "edito
 
 
 @api_router.put("/models/fallbacks/agent/{agent_id}")
-async def update_agent_fallbacks(agent_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
+async def update_agent_fallbacks(agent_id: str, body: dict, user=Depends(require_role("superadmin", "admin"))):
     config = json.loads(json.dumps(await gateway.config_read()))
     agents_list = config.get("agents", {}).get("list", [])
     agent = next((a for a in agents_list if a["id"] == agent_id), None)
@@ -1017,7 +1026,7 @@ CHANNEL_FIELDS = {"dmPolicy", "groupPolicy", "allowFrom", "streaming", "groupAll
 
 
 @api_router.put("/channels/{channel_id}")
-async def update_channel(channel_id: str, body: dict, user=Depends(require_role("admin", "editor"))):
+async def update_channel(channel_id: str, body: dict, user=Depends(require_role("superadmin", "admin"))):
     config = await gateway.config_read()
     if "channels" not in config:
         config["channels"] = {}
@@ -1238,7 +1247,7 @@ async def get_config(user=Depends(get_current_user)):
 
 
 @api_router.put("/config")
-async def update_config(body: dict, user=Depends(require_role("admin", "editor"))):
+async def update_config(body: dict, user=Depends(require_role("superadmin", "admin"))):
     try:
         new_config = json.loads(body.get("raw", "{}"))
         await gateway.config_write(new_config)
@@ -1248,7 +1257,7 @@ async def update_config(body: dict, user=Depends(require_role("admin", "editor")
 
 
 @api_router.post("/config/validate")
-async def validate_config(body: dict, user=Depends(require_role("admin", "editor"))):
+async def validate_config(body: dict, user=Depends(require_role("superadmin", "admin"))):
     try:
         json.loads(body.get("raw", "{}"))
         return {"valid": True, "errors": [], "warnings": []}
@@ -1288,7 +1297,7 @@ async def get_gateway_status(user=Depends(get_current_user)):
 
 
 @api_router.post("/gateway/restart")
-async def gateway_restart_endpoint(user=Depends(require_role("admin"))):
+async def gateway_restart_endpoint(user=Depends(require_role("superadmin"))):
     await gateway.gateway_restart()
     await log_activity("restart", "gateway", "", "Gateway restart requested")
     return {"status": "restart_initiated", "message": "Gateway restart signal sent", "restart_needed": False}
@@ -1400,7 +1409,7 @@ async def get_binding_options(user=Depends(get_current_user)):
 
 
 @api_router.post("/bindings")
-async def create_binding(body: dict = Body(...), user=Depends(require_role("admin", "editor"))):
+async def create_binding(body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
     agent_id = body.get("agent_id", "").strip()
     group_id = body.get("group_id", "").strip()
     channel = body.get("channel", "line").strip()
@@ -1423,7 +1432,7 @@ async def create_binding(body: dict = Body(...), user=Depends(require_role("admi
 
 
 @api_router.put("/bindings/{binding_id}")
-async def update_binding(binding_id: str, body: dict = Body(...), user=Depends(require_role("admin", "editor"))):
+async def update_binding(binding_id: str, body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
     idx = int(binding_id)
     config = await gateway.config_read()
     bindings = config.get("bindings", [])
@@ -1449,7 +1458,7 @@ async def update_binding(binding_id: str, body: dict = Body(...), user=Depends(r
 
 
 @api_router.delete("/bindings/{binding_id}")
-async def delete_binding(binding_id: str, user=Depends(require_role("admin", "editor"))):
+async def delete_binding(binding_id: str, user=Depends(require_role("superadmin", "admin"))):
     idx = int(binding_id)
     config = await gateway.config_read()
     bindings = config.get("bindings", [])
@@ -1717,7 +1726,7 @@ async def list_clawhub_skills(search: str = Query("", max_length=100), category:
 
 
 @api_router.post("/clawhub/install/{skill_id}")
-async def install_clawhub_skill(skill_id: str, body: dict = None, user=Depends(require_role("admin", "editor"))):
+async def install_clawhub_skill(skill_id: str, body: dict = None, user=Depends(require_role("superadmin", "admin"))):
     async with async_session() as session:
         skill = await session.get(ClawHubSkill, skill_id)
         if not skill:
@@ -1745,7 +1754,7 @@ async def install_clawhub_skill(skill_id: str, body: dict = None, user=Depends(r
 
 
 @api_router.post("/clawhub/uninstall/{skill_id}")
-async def uninstall_clawhub_skill(skill_id: str, user=Depends(require_role("admin", "editor"))):
+async def uninstall_clawhub_skill(skill_id: str, user=Depends(require_role("superadmin", "admin"))):
     async with async_session() as session:
         skill = await session.get(ClawHubSkill, skill_id)
         if not skill:
