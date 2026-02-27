@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getSessions } from '../lib/api';
-import { MessageSquare, RefreshCw, Clock, Cpu, Bot, Hash } from 'lucide-react';
+import { MessageSquare, RefreshCw, Clock, Cpu, Bot, Hash, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 
@@ -72,6 +72,16 @@ export default function SessionsPage() {
         </Button>
       </div>
 
+      {!loading && sessions.filter(s => s.is_fallback).length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+          <div className="text-sm">
+            <span className="text-amber-400 font-medium">{sessions.filter(s => s.is_fallback).length} sessions</span>
+            <span className="text-theme-faint"> using fallback models instead of primary</span>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : sessions.length === 0 ? (
@@ -109,8 +119,13 @@ export default function SessionsPage() {
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-theme-faint">
                       {s.model && (
                         <span className="inline-flex items-center gap-1">
-                          <Cpu className="w-3 h-3 text-violet-400" />
-                          <span className="font-mono text-violet-400">{s.model}</span>
+                          <Cpu className={`w-3 h-3 ${s.is_fallback ? 'text-amber-400' : 'text-violet-400'}`} />
+                          <span className={`font-mono ${s.is_fallback ? 'text-amber-400' : 'text-violet-400'}`}>{s.model}</span>
+                          {s.is_fallback && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/10 border-amber-500/20 text-amber-400 uppercase tracking-wider" title={`Expected: ${s.primary_model}`}>
+                              fallback
+                            </span>
+                          )}
                         </span>
                       )}
                       <span className="font-mono">

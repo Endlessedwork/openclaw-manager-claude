@@ -1,7 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, Depends, Body
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import json
 import logging
@@ -12,28 +11,37 @@ from datetime import datetime, timedelta, timezone
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 import ssl
+import datetime as dt
+
+from sqlmodel import select
+from sqlalchemy import func, or_, desc, case
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+from database import engine, async_session
+from utils import utcnow
+from models.usage import DailyUsage
+from models.activity import ActivityLog, AgentActivity, SystemLog
+from models.fallback import AgentFallback
+from models.clawhub import ClawHubSkill
 from gateway_cli import gateway
 from auth import get_current_user, require_role
 from routes.auth_routes import auth_router
 from routes.user_routes import user_router
 from routes.file_routes import file_router
 from routes.workspace_routes import workspace_router
-
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+from routes.conversation_routes import conversation_router
+from routes.session_routes import session_router
+from routes.memory_routes import memory_router
+from routes.notification_routes import notification_router
 
 app = FastAPI()
 
 
 @app.on_event("startup")
 async def set_db():
-    app.state.db = db
-    await db.daily_usage.create_index("date", unique=True)
+    app.state.async_session = async_session
     async def _warmup():
         await gateway.warmup()
         # Pre-build dashboard after CLI cache is warm
@@ -43,6 +51,33 @@ async def set_db():
             pass
     asyncio.create_task(_warmup())
     asyncio.create_task(_usage_collector())
+    asyncio.create_task(_notification_checker())
+
+
+async def _upsert_daily_usage(daily: list):
+    """Upsert a list of daily usage records into PostgreSQL."""
+    async with async_session() as session:
+        for d in daily:
+            if not d.get("date"):
+                continue
+            date_val = dt.date.fromisoformat(d["date"])
+            existing = (await session.execute(
+                select(DailyUsage).where(DailyUsage.date == date_val)
+            )).scalar_one_or_none()
+            cost_breakdown = {k: v for k, v in d.items() if k not in ("date", "totalTokens", "totalCost")}
+            if existing:
+                existing.total_tokens = d.get("totalTokens", 0)
+                existing.total_cost = d.get("totalCost", 0.0)
+                existing.cost_breakdown = cost_breakdown or None
+                existing.updated_at = utcnow()
+            else:
+                session.add(DailyUsage(
+                    date=date_val,
+                    total_tokens=d.get("totalTokens", 0),
+                    total_cost=d.get("totalCost", 0.0),
+                    cost_breakdown=cost_breakdown or None,
+                ))
+        await session.commit()
 
 
 async def _usage_collector():
@@ -53,14 +88,7 @@ async def _usage_collector():
     try:
         data = await gateway.usage_cost_raw(days=90)
         daily = data.get("daily", []) if isinstance(data, dict) else []
-        for d in daily:
-            if not d.get("date"):
-                continue
-            await db.daily_usage.update_one(
-                {"date": d["date"]},
-                {"$set": {**d, "updated_at": datetime.now(timezone.utc).isoformat()}},
-                upsert=True,
-            )
+        await _upsert_daily_usage(daily)
         logger.info(f"Backfilled {len(daily)} daily usage records")
     except Exception as e:
         logger.warning(f"Usage backfill failed: {e}")
@@ -71,14 +99,7 @@ async def _usage_collector():
         try:
             data = await gateway.usage_cost_raw(days=1)
             daily = data.get("daily", []) if isinstance(data, dict) else []
-            for d in daily:
-                if not d.get("date"):
-                    continue
-                await db.daily_usage.update_one(
-                    {"date": d["date"]},
-                    {"$set": {**d, "updated_at": datetime.now(timezone.utc).isoformat()}},
-                    upsert=True,
-                )
+            await _upsert_daily_usage(daily)
         except Exception as e:
             logger.warning(f"Usage hourly sync failed: {e}")
 
@@ -88,19 +109,111 @@ api_router.include_router(auth_router)
 api_router.include_router(user_router)
 api_router.include_router(file_router)
 api_router.include_router(workspace_router)
+api_router.include_router(conversation_router)
+api_router.include_router(session_router)
+api_router.include_router(memory_router)
+api_router.include_router(notification_router)
 
 
 # ===== HELPER =====
 async def log_activity(action: str, entity_type: str, entity_id: str = "", details: str = ""):
-    log = {
-        "id": str(uuid.uuid4()),
-        "action": action,
-        "entity_type": entity_type,
-        "entity_id": entity_id,
-        "details": details,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+    async with async_session() as session:
+        session.add(ActivityLog(
+            action=action, entity_type=entity_type,
+            entity_id=entity_id, details=details,
+        ))
+        await session.commit()
+
+
+# ===== FALLBACK DETECTION HELPER =====
+def _detect_fallback_sessions(sessions_raw: dict, config: dict) -> list[dict]:
+    """Detect sessions running on fallback models.
+    Returns list of dicts: key, agent, expected, actual.
+    """
+    primary = config.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
+    agent_overrides = {
+        a["id"]: a["model"]
+        for a in config.get("agents", {}).get("list", [])
+        if a.get("model") and isinstance(a["model"], str)
     }
-    await db.activity_logs.insert_one(log)
+    fallbacks = []
+    for s in sessions_raw.get("sessions", []):
+        key = s.get("key", "")
+        agent = key.split(":")[1] if ":" in key else "main"
+        expected = agent_overrides.get(agent, primary)
+        actual = s.get("model", "")
+        actual_short = actual.split("/")[-1] if actual else ""
+        expected_short = expected.split("/")[-1] if expected else ""
+        if actual_short and actual_short != expected_short:
+            fallbacks.append({
+                "key": key, "agent": agent,
+                "expected": expected_short, "actual": actual_short,
+            })
+    return fallbacks
+
+
+# ===== NOTIFICATION CHECKER =====
+async def _notification_checker():
+    """Background task: check notification conditions every 5 minutes."""
+    logger = logging.getLogger("notification_checker")
+    await asyncio.sleep(60)  # Wait for caches to warm up
+    while True:
+        try:
+            await _check_and_send_notifications()
+        except Exception as e:
+            logger.warning(f"Notification check failed: {e}")
+        await asyncio.sleep(300)
+
+
+async def _check_and_send_notifications():
+    from models.notification import NotificationRule
+    async with async_session() as session:
+        result = await session.execute(
+            select(NotificationRule).where(NotificationRule.enabled == True)
+        )
+        rules = result.scalars().all()
+    if not rules:
+        return
+    for rule in rules:
+        if rule.last_notified_at:
+            elapsed = (utcnow() - rule.last_notified_at).total_seconds() / 60
+            if elapsed < rule.cooldown_minutes:
+                continue
+        if rule.event_type == "model_fallback":
+            await _check_fallback_notification(rule)
+
+
+async def _check_fallback_notification(rule):
+    from models.notification import NotificationRule
+    logger = logging.getLogger("notification_checker")
+    try:
+        sessions_raw, config = await asyncio.gather(
+            gateway.sessions(), gateway.config_read()
+        )
+    except Exception:
+        return
+    fallbacks = _detect_fallback_sessions(sessions_raw, config)
+    if not fallbacks:
+        return
+    primary = config.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
+    count = len(fallbacks)
+    models_used = ", ".join(sorted(set(f["actual"] for f in fallbacks)))
+    message = (
+        f"⚠️ Model Fallback Alert\n"
+        f"{count} session{'s' if count > 1 else ''} using fallback models.\n"
+        f"Models in use: {models_used}\n"
+        f"Expected primary: {primary.split('/')[-1] if primary else 'unknown'}\n"
+        f"Time: {utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
+    )
+    try:
+        await gateway.send_message(rule.channel, rule.target, message)
+        async with async_session() as session:
+            db_rule = await session.get(NotificationRule, rule.id)
+            if db_rule:
+                db_rule.last_notified_at = utcnow()
+                await session.commit()
+    except Exception as e:
+        logger.warning(f"Failed to send notification to {rule.target}: {e}")
 
 
 # ===== DASHBOARD =====
@@ -111,17 +224,21 @@ async def _build_dashboard():
         gateway.skills(),
         gateway.cron_jobs(),
         gateway.config_read(),
+        gateway.sessions(),
         return_exceptions=True,
     )
     health = results[0] if not isinstance(results[0], Exception) else {}
     skills = results[1] if not isinstance(results[1], Exception) else {}
     cron = results[2] if not isinstance(results[2], Exception) else {}
     config = results[3] if not isinstance(results[3], Exception) else {}
+    sessions_raw = results[4] if not isinstance(results[4], Exception) else {}
     skill_list = skills.get("skills", [])
     active_skills = [s for s in skill_list if s.get("eligible") and not s.get("disabled")]
     channel_list = health.get("channels", {})
     active_channels = [k for k, v in channel_list.items() if v.get("configured")]
     session_data = health.get("sessions", {})
+    fallback_count = len(_detect_fallback_sessions(sessions_raw, config))
+
     return {
         "agents": len(health.get("agents", [])),
         "skills": {"total": len(skill_list), "active": len(active_skills)},
@@ -130,6 +247,7 @@ async def _build_dashboard():
         "cron_jobs": len(cron.get("jobs", [])),
         "model_providers": len(config.get("models", {}).get("providers", {})),
         "gateway_status": "running" if health.get("ok") else "offline",
+        "fallback_sessions": fallback_count,
         "recent_activity": [],
     }
 
@@ -772,9 +890,11 @@ async def get_fallbacks(user=Depends(get_current_user)):
     image_cfg = defaults.get("imageModel", {})
     agents_list = config.get("agents", {}).get("list", [])
 
-    # Load agent-specific fallbacks from MongoDB
-    agent_fb_docs = await db.agent_fallbacks.find().to_list(length=100)
-    agent_fb_map = {d["agent_id"]: d.get("fallbacks", []) for d in agent_fb_docs}
+    # Load agent-specific fallbacks from PostgreSQL
+    async with async_session() as session:
+        result = await session.execute(select(AgentFallback))
+        agent_fb_rows = result.scalars().all()
+    agent_fb_map = {row.agent_id: row.fallbacks for row in agent_fb_rows}
 
     return {
         "model": {
@@ -844,17 +964,22 @@ async def update_agent_fallbacks(agent_id: str, body: dict, user=Depends(require
     if need_config_write:
         await gateway.config_write(config)
 
-    # Store agent-specific fallbacks in MongoDB (not in openclaw.json)
+    # Store agent-specific fallbacks in PostgreSQL (not in openclaw.json)
     if "fallbacks" in body:
         fallbacks = body["fallbacks"]
-        if fallbacks:
-            await db.agent_fallbacks.update_one(
-                {"agent_id": agent_id},
-                {"$set": {"agent_id": agent_id, "fallbacks": fallbacks}},
-                upsert=True,
-            )
-        else:
-            await db.agent_fallbacks.delete_one({"agent_id": agent_id})
+        async with async_session() as session:
+            existing = (await session.execute(
+                select(AgentFallback).where(AgentFallback.agent_id == agent_id)
+            )).scalar_one_or_none()
+            if fallbacks:
+                if existing:
+                    existing.fallbacks = fallbacks
+                else:
+                    session.add(AgentFallback(agent_id=agent_id, fallbacks=fallbacks))
+            else:
+                if existing:
+                    await session.delete(existing)
+            await session.commit()
 
     await log_activity("update", "fallbacks", agent_id, f"Updated fallbacks for agent {agent_id}")
     return {"status": "ok", "restart_needed": need_config_write}
@@ -911,24 +1036,39 @@ async def update_channel(channel_id: str, body: dict, user=Depends(require_role(
 # ===== SESSIONS (from CLI) =====
 @api_router.get("/sessions")
 async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current_user)):
-    raw = await gateway.sessions()
+    raw, cfg = await asyncio.gather(gateway.sessions(), gateway.config_read())
     sessions = raw.get("sessions", [])[:limit]
-    return [
-        {
+    fallback_keys = {f["key"] for f in _detect_fallback_sessions(raw, cfg)}
+
+    # Resolve expected model per agent for primary_model field
+    primary = cfg.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
+    agent_overrides = {
+        a["id"]: a["model"]
+        for a in cfg.get("agents", {}).get("list", [])
+        if a.get("model") and isinstance(a["model"], str)
+    }
+
+    result = []
+    for s in sessions:
+        key = s.get("key", "")
+        agent = key.split(":")[1] if ":" in key else "main"
+        expected = agent_overrides.get(agent, primary)
+        result.append({
             "id": s.get("sessionId", s.get("key")),
-            "session_key": s["key"],
+            "session_key": key,
             "kind": s.get("kind", "direct"),
-            "agent": s["key"].split(":")[1] if ":" in s["key"] else "main",
-            "channel": s["key"].split(":")[2] if s["key"].count(":") >= 2 else "",
+            "agent": agent,
+            "channel": key.split(":")[2] if key.count(":") >= 2 else "",
             "model": s.get("model", ""),
+            "is_fallback": key in fallback_keys,
+            "primary_model": expected,
             "total_tokens": s.get("totalTokens", 0),
             "context_tokens": s.get("contextTokens", 0),
             "updated_at": s.get("updatedAt"),
             "age_ms": s.get("ageMs", 0),
             "message_count": (s.get("inputTokens", 0) + s.get("outputTokens", 0)) // 100,
-        }
-        for s in sessions
-    ]
+        })
+    return result
 
 
 # ===== USAGE ANALYTICS =====
@@ -944,23 +1084,38 @@ async def get_usage_cost(
         date_start, date_end = start, end
     else:
         d = days or 30
-        date_end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        date_start = (datetime.now(timezone.utc) - timedelta(days=d - 1)).strftime("%Y-%m-%d")
+        date_end = utcnow().strftime("%Y-%m-%d")
+        date_start = (utcnow() - timedelta(days=d - 1)).strftime("%Y-%m-%d")
 
-    # Read from MongoDB
-    records = await db.daily_usage.find(
-        {"date": {"$gte": date_start, "$lte": date_end}},
-        {"_id": 0, "updated_at": 0},
-    ).sort("date", 1).to_list(None)
+    # Read from PostgreSQL
+    start_date = dt.date.fromisoformat(date_start)
+    end_date = dt.date.fromisoformat(date_end)
+    async with async_session() as session:
+        result = await session.execute(
+            select(DailyUsage)
+            .where(DailyUsage.date >= start_date, DailyUsage.date <= end_date)
+            .order_by(DailyUsage.date)
+        )
+        rows = result.scalars().all()
 
-    if records:
+    if rows:
+        records = []
+        for r in rows:
+            rec = {
+                "date": r.date.isoformat(),
+                "totalTokens": r.total_tokens,
+                "totalCost": r.total_cost,
+            }
+            if r.cost_breakdown:
+                rec.update(r.cost_breakdown)
+            records.append(rec)
         totals = {
-            "totalTokens": sum(r.get("totalTokens", 0) for r in records),
-            "totalCost": sum(r.get("totalCost", 0) for r in records),
+            "totalTokens": sum(r.total_tokens for r in rows),
+            "totalCost": sum(r.total_cost for r in rows),
         }
         return {"daily": records, "totals": totals}
 
-    # Fallback to CLI if MongoDB is empty
+    # Fallback to CLI if PostgreSQL is empty
     if not start:
         try:
             return await gateway.usage_cost(days or 30)
@@ -977,49 +1132,62 @@ async def get_usage_breakdown(
     end: str = Query(None),
     user=Depends(get_current_user),
 ):
+    # Build base filter
+    base_filter = [AgentActivity.event_type == "llm_request"]
     if start and end:
-        match = {"event_type": "llm_request", "timestamp": {"$gte": start, "$lte": end}}
+        base_filter.append(AgentActivity.timestamp >= start)
+        base_filter.append(AgentActivity.timestamp <= end)
     else:
         d = days or 30
-        cutoff = datetime.now(timezone.utc).timestamp() - (d * 86400)
-        cutoff_iso = datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat()
-        match = {"event_type": "llm_request", "timestamp": {"$gte": cutoff_iso}}
+        cutoff = utcnow() - timedelta(days=d)
+        base_filter.append(AgentActivity.timestamp >= cutoff)
 
-    by_agent = await db.agent_activities.aggregate([
-        {"$match": match},
-        {"$group": {
-            "_id": "$agent_name",
-            "tokens_in": {"$sum": "$tokens_in"},
-            "tokens_out": {"$sum": "$tokens_out"},
-            "count": {"$sum": 1},
-        }},
-        {"$sort": {"tokens_out": -1}},
-        {"$limit": 20},
-    ]).to_list(20)
+    async with async_session() as session:
+        # By agent
+        q_agent = (
+            select(
+                AgentActivity.agent_name.label("_id"),
+                func.coalesce(func.sum(AgentActivity.tokens_in), 0).label("tokens_in"),
+                func.coalesce(func.sum(AgentActivity.tokens_out), 0).label("tokens_out"),
+                func.count().label("count"),
+            )
+            .where(*base_filter)
+            .group_by(AgentActivity.agent_name)
+            .order_by(desc(func.coalesce(func.sum(AgentActivity.tokens_out), 0)))
+            .limit(20)
+        )
+        by_agent = [dict(r._mapping) for r in (await session.execute(q_agent)).all()]
 
-    by_model = await db.agent_activities.aggregate([
-        {"$match": match},
-        {"$group": {
-            "_id": "$model_used",
-            "tokens_in": {"$sum": "$tokens_in"},
-            "tokens_out": {"$sum": "$tokens_out"},
-            "count": {"$sum": 1},
-            "avg_ms": {"$avg": "$duration_ms"},
-        }},
-        {"$sort": {"tokens_out": -1}},
-        {"$limit": 20},
-    ]).to_list(20)
+        # By model
+        q_model = (
+            select(
+                AgentActivity.model_used.label("_id"),
+                func.coalesce(func.sum(AgentActivity.tokens_in), 0).label("tokens_in"),
+                func.coalesce(func.sum(AgentActivity.tokens_out), 0).label("tokens_out"),
+                func.count().label("count"),
+                func.avg(AgentActivity.duration_ms).label("avg_ms"),
+            )
+            .where(*base_filter)
+            .group_by(AgentActivity.model_used)
+            .order_by(desc(func.coalesce(func.sum(AgentActivity.tokens_out), 0)))
+            .limit(20)
+        )
+        by_model = [dict(r._mapping) for r in (await session.execute(q_model)).all()]
 
-    by_channel = await db.agent_activities.aggregate([
-        {"$match": match},
-        {"$group": {
-            "_id": "$channel",
-            "tokens_in": {"$sum": "$tokens_in"},
-            "tokens_out": {"$sum": "$tokens_out"},
-            "count": {"$sum": 1},
-        }},
-        {"$sort": {"tokens_out": -1}},
-    ]).to_list(20)
+        # By channel
+        q_channel = (
+            select(
+                AgentActivity.channel.label("_id"),
+                func.coalesce(func.sum(AgentActivity.tokens_in), 0).label("tokens_in"),
+                func.coalesce(func.sum(AgentActivity.tokens_out), 0).label("tokens_out"),
+                func.count().label("count"),
+            )
+            .where(*base_filter)
+            .group_by(AgentActivity.channel)
+            .order_by(desc(func.coalesce(func.sum(AgentActivity.tokens_out), 0)))
+            .limit(20)
+        )
+        by_channel = [dict(r._mapping) for r in (await session.execute(q_channel)).all()]
 
     return {"by_agent": by_agent, "by_model": by_model, "by_channel": by_channel}
 
@@ -1160,10 +1328,160 @@ async def get_hook_mappings(user=Depends(get_current_user)):
     ]
 
 
+# ===== BINDINGS (agent-group routing in openclaw.json) =====
+@api_router.get("/bindings")
+async def get_bindings(user=Depends(get_current_user)):
+    config = await gateway.config_read()
+    bindings = config.get("bindings", [])
+
+    # Resolve group names from DB
+    # DB stores as "line_C0e9b8fa..." but bindings use just "C0e9b8fa..."
+    group_names = {}
+    async with async_session() as session:
+        from models.bot_group import BotGroup
+        result = await session.execute(select(BotGroup))
+        for g in result.scalars().all():
+            group_names[g.platform_group_id] = g.name
+            # Also map without platform prefix (e.g. "line_Cxxx" → map "Cxxx" too)
+            if "_" in g.platform_group_id:
+                short_id = g.platform_group_id.split("_", 1)[1]
+                group_names[short_id] = g.name
+
+    # Also build agents list for display
+    agents_list = config.get("agents", {}).get("list", [])
+    agent_names = {}
+    for a in agents_list:
+        aid = a.get("id", "")
+        identity = a.get("identity", {})
+        agent_names[aid] = identity.get("name", aid)
+
+    results = []
+    for i, b in enumerate(bindings):
+        match = b.get("match", {})
+        peer = match.get("peer", {})
+        raw_id = peer.get("id", "")
+        # bindings use "group:C0e9b8fa..." format, strip prefix
+        group_id = raw_id.replace("group:", "") if raw_id.startswith("group:") else raw_id
+        agent_id = b.get("agentId", "main")
+        results.append({
+            "id": str(i),
+            "agent_id": agent_id,
+            "agent_name": agent_names.get(agent_id, agent_id),
+            "channel": match.get("channel", ""),
+            "group_id": group_id,
+            "group_name": group_names.get(group_id, group_id[:12] + "..."),
+        })
+    return results
+
+
+@api_router.get("/bindings/options")
+async def get_binding_options(user=Depends(get_current_user)):
+    """Return available groups and agents for binding dropdowns."""
+    config = await gateway.config_read()
+    agents_list = config.get("agents", {}).get("list", [])
+    agents = []
+    for a in agents_list:
+        aid = a.get("id", "")
+        identity = a.get("identity", {})
+        agents.append({"id": aid, "name": identity.get("name", aid), "emoji": identity.get("emoji", "")})
+
+    async with async_session() as session:
+        from models.bot_group import BotGroup
+        result = await session.execute(select(BotGroup))
+        groups = [
+            {
+                "id": g.platform_group_id.split("_", 1)[1] if "_" in g.platform_group_id else g.platform_group_id,
+                "name": g.name or g.platform_group_id,
+                "platform": g.platform,
+            }
+            for g in result.scalars().all()
+        ]
+    return {"agents": agents, "groups": groups}
+
+
+@api_router.post("/bindings")
+async def create_binding(body: dict = Body(...), user=Depends(require_role("admin", "editor"))):
+    agent_id = body.get("agent_id", "").strip()
+    group_id = body.get("group_id", "").strip()
+    channel = body.get("channel", "line").strip()
+    if not agent_id or not group_id:
+        raise HTTPException(400, "agent_id and group_id are required")
+
+    config = await gateway.config_read()
+    if "bindings" not in config:
+        config["bindings"] = []
+    config["bindings"].append({
+        "agentId": agent_id,
+        "match": {
+            "channel": channel,
+            "peer": {"kind": "group", "id": f"group:{group_id}"}
+        }
+    })
+    await gateway.config_write(config)
+    await log_activity("create", "binding", group_id, f"Bound group {group_id} to agent {agent_id}")
+    return {"status": "ok", "restart_needed": True}
+
+
+@api_router.put("/bindings/{binding_id}")
+async def update_binding(binding_id: str, body: dict = Body(...), user=Depends(require_role("admin", "editor"))):
+    idx = int(binding_id)
+    config = await gateway.config_read()
+    bindings = config.get("bindings", [])
+    if idx < 0 or idx >= len(bindings):
+        raise HTTPException(404, "Binding not found")
+
+    agent_id = body.get("agent_id", "").strip()
+    group_id = body.get("group_id", "").strip()
+    channel = body.get("channel", "line").strip()
+    if not agent_id or not group_id:
+        raise HTTPException(400, "agent_id and group_id are required")
+
+    bindings[idx] = {
+        "agentId": agent_id,
+        "match": {
+            "channel": channel,
+            "peer": {"kind": "group", "id": f"group:{group_id}"}
+        }
+    }
+    await gateway.config_write(config)
+    await log_activity("update", "binding", group_id, f"Updated binding: group {group_id} → agent {agent_id}")
+    return {"status": "ok", "restart_needed": True}
+
+
+@api_router.delete("/bindings/{binding_id}")
+async def delete_binding(binding_id: str, user=Depends(require_role("admin", "editor"))):
+    idx = int(binding_id)
+    config = await gateway.config_read()
+    bindings = config.get("bindings", [])
+    if idx < 0 or idx >= len(bindings):
+        raise HTTPException(404, "Binding not found")
+
+    removed = bindings.pop(idx)
+    await gateway.config_write(config)
+    gid = removed.get("match", {}).get("peer", {}).get("id", "")
+    await log_activity("delete", "binding", gid, f"Removed binding for {gid}")
+    return {"status": "ok", "restart_needed": True}
+
+
 # ===== ACTIVITY LOGS =====
 @api_router.get("/logs")
 async def get_logs(limit: int = Query(50, le=500), user=Depends(get_current_user)):
-    return await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
+    async with async_session() as session:
+        result = await session.execute(
+            select(ActivityLog).order_by(desc(ActivityLog.timestamp)).limit(limit)
+        )
+        logs = result.scalars().all()
+    return [
+        {
+            "id": str(l.id),
+            "action": l.action,
+            "entity_type": l.entity_type,
+            "entity_id": l.entity_id,
+            "details": l.details,
+            "timestamp": l.timestamp.isoformat() if l.timestamp else None,
+        }
+        for l in logs
+    ]
 
 
 # ===== SYSTEM LOGS (from DB, populated by WebSocket) =====
@@ -1176,38 +1494,88 @@ async def list_system_logs(
     since_id: str = Query("", max_length=100),
     user=Depends(get_current_user),
 ):
-    query = {}
+    filters = []
     if level:
-        query["level"] = level
+        filters.append(SystemLog.level == level)
     if source:
-        query["source"] = source
+        filters.append(SystemLog.source == source)
     if search:
-        query["message"] = {"$regex": search, "$options": "i"}
+        filters.append(SystemLog.message.ilike(f"%{search}%"))
     if since_id:
-        ref = await db.system_logs.find_one({"id": since_id}, {"_id": 0})
-        if ref:
-            query["timestamp"] = {"$gt": ref["timestamp"]}
-    logs = await db.system_logs.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
-    return logs
+        async with async_session() as session:
+            ref = (await session.execute(
+                select(SystemLog).where(SystemLog.id == uuid.UUID(since_id))
+            )).scalar_one_or_none()
+            if ref:
+                filters.append(SystemLog.timestamp > ref.timestamp)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(SystemLog).where(*filters).order_by(desc(SystemLog.timestamp)).limit(limit)
+        )
+        logs = result.scalars().all()
+    return [
+        {
+            "id": str(l.id),
+            "timestamp": l.timestamp.isoformat() if l.timestamp else None,
+            "level": l.level,
+            "source": l.source,
+            "message": l.message,
+            "raw": l.raw,
+        }
+        for l in logs
+    ]
 
 
 @api_router.get("/system-logs/stats")
 async def system_logs_stats(user=Depends(get_current_user)):
-    total = await db.system_logs.count_documents({})
-    errors = await db.system_logs.count_documents({"level": "ERROR"})
-    warns = await db.system_logs.count_documents({"level": "WARN"})
-    by_source = await db.system_logs.aggregate([
-        {"$group": {"_id": "$source", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}
-    ]).to_list(20)
-    by_level = await db.system_logs.aggregate([
-        {"$group": {"_id": "$level", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}
-    ]).to_list(10)
+    async with async_session() as session:
+        total = (await session.execute(select(func.count()).select_from(SystemLog))).scalar() or 0
+        errors = (await session.execute(
+            select(func.count()).select_from(SystemLog).where(SystemLog.level == "ERROR")
+        )).scalar() or 0
+        warns = (await session.execute(
+            select(func.count()).select_from(SystemLog).where(SystemLog.level == "WARN")
+        )).scalar() or 0
+
+        by_source_result = await session.execute(
+            select(SystemLog.source.label("_id"), func.count().label("count"))
+            .group_by(SystemLog.source)
+            .order_by(desc(func.count()))
+            .limit(20)
+        )
+        by_source = [dict(r._mapping) for r in by_source_result.all()]
+
+        by_level_result = await session.execute(
+            select(SystemLog.level.label("_id"), func.count().label("count"))
+            .group_by(SystemLog.level)
+            .order_by(desc(func.count()))
+            .limit(10)
+        )
+        by_level = [dict(r._mapping) for r in by_level_result.all()]
+
     return {"total": total, "errors": errors, "warnings": warns, "by_source": by_source, "by_level": by_level}
 
 
 # ===== AGENT ACTIVITIES (from DB, populated by WebSocket) =====
+def _activity_to_dict(a: AgentActivity) -> dict:
+    return {
+        "id": str(a.id),
+        "agent_id": a.agent_id,
+        "agent_name": a.agent_name,
+        "event_type": a.event_type,
+        "tool_name": a.tool_name or "",
+        "status": a.status,
+        "duration_ms": a.duration_ms or 0,
+        "tokens_in": a.tokens_in or 0,
+        "tokens_out": a.tokens_out or 0,
+        "channel": a.channel or "",
+        "model_used": a.model_used or "",
+        "message": a.message,
+        "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+    }
+
+
 @api_router.get("/activities")
 async def list_activities(
     agent_id: str = Query("", max_length=100),
@@ -1217,43 +1585,79 @@ async def list_activities(
     since_id: str = Query("", max_length=100),
     user=Depends(get_current_user),
 ):
-    query = {}
+    filters = []
     if agent_id:
-        query["agent_id"] = agent_id
+        filters.append(AgentActivity.agent_id == agent_id)
     if event_type:
-        query["event_type"] = event_type
+        filters.append(AgentActivity.event_type == event_type)
     if status:
-        query["status"] = status
+        filters.append(AgentActivity.status == status)
     if since_id:
-        ref = await db.agent_activities.find_one({"id": since_id}, {"_id": 0})
-        if ref:
-            query["timestamp"] = {"$gt": ref["timestamp"]}
-    activities = await db.agent_activities.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
-    return activities
+        async with async_session() as session:
+            ref = (await session.execute(
+                select(AgentActivity).where(AgentActivity.id == uuid.UUID(since_id))
+            )).scalar_one_or_none()
+            if ref:
+                filters.append(AgentActivity.timestamp > ref.timestamp)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(AgentActivity).where(*filters).order_by(desc(AgentActivity.timestamp)).limit(limit)
+        )
+        activities = result.scalars().all()
+    return [_activity_to_dict(a) for a in activities]
 
 
 @api_router.get("/activities/stats")
 async def activities_stats(user=Depends(get_current_user)):
-    pipeline_agent = [
-        {"$group": {"_id": "$agent_name", "count": {"$sum": 1}, "errors": {"$sum": {"$cond": [{"$eq": ["$status", "error"]}, 1, 0]}}}},
-        {"$sort": {"count": -1}}
-    ]
-    pipeline_tools = [
-        {"$match": {"event_type": "tool_call"}},
-        {"$group": {"_id": "$tool_name", "count": {"$sum": 1}, "avg_ms": {"$avg": "$duration_ms"}}},
-        {"$sort": {"count": -1}},
-        {"$limit": 15}
-    ]
-    pipeline_types = [
-        {"$group": {"_id": "$event_type", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}
-    ]
-    agent_stats = await db.agent_activities.aggregate(pipeline_agent).to_list(50)
-    tool_stats = await db.agent_activities.aggregate(pipeline_tools).to_list(15)
-    type_stats = await db.agent_activities.aggregate(pipeline_types).to_list(20)
-    total = await db.agent_activities.count_documents({})
-    running = await db.agent_activities.count_documents({"status": "running"})
-    errors = await db.agent_activities.count_documents({"status": "error"})
+    async with async_session() as session:
+        # By agent: count + errors
+        q_agent = (
+            select(
+                AgentActivity.agent_name.label("_id"),
+                func.count().label("count"),
+                func.sum(case((AgentActivity.status == "error", 1), else_=0)).label("errors"),
+            )
+            .group_by(AgentActivity.agent_name)
+            .order_by(desc(func.count()))
+            .limit(50)
+        )
+        agent_stats = [dict(r._mapping) for r in (await session.execute(q_agent)).all()]
+
+        # By tool
+        q_tools = (
+            select(
+                AgentActivity.tool_name.label("_id"),
+                func.count().label("count"),
+                func.avg(AgentActivity.duration_ms).label("avg_ms"),
+            )
+            .where(AgentActivity.event_type == "tool_call")
+            .group_by(AgentActivity.tool_name)
+            .order_by(desc(func.count()))
+            .limit(15)
+        )
+        tool_stats = [dict(r._mapping) for r in (await session.execute(q_tools)).all()]
+
+        # By type
+        q_types = (
+            select(
+                AgentActivity.event_type.label("_id"),
+                func.count().label("count"),
+            )
+            .group_by(AgentActivity.event_type)
+            .order_by(desc(func.count()))
+            .limit(20)
+        )
+        type_stats = [dict(r._mapping) for r in (await session.execute(q_types)).all()]
+
+        total = (await session.execute(select(func.count()).select_from(AgentActivity))).scalar() or 0
+        running = (await session.execute(
+            select(func.count()).select_from(AgentActivity).where(AgentActivity.status == "running")
+        )).scalar() or 0
+        errors = (await session.execute(
+            select(func.count()).select_from(AgentActivity).where(AgentActivity.status == "error")
+        )).scalar() or 0
+
     return {
         "total": total,
         "running": running,
@@ -1266,60 +1670,90 @@ async def activities_stats(user=Depends(get_current_user)):
 
 @api_router.get("/activities/{activity_id}")
 async def get_activity(activity_id: str, user=Depends(get_current_user)):
-    act = await db.agent_activities.find_one({"id": activity_id}, {"_id": 0})
+    async with async_session() as session:
+        act = (await session.execute(
+            select(AgentActivity).where(AgentActivity.id == uuid.UUID(activity_id))
+        )).scalar_one_or_none()
     if not act:
         raise HTTPException(404, "Activity not found")
-    return act
+    return _activity_to_dict(act)
 
 
-# ===== CLAWHUB MARKETPLACE (kept with MongoDB) =====
+# ===== CLAWHUB MARKETPLACE =====
+def _clawhub_to_dict(s: ClawHubSkill) -> dict:
+    return {
+        "id": s.id,
+        "slug": s.slug,
+        "name": s.name,
+        "description": s.description,
+        "category": s.category,
+        "tags": s.tags or [],
+        "downloads": s.downloads,
+        "version": s.version,
+        "installed": s.installed,
+        "installed_version": s.installed_version,
+    }
+
+
 @api_router.get("/clawhub")
 async def list_clawhub_skills(search: str = Query("", max_length=100), category: str = Query("all"), user=Depends(get_current_user)):
-    query = {}
+    filters = []
     if search:
-        query["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"slug": {"$regex": search, "$options": "i"}},
-            {"description": {"$regex": search, "$options": "i"}},
-            {"tags": {"$regex": search, "$options": "i"}},
-        ]
+        pattern = f"%{search}%"
+        filters.append(or_(
+            ClawHubSkill.name.ilike(pattern),
+            ClawHubSkill.slug.ilike(pattern),
+            ClawHubSkill.description.ilike(pattern),
+        ))
     if category != "all":
-        query["category"] = category
-    return await db.clawhub_skills.find(query, {"_id": 0}).sort("downloads", -1).to_list(200)
+        filters.append(ClawHubSkill.category == category)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(ClawHubSkill).where(*filters).order_by(desc(ClawHubSkill.downloads)).limit(200)
+        )
+        skills = result.scalars().all()
+    return [_clawhub_to_dict(s) for s in skills]
 
 
 @api_router.post("/clawhub/install/{skill_id}")
 async def install_clawhub_skill(skill_id: str, body: dict = None, user=Depends(require_role("admin", "editor"))):
-    skill = await db.clawhub_skills.find_one({"id": skill_id}, {"_id": 0})
-    if not skill:
-        raise HTTPException(404, "Skill not found")
-    # Save env vars to openclaw .env file if provided
-    env_vars = (body or {}).get("env_vars", {})
-    if env_vars:
-        import aiofiles
-        env_file = Path.home() / ".openclaw" / ".env"
-        existing = {}
-        if env_file.exists():
-            async with aiofiles.open(env_file, "r") as f:
-                for line in (await f.read()).splitlines():
-                    if "=" in line and not line.startswith("#"):
-                        k, v = line.split("=", 1)
-                        existing[k.strip()] = v.strip()
-        existing.update(env_vars)
-        async with aiofiles.open(env_file, "w") as f:
-            await f.write("\n".join(f"{k}={v}" for k, v in existing.items()) + "\n")
-    await db.clawhub_skills.update_one({"id": skill_id}, {"$set": {"installed": True, "installed_version": skill["version"]}})
-    await log_activity("install", "clawhub", skill_id, f"Installed skill: {skill['slug']}")
-    return {"status": "installed", "slug": skill["slug"]}
+    async with async_session() as session:
+        skill = await session.get(ClawHubSkill, skill_id)
+        if not skill:
+            raise HTTPException(404, "Skill not found")
+        # Save env vars to openclaw .env file if provided
+        env_vars = (body or {}).get("env_vars", {})
+        if env_vars:
+            import aiofiles
+            env_file = Path.home() / ".openclaw" / ".env"
+            existing = {}
+            if env_file.exists():
+                async with aiofiles.open(env_file, "r") as f:
+                    for line in (await f.read()).splitlines():
+                        if "=" in line and not line.startswith("#"):
+                            k, v = line.split("=", 1)
+                            existing[k.strip()] = v.strip()
+            existing.update(env_vars)
+            async with aiofiles.open(env_file, "w") as f:
+                await f.write("\n".join(f"{k}={v}" for k, v in existing.items()) + "\n")
+        skill.installed = True
+        skill.installed_version = skill.version
+        await session.commit()
+    await log_activity("install", "clawhub", skill_id, f"Installed skill: {skill.slug}")
+    return {"status": "installed", "slug": skill.slug}
 
 
 @api_router.post("/clawhub/uninstall/{skill_id}")
 async def uninstall_clawhub_skill(skill_id: str, user=Depends(require_role("admin", "editor"))):
-    skill = await db.clawhub_skills.find_one({"id": skill_id}, {"_id": 0})
-    if not skill:
-        raise HTTPException(404, "Skill not found")
-    await db.clawhub_skills.update_one({"id": skill_id}, {"$set": {"installed": False, "installed_version": ""}})
-    await log_activity("uninstall", "clawhub", skill_id, f"Uninstalled skill: {skill['slug']}")
+    async with async_session() as session:
+        skill = await session.get(ClawHubSkill, skill_id)
+        if not skill:
+            raise HTTPException(404, "Skill not found")
+        skill.installed = False
+        skill.installed_version = ""
+        await session.commit()
+    await log_activity("uninstall", "clawhub", skill_id, f"Uninstalled skill: {skill.slug}")
     return {"status": "uninstalled"}
 
 
@@ -1421,7 +1855,7 @@ def _collect_system_health():
     # Uptime & boot time
     boot_time_ts = psutil.boot_time()
     uptime_seconds = round(time.time() - boot_time_ts)
-    boot_time_iso = datetime.fromtimestamp(boot_time_ts, tz=timezone.utc).isoformat()
+    boot_time_iso = datetime.fromtimestamp(boot_time_ts).isoformat()
 
     # Temperatures (not available on all systems)
     temperatures = None
@@ -1500,7 +1934,7 @@ async def ws_logs(websocket: WebSocket):
                 except json.JSONDecodeError:
                     buffer.append({
                         "id": str(uuid.uuid4()),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": utcnow().isoformat(),
                         "level": "INFO",
                         "source": "gateway",
                         "message": text,
@@ -1547,7 +1981,12 @@ async def ws_activities(websocket: WebSocket):
     try:
         proc = await gateway.logs_stream()
         # Send recent activities from DB on init
-        recent = await db.agent_activities.find({}, {"_id": 0}).sort("timestamp", -1).limit(100).to_list(100)
+        async with async_session() as session:
+            result = await session.execute(
+                select(AgentActivity).order_by(desc(AgentActivity.timestamp)).limit(100)
+            )
+            recent_rows = result.scalars().all()
+        recent = [_activity_to_dict(a) for a in recent_rows]
         await websocket.send_json({"type": "init", "data": recent})
         buffer = []
 
@@ -1577,7 +2016,19 @@ async def ws_activities(websocket: WebSocket):
                             "message": msg,
                         }
                         buffer.append(activity)
-                        await db.agent_activities.insert_one({**activity})
+                        async with async_session() as sess:
+                            sess.add(AgentActivity(
+                                id=uuid.UUID(activity["id"]),
+                                agent_id=activity["agent_id"],
+                                agent_name=activity["agent_name"],
+                                event_type=activity["event_type"],
+                                tool_name=activity["tool_name"] or None,
+                                status=activity["status"],
+                                duration_ms=activity["duration_ms"] or None,
+                                channel=activity["channel"] or None,
+                                message=activity["message"],
+                            ))
+                            await sess.commit()
                 except json.JSONDecodeError:
                     pass
 
@@ -1614,4 +2065,4 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    await engine.dispose()

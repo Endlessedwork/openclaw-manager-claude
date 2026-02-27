@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: openclaw-postgres
+    restart: unless-stopped
+    volumes:
+      - openclaw_pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: openclaw_manager
+      POSTGRES_USER: openclaw
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oc_pg_s3cur3_2026}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openclaw -d openclaw_manager"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: openclaw-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ${OPENCLAW_DIR:-~/.openclaw}:/root/.openclaw
+    environment:
+      DATABASE_URL: postgresql+asyncpg://openclaw:${POSTGRES_PASSWORD:-oc_pg_s3cur3_2026}@postgres:5432/openclaw_manager
+      JWT_SECRET: ${JWT_SECRET:-changeme_generate_a_real_secret}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      OPENCLAW_BIN: /usr/local/bin/openclaw
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      HOME: /root
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: openclaw-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${HTTP_PORT:-80}:80"
+
+volumes:
+  openclaw_pgdata:

@@ -5,7 +5,7 @@ import {
   Clock, FileCode, Server, ChevronLeft, ChevronRight, ChevronDown, Activity,
   Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
   BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins,
-  Database, UserCircle, UsersRound, BookOpen, FileText, X
+  Database, UserCircle, UsersRound, BookOpen, FileText, X, GitBranch, Bell
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useMediaQuery';
@@ -51,6 +51,7 @@ const navGroups = [
     items: [
       { path: '/channels', label: 'Channels', icon: Radio },
       { path: '/hooks', label: 'Hooks', icon: Webhook },
+      { path: '/bindings', label: 'Bindings', icon: GitBranch },
     ],
   },
   {
@@ -88,6 +89,7 @@ const navGroups = [
     label: 'System',
     icon: Settings,
     items: [
+      { path: '/notifications', label: 'Notifications', icon: Bell },
       { path: '/config', label: 'Config', icon: FileCode },
       { path: '/files', label: 'Files', icon: FolderOpen },
       { path: '/gateway', label: 'Gateway', icon: Server },
@@ -308,9 +310,16 @@ export default function Sidebar({ isMobileMenuOpen, onClose }) {
         </div>
       )}
 
+      {/* Version label */}
+      <div className={`px-3 pb-1 ${!isMobile && collapsed ? 'text-center' : ''}`}>
+        <span className="text-[10px] text-theme-faint/40 tracking-wider font-mono">
+          {(isMobile || !collapsed) ? 'W.I.N.E. 3.0' : '3.0'}
+        </span>
+      </div>
+
       {/* Collapse Toggle — desktop only */}
       {!isMobile && (
-        <div className="px-2 pb-4 pt-2 border-t border-subtle">
+        <div className="px-2 pb-4 pt-1 border-t border-subtle">
           <Button
             data-testid="sidebar-toggle"
             variant="ghost"
