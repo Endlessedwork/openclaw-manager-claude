@@ -109,6 +109,15 @@ export const createBinding = (data) => api.post('/bindings', data);
 export const updateBinding = (id, data) => api.put(`/bindings/${id}`, data);
 export const deleteBinding = (id) => api.delete(`/bindings/${id}`);
 
+// Notifications
+export const getNotificationRules = () => api.get('/notifications/rules');
+export const getNotificationEventTypes = () => api.get('/notifications/event-types');
+export const getNotificationGroups = () => api.get('/notifications/groups');
+export const createNotificationRule = (data) => api.post('/notifications/rules', data);
+export const updateNotificationRule = (id, data) => api.put(`/notifications/rules/${id}`, data);
+export const deleteNotificationRule = (id) => api.delete(`/notifications/rules/${id}`);
+export const testNotification = (data) => api.post('/notifications/test', data);
+
 // Config Validation
 export const validateConfig = (data) => api.post('/config/validate', data);
 

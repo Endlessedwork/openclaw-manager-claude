@@ -10,10 +10,11 @@ from .document import WorkspaceDocument
 from .conversation import Conversation
 from .session import Session
 from .memory import AgentMemory
+from .notification import NotificationRule
 
 __all__ = [
     "User", "ActivityLog", "AgentActivity", "SystemLog",
     "DailyUsage", "AgentFallback", "ClawHubSkill",
     "BotUser", "BotGroup", "KnowledgeArticle", "WorkspaceDocument",
-    "Conversation", "Session", "AgentMemory",
+    "Conversation", "Session", "AgentMemory", "NotificationRule",
 ]

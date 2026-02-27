@@ -34,6 +34,7 @@ from routes.workspace_routes import workspace_router
 from routes.conversation_routes import conversation_router
 from routes.session_routes import session_router
 from routes.memory_routes import memory_router
+from routes.notification_routes import notification_router
 
 app = FastAPI()
 
@@ -50,6 +51,7 @@ async def set_db():
             pass
     asyncio.create_task(_warmup())
     asyncio.create_task(_usage_collector())
+    asyncio.create_task(_notification_checker())
 
 
 async def _upsert_daily_usage(daily: list):
@@ -110,6 +112,7 @@ api_router.include_router(workspace_router)
 api_router.include_router(conversation_router)
 api_router.include_router(session_router)
 api_router.include_router(memory_router)
+api_router.include_router(notification_router)
 
 
 # ===== HELPER =====
@@ -120,6 +123,97 @@ async def log_activity(action: str, entity_type: str, entity_id: str = "", detai
             entity_id=entity_id, details=details,
         ))
         await session.commit()
+
+
+# ===== FALLBACK DETECTION HELPER =====
+def _detect_fallback_sessions(sessions_raw: dict, config: dict) -> list[dict]:
+    """Detect sessions running on fallback models.
+    Returns list of dicts: key, agent, expected, actual.
+    """
+    primary = config.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
+    agent_overrides = {
+        a["id"]: a["model"]
+        for a in config.get("agents", {}).get("list", [])
+        if a.get("model") and isinstance(a["model"], str)
+    }
+    fallbacks = []
+    for s in sessions_raw.get("sessions", []):
+        key = s.get("key", "")
+        agent = key.split(":")[1] if ":" in key else "main"
+        expected = agent_overrides.get(agent, primary)
+        actual = s.get("model", "")
+        actual_short = actual.split("/")[-1] if actual else ""
+        expected_short = expected.split("/")[-1] if expected else ""
+        if actual_short and actual_short != expected_short:
+            fallbacks.append({
+                "key": key, "agent": agent,
+                "expected": expected_short, "actual": actual_short,
+            })
+    return fallbacks
+
+
+# ===== NOTIFICATION CHECKER =====
+async def _notification_checker():
+    """Background task: check notification conditions every 5 minutes."""
+    logger = logging.getLogger("notification_checker")
+    await asyncio.sleep(60)  # Wait for caches to warm up
+    while True:
+        try:
+            await _check_and_send_notifications()
+        except Exception as e:
+            logger.warning(f"Notification check failed: {e}")
+        await asyncio.sleep(300)
+
+
+async def _check_and_send_notifications():
+    from models.notification import NotificationRule
+    async with async_session() as session:
+        result = await session.execute(
+            select(NotificationRule).where(NotificationRule.enabled == True)
+        )
+        rules = result.scalars().all()
+    if not rules:
+        return
+    for rule in rules:
+        if rule.last_notified_at:
+            elapsed = (utcnow() - rule.last_notified_at).total_seconds() / 60
+            if elapsed < rule.cooldown_minutes:
+                continue
+        if rule.event_type == "model_fallback":
+            await _check_fallback_notification(rule)
+
+
+async def _check_fallback_notification(rule):
+    from models.notification import NotificationRule
+    logger = logging.getLogger("notification_checker")
+    try:
+        sessions_raw, config = await asyncio.gather(
+            gateway.sessions(), gateway.config_read()
+        )
+    except Exception:
+        return
+    fallbacks = _detect_fallback_sessions(sessions_raw, config)
+    if not fallbacks:
+        return
+    primary = config.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
+    count = len(fallbacks)
+    models_used = ", ".join(sorted(set(f["actual"] for f in fallbacks)))
+    message = (
+        f"⚠️ Model Fallback Alert\n"
+        f"{count} session{'s' if count > 1 else ''} using fallback models.\n"
+        f"Models in use: {models_used}\n"
+        f"Expected primary: {primary.split('/')[-1] if primary else 'unknown'}\n"
+        f"Time: {utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
+    )
+    try:
+        await gateway.send_message(rule.channel, rule.target, message)
+        async with async_session() as session:
+            db_rule = await session.get(NotificationRule, rule.id)
+            if db_rule:
+                db_rule.last_notified_at = utcnow()
+                await session.commit()
+    except Exception as e:
+        logger.warning(f"Failed to send notification to {rule.target}: {e}")
 
 
 # ===== DASHBOARD =====
@@ -143,24 +237,7 @@ async def _build_dashboard():
     channel_list = health.get("channels", {})
     active_channels = [k for k, v in channel_list.items() if v.get("configured")]
     session_data = health.get("sessions", {})
-
-    # Count fallback sessions
-    primary = config.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
-    agent_overrides = {
-        a["id"]: a["model"]
-        for a in config.get("agents", {}).get("list", [])
-        if a.get("model") and isinstance(a["model"], str)
-    }
-    fallback_count = 0
-    for s in sessions_raw.get("sessions", []):
-        key = s.get("key", "")
-        agent = key.split(":")[1] if ":" in key else "main"
-        expected = agent_overrides.get(agent, primary)
-        actual = s.get("model", "")
-        actual_short = actual.split("/")[-1] if actual else ""
-        expected_short = expected.split("/")[-1] if expected else ""
-        if actual_short and actual_short != expected_short:
-            fallback_count += 1
+    fallback_count = len(_detect_fallback_sessions(sessions_raw, config))
 
     return {
         "agents": len(health.get("agents", [])),
@@ -961,11 +1038,10 @@ async def update_channel(channel_id: str, body: dict, user=Depends(require_role(
 async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current_user)):
     raw, cfg = await asyncio.gather(gateway.sessions(), gateway.config_read())
     sessions = raw.get("sessions", [])[:limit]
+    fallback_keys = {f["key"] for f in _detect_fallback_sessions(raw, cfg)}
 
-    # Resolve expected model per agent
-    primary = (
-        cfg.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
-    )
+    # Resolve expected model per agent for primary_model field
+    primary = cfg.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
     agent_overrides = {
         a["id"]: a["model"]
         for a in cfg.get("agents", {}).get("list", [])
@@ -977,20 +1053,14 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
         key = s.get("key", "")
         agent = key.split(":")[1] if ":" in key else "main"
         expected = agent_overrides.get(agent, primary)
-        actual = s.get("model", "")
-        # Compare short names (strip provider prefix)
-        actual_short = actual.split("/")[-1] if actual else ""
-        expected_short = expected.split("/")[-1] if expected else ""
-        is_fallback = bool(actual_short) and actual_short != expected_short
-
         result.append({
             "id": s.get("sessionId", s.get("key")),
             "session_key": key,
             "kind": s.get("kind", "direct"),
             "agent": agent,
             "channel": key.split(":")[2] if key.count(":") >= 2 else "",
-            "model": actual,
-            "is_fallback": is_fallback,
+            "model": s.get("model", ""),
+            "is_fallback": key in fallback_keys,
             "primary_model": expected,
             "total_tokens": s.get("totalTokens", 0),
             "context_tokens": s.get("contextTokens", 0),

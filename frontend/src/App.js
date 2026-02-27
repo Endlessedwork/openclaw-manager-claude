@@ -32,6 +32,7 @@ import WorkspaceGroupsPage from "./pages/WorkspaceGroupsPage";
 import WorkspaceKBPage from "./pages/WorkspaceKBPage";
 import WorkspaceDocsPage from "./pages/WorkspaceDocsPage";
 import BindingsPage from "./pages/BindingsPage";
+import NotificationsPage from "./pages/NotificationsPage";
 
 function ThemedToaster() {
   const { isDark } = useTheme();
@@ -67,6 +68,7 @@ function App() {
                 <Route path="/clawhub" element={<ClawHubPage />} />
                 <Route path="/hooks" element={<HooksPage />} />
                 <Route path="/bindings" element={<BindingsPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/workspace/users" element={<WorkspaceUsersPage />} />
                 <Route path="/workspace/groups" element={<WorkspaceGroupsPage />} />
                 <Route path="/workspace/kb" element={<WorkspaceKBPage />} />

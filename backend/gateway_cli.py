@@ -167,6 +167,17 @@ class GatewayCLI:
         self.cache.invalidate()
         return await self._run("gateway", "restart", json_output=False, timeout=15)
 
+    async def send_message(self, channel: str, target: str, message: str):
+        """Send a message via openclaw CLI (e.g. Telegram notification)."""
+        return await self._run(
+            "message", "send",
+            "--channel", channel,
+            "--target", target,
+            "--message", message,
+            json_output=False,
+            timeout=15,
+        )
+
     async def logs_stream(self):
         proc = await asyncio.create_subprocess_exec(
             OPENCLAW_BIN, "logs", "--follow", "--json",

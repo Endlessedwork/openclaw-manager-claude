@@ -5,7 +5,7 @@ import {
   Clock, FileCode, Server, ChevronLeft, ChevronRight, ChevronDown, Activity,
   Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
   BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins,
-  Database, UserCircle, UsersRound, BookOpen, FileText, X, GitBranch
+  Database, UserCircle, UsersRound, BookOpen, FileText, X, GitBranch, Bell
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useMediaQuery';
@@ -89,6 +89,7 @@ const navGroups = [
     label: 'System',
     icon: Settings,
     items: [
+      { path: '/notifications', label: 'Notifications', icon: Bell },
       { path: '/config', label: 'Config', icon: FileCode },
       { path: '/files', label: 'Files', icon: FolderOpen },
       { path: '/gateway', label: 'Gateway', icon: Server },
