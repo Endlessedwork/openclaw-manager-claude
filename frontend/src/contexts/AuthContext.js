@@ -92,11 +92,11 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const canEdit = useCallback(() => {
-    return user && (user.role === 'admin' || user.role === 'editor');
+    return user && (user.role === 'superadmin' || user.role === 'admin');
   }, [user]);
 
   const isAdmin = useCallback(() => {
-    return user && user.role === 'admin';
+    return user && user.role === 'superadmin';
   }, [user]);
 
   return (

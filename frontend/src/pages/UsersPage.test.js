@@ -15,9 +15,9 @@ jest.mock('lucide-react', () => ({
 }));
 
 const mockUsers = [
-  { id: 'user-1', username: 'admin', name: 'Admin User', role: 'admin', is_active: true, last_login: '2026-02-19T10:00:00Z' },
-  { id: 'user-2', username: 'viewer1', name: 'Viewer One', role: 'viewer', is_active: true, last_login: null },
-  { id: 'user-3', username: 'editor1', name: 'Editor One', role: 'editor', is_active: false, last_login: '2026-02-18T08:00:00Z' },
+  { id: 'user-1', username: 'superadmin1', name: 'Superadmin User', role: 'superadmin', is_active: true, last_login: '2026-02-19T10:00:00Z' },
+  { id: 'user-2', username: 'user1', name: 'User One', role: 'user', is_active: true, last_login: null },
+  { id: 'user-3', username: 'admin1', name: 'Admin One', role: 'admin', is_active: false, last_login: '2026-02-18T08:00:00Z' },
 ];
 
 let mockGetUsers, mockCreateUser, mockUpdateUser, mockDeleteUser;
@@ -30,7 +30,7 @@ jest.mock('../lib/api', () => ({
 }));
 
 jest.mock('../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'user-1', username: 'admin', role: 'admin' } }),
+  useAuth: () => ({ user: { id: 'user-1', username: 'superadmin1', role: 'superadmin' } }),
 }));
 
 beforeEach(() => {
@@ -45,10 +45,10 @@ describe('UsersPage', () => {
   it('renders user list after loading', async () => {
     render(<UsersPage />);
     await waitFor(() => {
-      expect(screen.getByText('Admin User')).toBeInTheDocument();
+      expect(screen.getByText('Superadmin User')).toBeInTheDocument();
     });
-    expect(screen.getByText('Viewer One')).toBeInTheDocument();
-    expect(screen.getByText('Editor One')).toBeInTheDocument();
+    expect(screen.getByText('User One')).toBeInTheDocument();
+    expect(screen.getByText('Admin One')).toBeInTheDocument();
   });
 
   it('shows loading spinner initially', () => {
@@ -60,18 +60,19 @@ describe('UsersPage', () => {
   it('displays user roles with badges', async () => {
     render(<UsersPage />);
     await waitFor(() => {
-      expect(screen.getByText('Admin')).toBeInTheDocument();
+      expect(screen.getByText('Superadmin')).toBeInTheDocument();
     });
-    expect(screen.getByText('Viewer')).toBeInTheDocument();
-    expect(screen.getByText('Editor')).toBeInTheDocument();
+    // 'User' appears both as a table header and as a role badge, so check for multiple
+    expect(screen.getAllByText('User').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Admin')).toBeInTheDocument();
   });
 
   it('displays usernames', async () => {
     render(<UsersPage />);
     await waitFor(() => {
-      expect(screen.getByText('@admin')).toBeInTheDocument();
+      expect(screen.getByText('@superadmin1')).toBeInTheDocument();
     });
-    expect(screen.getByText('@viewer1')).toBeInTheDocument();
+    expect(screen.getByText('@user1')).toBeInTheDocument();
   });
 
   it('shows active/disabled status', async () => {
@@ -102,7 +103,7 @@ describe('UsersPage', () => {
   it('does not show delete button for current user', async () => {
     render(<UsersPage />);
     await waitFor(() => {
-      expect(screen.getByText('Admin User')).toBeInTheDocument();
+      expect(screen.getByText('Superadmin User')).toBeInTheDocument();
     });
     // user-1 is current user, should have 2 delete buttons (for user-2 and user-3 only)
     const deleteButtons = screen.getAllByTestId('icon-trash');
@@ -112,7 +113,7 @@ describe('UsersPage', () => {
   it('calls deleteUser on delete click', async () => {
     render(<UsersPage />);
     await waitFor(() => {
-      expect(screen.getByText('Viewer One')).toBeInTheDocument();
+      expect(screen.getByText('User One')).toBeInTheDocument();
     });
     const deleteButtons = screen.getAllByTestId('icon-trash');
     fireEvent.click(deleteButtons[0].closest('button'));

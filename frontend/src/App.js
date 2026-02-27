@@ -73,7 +73,7 @@ function App() {
                 <Route path="/workspace/groups" element={<WorkspaceGroupsPage />} />
                 <Route path="/workspace/kb" element={<WorkspaceKBPage />} />
                 <Route path="/workspace/docs" element={<WorkspaceDocsPage />} />
-                <Route path="/users" element={<ProtectedRoute roles={["admin"]}><UsersPage /></ProtectedRoute>} />
+                <Route path="/users" element={<ProtectedRoute roles={["superadmin"]}><UsersPage /></ProtectedRoute>} />
               </Route>
             </Routes>
           </AuthProvider>
