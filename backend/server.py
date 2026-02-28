@@ -1179,13 +1179,15 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
                             continue
                         raw_id = data.get("group_id", "") or pid
                         group_names[pid.lower()] = name
+                        members = data.get("members", {})
+                        member_count = len(members) if isinstance(members, dict) else 0
                         from sqlalchemy import text as sa_text
                         await db.execute(sa_text("""
-                            INSERT INTO bot_groups (id, platform_group_id, platform, name, status, created_at, updated_at)
-                            VALUES (:id, :pid, :platform, :name, 'active', :now, :now)
+                            INSERT INTO bot_groups (id, platform_group_id, platform, name, status, member_count, members, created_at, updated_at)
+                            VALUES (:id, :pid, :platform, :name, 'active', :member_count, :members, :now, :now)
                             ON CONFLICT (platform_group_id) DO UPDATE SET
-                                name = EXCLUDED.name, updated_at = EXCLUDED.updated_at
-                        """), {"id": str(uuid.uuid4()), "pid": raw_id, "platform": platform, "name": name, "now": utcnow()})
+                                name = EXCLUDED.name, member_count = EXCLUDED.member_count, members = EXCLUDED.members, updated_at = EXCLUDED.updated_at
+                        """), {"id": str(uuid.uuid4()), "pid": raw_id, "platform": platform, "name": name, "member_count": member_count, "members": json.dumps(members) if members else None, "now": utcnow()})
 
             if missing_users or missing_groups:
                 await db.commit()
