@@ -35,7 +35,7 @@ export default function LoginPage() {
             <Activity className="w-5 h-5 text-white" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-2xl font-bold tracking-widest text-zinc-100" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
+            <span className="text-2xl font-bold tracking-widest text-theme-primary" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
             <span className="text-xs text-theme-faint tracking-wider">Operation Control</span>
           </div>
         </div>

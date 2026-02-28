@@ -134,6 +134,14 @@ async def log_activity(action: str, entity_type: str, entity_id: str = "", detai
         await session.commit()
 
 
+def _model_str(val) -> str:
+    """Normalize a model config value to a plain string.
+    Config may store model as a string or as {primary, fallbacks} object."""
+    if isinstance(val, dict):
+        return val.get("primary", "")
+    return val if isinstance(val, str) else ""
+
+
 # ===== FALLBACK DETECTION HELPER =====
 def _detect_fallback_sessions(sessions_raw: dict, config: dict) -> list[dict]:
     """Detect sessions running on fallback models.
@@ -141,9 +149,9 @@ def _detect_fallback_sessions(sessions_raw: dict, config: dict) -> list[dict]:
     """
     primary = config.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
     agent_overrides = {
-        a["id"]: a["model"]
+        a["id"]: _model_str(a["model"])
         for a in config.get("agents", {}).get("list", [])
-        if a.get("model") and isinstance(a["model"], str)
+        if a.get("model") and _model_str(a["model"])
     }
     fallbacks = []
     for s in sessions_raw.get("sessions", []):
@@ -297,7 +305,7 @@ async def list_agents(user=Depends(get_current_user)):
             "name": a.get("id"),
             "description": a.get("identityName", a.get("name", "")),
             "workspace": a.get("workspace", ""),
-            "model_primary": cfg_by_id.get(a.get("id"), {}).get("model", "") or default_model,
+            "model_primary": _model_str(cfg_by_id.get(a.get("id"), {}).get("model", "")) or default_model,
             "tools_profile": "full",
             "status": "active",
             "sandbox_mode": "off",
@@ -326,7 +334,7 @@ async def get_agent(agent_id: str, user=Depends(get_current_user)):
                             md_files[fname] = fpath.read_text(encoding="utf-8")
                         except Exception:
                             md_files[fname] = ""
-            agent_model = cfg_by_id.get(agent_id, {}).get("model", "") or default_model
+            agent_model = _model_str(cfg_by_id.get(agent_id, {}).get("model", "")) or default_model
             return {
                 "id": a.get("id"),
                 "name": a.get("id"),
@@ -1071,9 +1079,9 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
     # Resolve expected model per agent for primary_model field
     primary = cfg.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
     agent_overrides = {
-        a["id"]: a["model"]
+        a["id"]: _model_str(a["model"])
         for a in cfg.get("agents", {}).get("list", [])
-        if a.get("model") and isinstance(a["model"], str)
+        if a.get("model") and _model_str(a["model"])
     }
 
     # Extract platform IDs from session keys to resolve display names
@@ -2132,13 +2140,24 @@ async def ws_activities(websocket: WebSocket):
             proc.kill()
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', 'http://localhost:3000').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+cors_origins = os.environ.get('CORS_ORIGINS', '')
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origins=[o.strip() for o in cors_origins.split(',')],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # No explicit origins — reflect any requesting origin (safe behind reverse proxy)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origin_regex=r".*",
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

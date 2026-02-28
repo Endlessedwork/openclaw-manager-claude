@@ -177,7 +177,7 @@ export default function WorkspaceDocsPage() {
                             ) : '—'}
                           </td>
                           <td className="px-4 py-2.5 text-theme-faint text-xs">
-                            {new Date(d.modified * 1000).toLocaleDateString()}
+                            {d.updated_at ? new Date(d.updated_at).toLocaleDateString() : '—'}
                           </td>
                         </tr>
                       );
