@@ -191,6 +191,10 @@ async def import_sqlite():
             continue
 
         # Get schema
+        import re
+        if not re.match(r'^[a-zA-Z0-9_]+$', table_name):
+            print(f"  Skipping table with invalid name: {table_name!r}")
+            continue
         cursor.execute(f"PRAGMA table_info({table_name})")
         columns = [col[1] for col in cursor.fetchall()]
         print(f"  SQLite table '{table_name}' columns: {columns}")

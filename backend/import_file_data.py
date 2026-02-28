@@ -20,18 +20,20 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+
+load_dotenv(Path(__file__).parent / ".env")
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+asyncpg://openclaw:oc_pg_s3cur3_2026@127.0.0.1:5433/openclaw_manager",
-)
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is required")
 WORKSPACE_SHARED = Path.home() / ".openclaw" / "workspace" / "shared"
 
 # ---------------------------------------------------------------------------
@@ -489,8 +491,10 @@ async def main():
     # Verify counts in DB
     print()
     print("Verification (row counts in database):")
+    # Table names are hardcoded — safe from injection
+    _VERIFY_TABLES = ["bot_users", "bot_groups", "knowledge_articles", "workspace_documents"]
     async with engine.connect() as conn:
-        for table in ["bot_users", "bot_groups", "knowledge_articles", "workspace_documents"]:
+        for table in _VERIFY_TABLES:
             result = await conn.execute(text(f"SELECT count(*) FROM {table}"))
             db_count = result.scalar()
             print(f"  {table}: {db_count}")

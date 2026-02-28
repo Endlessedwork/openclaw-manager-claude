@@ -37,6 +37,7 @@ const PAGE_TITLES = {
   '/files': 'Files',
   '/gateway': 'Gateway',
   '/users': 'Users',
+  '/settings/general': 'General Settings',
 };
 
 function getPageTitle(pathname) {

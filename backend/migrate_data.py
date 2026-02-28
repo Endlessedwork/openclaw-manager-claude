@@ -15,17 +15,23 @@ Usage:
 """
 
 import asyncio
+import os
 import uuid
 from datetime import datetime, timezone, date as date_type
 
+from pathlib import Path
+
+from dotenv import load_dotenv
 from pymongo import MongoClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
+load_dotenv(Path(__file__).parent / ".env")
+
 # ── Connection strings ──────────────────────────────────────────────
-MONGO_URL = "mongodb://openclaw:oc_m0ng0_s3cur3_2024@127.0.0.1:27017"
-MONGO_DB = "openclaw_manager"
-PG_URL = "postgresql+asyncpg://openclaw:oc_pg_s3cur3_2026@127.0.0.1:5433/openclaw_manager"
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://127.0.0.1:27017")
+MONGO_DB = os.environ.get("DB_NAME", "openclaw_manager")
+PG_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://127.0.0.1:5433/openclaw_manager")
 
 # ── Import all SQLModel models ──────────────────────────────────────
 from models.user import User

@@ -35,6 +35,7 @@ from routes.conversation_routes import conversation_router
 from routes.session_routes import session_router
 from routes.memory_routes import memory_router
 from routes.notification_routes import notification_router
+from routes.settings_routes import settings_router
 
 app = FastAPI()
 
@@ -122,6 +123,7 @@ api_router.include_router(conversation_router)
 api_router.include_router(session_router)
 api_router.include_router(memory_router)
 api_router.include_router(notification_router)
+api_router.include_router(settings_router)
 
 
 # ===== HELPER =====
@@ -134,6 +136,14 @@ async def log_activity(action: str, entity_type: str, entity_id: str = "", detai
         await session.commit()
 
 
+def _model_str(val) -> str:
+    """Normalize a model config value to a plain string.
+    Config may store model as a string or as {primary, fallbacks} object."""
+    if isinstance(val, dict):
+        return val.get("primary", "")
+    return val if isinstance(val, str) else ""
+
+
 # ===== FALLBACK DETECTION HELPER =====
 def _detect_fallback_sessions(sessions_raw: dict, config: dict) -> list[dict]:
     """Detect sessions running on fallback models.
@@ -141,9 +151,9 @@ def _detect_fallback_sessions(sessions_raw: dict, config: dict) -> list[dict]:
     """
     primary = config.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
     agent_overrides = {
-        a["id"]: a["model"]
+        a["id"]: _model_str(a["model"])
         for a in config.get("agents", {}).get("list", [])
-        if a.get("model") and isinstance(a["model"], str)
+        if a.get("model") and _model_str(a["model"])
     }
     fallbacks = []
     for s in sessions_raw.get("sessions", []):
@@ -227,26 +237,43 @@ async def _check_fallback_notification(rule):
 
 # ===== DASHBOARD =====
 async def _build_dashboard():
-    """Build dashboard data from CLI calls."""
-    results = await asyncio.gather(
+    """Build dashboard data from CLI calls.
+
+    Splits into two phases to reduce CPU contention on low-core machines:
+    Phase 1 (critical): health + config — enough to render the dashboard
+    Phase 2 (parallel): skills + cron — secondary stats
+    Sessions/fallback detection is deferred to avoid blocking the dashboard.
+    """
+    # Phase 1: health is slowest and most important, config is instant (file read)
+    health_result, config = await asyncio.gather(
         gateway.health(),
-        gateway.skills(),
-        gateway.cron_jobs(),
         gateway.config_read(),
-        gateway.sessions(),
         return_exceptions=True,
     )
-    health = results[0] if not isinstance(results[0], Exception) else {}
-    skills = results[1] if not isinstance(results[1], Exception) else {}
-    cron = results[2] if not isinstance(results[2], Exception) else {}
-    config = results[3] if not isinstance(results[3], Exception) else {}
-    sessions_raw = results[4] if not isinstance(results[4], Exception) else {}
+    health = health_result if not isinstance(health_result, Exception) else {}
+    config = config if not isinstance(config, Exception) else {}
+
+    # Phase 2: skills + cron (run after health frees a semaphore slot)
+    skills_result, cron_result = await asyncio.gather(
+        gateway.skills(),
+        gateway.cron_jobs(),
+        return_exceptions=True,
+    )
+    skills = skills_result if not isinstance(skills_result, Exception) else {}
+    cron = cron_result if not isinstance(cron_result, Exception) else {}
+
     skill_list = skills.get("skills", [])
     active_skills = [s for s in skill_list if s.get("eligible") and not s.get("disabled")]
     channel_list = health.get("channels", {})
     active_channels = [k for k, v in channel_list.items() if v.get("configured")]
     session_data = health.get("sessions", {})
-    fallback_count = len(_detect_fallback_sessions(sessions_raw, config))
+
+    # Fallback detection: use cached sessions if available, don't block for it
+    try:
+        sessions_raw = gateway.cache._cache.get("sessions", {}).get("data", {})
+    except Exception:
+        sessions_raw = {}
+    fallback_count = len(_detect_fallback_sessions(sessions_raw, config)) if sessions_raw else 0
 
     return {
         "agents": len(health.get("agents", [])),
@@ -280,7 +307,7 @@ async def list_agents(user=Depends(get_current_user)):
             "name": a.get("id"),
             "description": a.get("identityName", a.get("name", "")),
             "workspace": a.get("workspace", ""),
-            "model_primary": cfg_by_id.get(a.get("id"), {}).get("model", "") or default_model,
+            "model_primary": _model_str(cfg_by_id.get(a.get("id"), {}).get("model", "")) or default_model,
             "tools_profile": "full",
             "status": "active",
             "sandbox_mode": "off",
@@ -309,7 +336,7 @@ async def get_agent(agent_id: str, user=Depends(get_current_user)):
                             md_files[fname] = fpath.read_text(encoding="utf-8")
                         except Exception:
                             md_files[fname] = ""
-            agent_model = cfg_by_id.get(agent_id, {}).get("model", "") or default_model
+            agent_model = _model_str(cfg_by_id.get(agent_id, {}).get("model", "")) or default_model
             return {
                 "id": a.get("id"),
                 "name": a.get("id"),
@@ -695,7 +722,9 @@ def _resolve_api_key(provider_id: str) -> str:
     return _resolve_all_api_keys().get(provider_id, "")
 
 
-# Cache gateway process env to avoid repeated pgrep + /proc reads
+# Cache gateway process env to avoid repeated pgrep + /proc reads.
+# Note: concurrent requests may redundantly refresh the cache (benign race);
+# the GIL protects dict mutations and worst case is duplicate /proc reads.
 _gateway_env_cache = {"data": {}, "ts": 0}
 
 
@@ -1052,9 +1081,9 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
     # Resolve expected model per agent for primary_model field
     primary = cfg.get("agents", {}).get("defaults", {}).get("model", {}).get("primary", "")
     agent_overrides = {
-        a["id"]: a["model"]
+        a["id"]: _model_str(a["model"])
         for a in cfg.get("agents", {}).get("list", [])
-        if a.get("model") and isinstance(a["model"], str)
+        if a.get("model") and _model_str(a["model"])
     }
 
     # Extract platform IDs from session keys to resolve display names
@@ -1479,7 +1508,10 @@ async def create_binding(body: dict = Body(...), user=Depends(require_role("supe
 
 @api_router.put("/bindings/{binding_id}")
 async def update_binding(binding_id: str, body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
-    idx = int(binding_id)
+    try:
+        idx = int(binding_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid binding ID")
     config = await gateway.config_read()
     bindings = config.get("bindings", [])
     if idx < 0 or idx >= len(bindings):
@@ -1505,7 +1537,10 @@ async def update_binding(binding_id: str, body: dict = Body(...), user=Depends(r
 
 @api_router.delete("/bindings/{binding_id}")
 async def delete_binding(binding_id: str, user=Depends(require_role("superadmin", "admin"))):
-    idx = int(binding_id)
+    try:
+        idx = int(binding_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid binding ID")
     config = await gateway.config_read()
     bindings = config.get("bindings", [])
     if idx < 0 or idx >= len(bindings):
@@ -1555,7 +1590,8 @@ async def list_system_logs(
     if source:
         filters.append(SystemLog.source == source)
     if search:
-        filters.append(SystemLog.message.ilike(f"%{search}%"))
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        filters.append(SystemLog.message.ilike(f"%{escaped}%", escape="\\"))
     if since_id:
         async with async_session() as session:
             ref = (await session.execute(
@@ -2106,13 +2142,24 @@ async def ws_activities(websocket: WebSocket):
             proc.kill()
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+cors_origins = os.environ.get('CORS_ORIGINS', '')
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origins=[o.strip() for o in cors_origins.split(',')],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # No explicit origins — reflect any requesting origin (safe behind reverse proxy)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origin_regex=r".*",
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

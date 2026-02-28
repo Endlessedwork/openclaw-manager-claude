@@ -1,5 +1,7 @@
 import uuid as _uuid
+import os
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi.responses import FileResponse
 from sqlmodel import select
 from sqlalchemy import desc
 
@@ -11,6 +13,22 @@ from models.knowledge import KnowledgeArticle
 from models.document import WorkspaceDocument
 
 workspace_router = APIRouter(prefix="/workspace", tags=["workspace"])
+
+
+def _can_view(role: str, sensitivity: str) -> bool:
+    if role in ("admin", "superadmin"):
+        return True
+    if role == "manager":
+        return True
+    return sensitivity in ("public", "internal")
+
+
+def _can_manage(role: str, sensitivity: str) -> bool:
+    if role in ("admin", "superadmin"):
+        return True
+    if role == "manager":
+        return sensitivity in ("public", "internal")
+    return False
 
 
 @workspace_router.get("/users")
@@ -189,8 +207,47 @@ async def get_knowledge_content(
     return {"content": article.content, "id": str(article.id), "title": article.title}
 
 
+VIEWABLE_TYPES = {"jpg", "jpeg", "png", "gif", "webp", "bmp", "pdf", "txt", "md", "csv", "json"}
+
+MIME_MAP = {
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "bmp": "image/bmp",
+    "pdf": "application/pdf",
+    "txt": "text/plain",
+    "md": "text/plain",
+    "csv": "text/csv",
+    "json": "application/json",
+}
+
+
+@workspace_router.get("/documents/file/{doc_id}")
+async def serve_document_file(doc_id: str, user=Depends(get_current_user)):
+    try:
+        uid = _uuid.UUID(doc_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid document ID")
+    async with async_session() as session:
+        result = await session.execute(
+            select(WorkspaceDocument).where(WorkspaceDocument.id == uid)
+        )
+        doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    if not _can_view(user["role"], (doc.sensitivity or "internal").lower()):
+        raise HTTPException(403, "Access denied")
+    if not os.path.isfile(doc.file_path):
+        raise HTTPException(404, "File not found on disk")
+    media_type = MIME_MAP.get(doc.file_type, "application/octet-stream")
+    return FileResponse(doc.file_path, media_type=media_type, filename=doc.filename)
+
+
 @workspace_router.get("/documents")
 async def list_workspace_documents(user=Depends(get_current_user)):
+    role = user["role"]
     async with async_session() as session:
         result = await session.execute(select(WorkspaceDocument))
         docs = result.scalars().all()
@@ -205,8 +262,67 @@ async def list_workspace_documents(user=Depends(get_current_user)):
             "sensitivity": d.sensitivity,
             "uploaded_by": d.uploaded_by,
             "approved_by": d.approved_by,
+            "viewable": (d.file_type or "").lower() in VIEWABLE_TYPES,
+            "can_manage": _can_manage(role, (d.sensitivity or "internal").lower()),
             "created_at": d.created_at.isoformat() if d.created_at else None,
             "updated_at": d.updated_at.isoformat() if d.updated_at else None,
         }
         for d in docs
+        if _can_view(role, (d.sensitivity or "internal").lower())
     ]
+
+
+VALID_SENSITIVITIES = {"public", "internal", "confidential"}
+
+
+@workspace_router.patch("/documents/{doc_id}")
+async def patch_document(
+    doc_id: str,
+    updates: dict = Body(...),
+    user=Depends(require_role("superadmin", "admin")),
+):
+    if set(updates.keys()) != {"sensitivity"}:
+        raise HTTPException(400, "Only 'sensitivity' can be updated")
+    new_sens = updates["sensitivity"].lower()
+    if new_sens not in VALID_SENSITIVITIES:
+        raise HTTPException(400, f"Invalid sensitivity: {updates['sensitivity']}")
+
+    try:
+        uid = _uuid.UUID(doc_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid document ID")
+
+    async with async_session() as session:
+        doc = await session.get(WorkspaceDocument, uid)
+        if not doc:
+            raise HTTPException(404, "Document not found")
+        doc.sensitivity = new_sens
+        await session.commit()
+        await session.refresh(doc)
+    return {"id": str(doc.id), "sensitivity": doc.sensitivity}
+
+
+@workspace_router.delete("/documents/{doc_id}")
+async def delete_document(doc_id: str, user=Depends(get_current_user)):
+    try:
+        uid = _uuid.UUID(doc_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid document ID")
+
+    async with async_session() as session:
+        doc = await session.get(WorkspaceDocument, uid)
+        if not doc:
+            raise HTTPException(404, "Document not found")
+        if not _can_manage(user["role"], (doc.sensitivity or "internal").lower()):
+            raise HTTPException(403, "Access denied")
+        file_path = doc.file_path
+        await session.delete(doc)
+        await session.commit()
+
+    if file_path and os.path.isfile(file_path):
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+
+    return {"ok": True}

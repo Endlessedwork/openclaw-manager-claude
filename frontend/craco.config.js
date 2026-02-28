@@ -34,6 +34,7 @@ const webpackConfig = {
 };
 
 webpackConfig.devServer = (devServerConfig) => {
+  devServerConfig.allowedHosts = "all";
   return devServerConfig;
 };
 

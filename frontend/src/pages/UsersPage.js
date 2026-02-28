@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getUsers, createUser, updateUser, deleteUser } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { Users, Plus, Pencil, Trash2, Shield, Eye, Edit3, Loader2 } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Shield, Eye, Edit3, Loader2, Briefcase } from 'lucide-react';
 
 const ROLE_CONFIG = {
   superadmin: { label: 'Superadmin', icon: Shield, color: 'text-red-400 bg-red-500/10 border-red-500/20' },
   admin: { label: 'Admin', icon: Edit3, color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+  manager: { label: 'Manager', icon: Briefcase, color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
   user: { label: 'User', icon: Eye, color: 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20' },
 };
 
@@ -144,6 +145,7 @@ export default function UsersPage() {
               <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
                 className="w-full px-3 py-2 bg-surface-page border border-subtle rounded-lg text-theme-primary text-sm focus:outline-none focus:border-orange-500/50">
                 <option value="user">User</option>
+                <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
                 <option value="superadmin">Superadmin</option>
               </select>

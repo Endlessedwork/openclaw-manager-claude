@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import { Activity } from 'lucide-react';
 
 export default function LoginPage() {
   const { login, user } = useAuth();
+  const { config } = useAppConfig();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -35,8 +37,8 @@ export default function LoginPage() {
             <Activity className="w-5 h-5 text-white" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-2xl font-bold tracking-widest text-zinc-100" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
-            <span className="text-xs text-theme-faint tracking-wider">Operation Control</span>
+            <span className="text-2xl font-bold tracking-widest text-theme-primary" style={{ fontFamily: 'Manrope, sans-serif' }}>{config.app_name}</span>
+            <span className="text-xs text-theme-faint tracking-wider">{config.app_subtitle}</span>
           </div>
         </div>
 

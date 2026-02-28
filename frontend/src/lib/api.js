@@ -123,6 +123,10 @@ export const testNotification = (data) => api.post('/notifications/test', data);
 // Config Validation
 export const validateConfig = (data) => api.post('/config/validate', data);
 
+// App Settings (branding)
+export const getAppSettings = () => api.get('/settings');
+export const updateAppSettings = (data) => api.put('/settings', data);
+
 // Agent Activities
 export const getActivities = (params = {}) => {
   const q = new URLSearchParams();
@@ -176,5 +180,8 @@ export const patchWorkspaceGroup = (filename, data) => api.patch(`/workspace/gro
 export const getWorkspaceKnowledge = () => api.get('/workspace/knowledge');
 export const getWorkspaceKnowledgeContent = (path) => api.get(`/workspace/knowledge/content?path=${encodeURIComponent(path)}`);
 export const getWorkspaceDocuments = () => api.get('/workspace/documents');
+export const getDocumentFile = (docId) => api.get(`/workspace/documents/file/${docId}`, { responseType: 'blob' });
+export const patchDocument = (id, data) => api.patch(`/workspace/documents/${id}`, data);
+export const deleteDocument = (id) => api.delete(`/workspace/documents/${id}`);
 
 export default api;

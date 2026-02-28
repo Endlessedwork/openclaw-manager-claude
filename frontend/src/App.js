@@ -5,6 +5,7 @@ import { Toaster } from "./components/ui/sonner";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { GatewayBannerProvider } from "./contexts/GatewayBannerContext";
+import { AppConfigProvider } from "./contexts/AppConfigContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./layout/MainLayout";
 import LoginPage from "./pages/LoginPage";
@@ -33,6 +34,7 @@ import WorkspaceKBPage from "./pages/WorkspaceKBPage";
 import WorkspaceDocsPage from "./pages/WorkspaceDocsPage";
 import BindingsPage from "./pages/BindingsPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import GeneralSettingsPage from "./pages/GeneralSettingsPage";
 
 function ThemedToaster() {
   const { isDark } = useTheme();
@@ -44,39 +46,46 @@ function App() {
     <div className="App">
       <ThemeProvider>
         <BrowserRouter>
+          <AppConfigProvider>
           <AuthProvider>
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute><GatewayBannerProvider><MainLayout /></GatewayBannerProvider></ProtectedRoute>}>
                 <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/usage" element={<UsagePage />} />
+                {/* All roles: Dashboard, Agents, Workspace */}
                 <Route path="/agents" element={<AgentsPage />} />
                 <Route path="/skills" element={<SkillsPage />} />
                 <Route path="/tools" element={<ToolsPage />} />
-                <Route path="/models" element={<ModelsPage />} />
-                <Route path="/providers" element={<ProvidersPage />} />
-                <Route path="/channels" element={<ChannelsPage />} />
-                <Route path="/sessions" element={<SessionsPage />} />
-                <Route path="/cron" element={<CronPage />} />
-                <Route path="/config" element={<ConfigPage />} />
-                <Route path="/gateway" element={<GatewayPage />} />
-                <Route path="/health" element={<HealthPage />} />
-                <Route path="/files" element={<FilesPage />} />
-                <Route path="/activities" element={<ActivitiesPage />} />
-                <Route path="/logs" element={<LogsPage />} />
                 <Route path="/clawhub" element={<ClawHubPage />} />
-                <Route path="/hooks" element={<HooksPage />} />
-                <Route path="/bindings" element={<BindingsPage />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/workspace/users" element={<WorkspaceUsersPage />} />
                 <Route path="/workspace/groups" element={<WorkspaceGroupsPage />} />
                 <Route path="/workspace/kb" element={<WorkspaceKBPage />} />
                 <Route path="/workspace/docs" element={<WorkspaceDocsPage />} />
+                {/* superadmin, admin, manager: Usage, Operations */}
+                <Route path="/usage" element={<ProtectedRoute roles={["superadmin","admin","manager"]}><UsagePage /></ProtectedRoute>} />
+                <Route path="/sessions" element={<ProtectedRoute roles={["superadmin","admin","manager"]}><SessionsPage /></ProtectedRoute>} />
+                <Route path="/cron" element={<ProtectedRoute roles={["superadmin","admin","manager"]}><CronPage /></ProtectedRoute>} />
+                {/* superadmin, admin: AI Models, Integrations, Monitoring, System */}
+                <Route path="/models" element={<ProtectedRoute roles={["superadmin","admin"]}><ModelsPage /></ProtectedRoute>} />
+                <Route path="/providers" element={<ProtectedRoute roles={["superadmin","admin"]}><ProvidersPage /></ProtectedRoute>} />
+                <Route path="/channels" element={<ProtectedRoute roles={["superadmin","admin"]}><ChannelsPage /></ProtectedRoute>} />
+                <Route path="/hooks" element={<ProtectedRoute roles={["superadmin","admin"]}><HooksPage /></ProtectedRoute>} />
+                <Route path="/bindings" element={<ProtectedRoute roles={["superadmin","admin"]}><BindingsPage /></ProtectedRoute>} />
+                <Route path="/activities" element={<ProtectedRoute roles={["superadmin","admin"]}><ActivitiesPage /></ProtectedRoute>} />
+                <Route path="/logs" element={<ProtectedRoute roles={["superadmin","admin"]}><LogsPage /></ProtectedRoute>} />
+                <Route path="/health" element={<ProtectedRoute roles={["superadmin","admin"]}><HealthPage /></ProtectedRoute>} />
+                <Route path="/config" element={<ProtectedRoute roles={["superadmin","admin"]}><ConfigPage /></ProtectedRoute>} />
+                <Route path="/gateway" element={<ProtectedRoute roles={["superadmin","admin"]}><GatewayPage /></ProtectedRoute>} />
+                <Route path="/files" element={<ProtectedRoute roles={["superadmin","admin"]}><FilesPage /></ProtectedRoute>} />
+                <Route path="/notifications" element={<ProtectedRoute roles={["superadmin","admin"]}><NotificationsPage /></ProtectedRoute>} />
+                <Route path="/settings/general" element={<ProtectedRoute roles={["superadmin","admin"]}><GeneralSettingsPage /></ProtectedRoute>} />
+                {/* Superadmin only */}
                 <Route path="/users" element={<ProtectedRoute roles={["superadmin"]}><UsersPage /></ProtectedRoute>} />
               </Route>
             </Routes>
           </AuthProvider>
+          </AppConfigProvider>
         </BrowserRouter>
         <ThemedToaster />
       </ThemeProvider>

@@ -69,7 +69,7 @@ export default function ModelsPage() {
 
   const openAgentEdit = (agent) => {
     setEditingAgent(agent);
-    setAgentForm({ model: agent.model || '', fallbacks: agent.fallbacks || [] });
+    setAgentForm({ model: (typeof agent.model === 'object' ? agent.model?.primary : agent.model) || '', fallbacks: agent.fallbacks || [] });
     setAgentDialogOpen(true);
   };
 
@@ -355,14 +355,14 @@ export default function ModelsPage() {
                     <AccordionTrigger className="text-sm text-theme-secondary hover:text-orange-400 py-3">
                       <div className="flex items-center gap-3">
                         <span className="font-semibold">{agent.name || agent.id}</span>
-                        <span className="font-mono text-[10px] text-theme-faint">{agent.model || '(uses default)'}</span>
+                        <span className="font-mono text-[10px] text-theme-faint">{typeof agent.model === 'object' ? agent.model?.primary : agent.model || '(uses default)'}</span>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="pb-3">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-theme-faint">Model</span>
-                          <span className="font-mono text-theme-secondary">{agent.model || '(default)'}</span>
+                          <span className="font-mono text-theme-secondary">{typeof agent.model === 'object' ? agent.model?.primary : agent.model || '(default)'}</span>
                         </div>
                         {agent.fallbacks?.length > 0 ? (
                           <div className="space-y-1">

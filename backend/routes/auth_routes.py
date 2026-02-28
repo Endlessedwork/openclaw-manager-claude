@@ -1,7 +1,11 @@
+import os
+
 from fastapi import APIRouter, HTTPException, Request, Response, Depends
 from pydantic import BaseModel
 from utils import utcnow
 import uuid as _uuid
+
+_COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
 
 from sqlmodel import select
 
@@ -39,7 +43,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
             key="refresh_token",
             value=refresh_token,
             httponly=True,
-            secure=False,
+            secure=_COOKIE_SECURE,
             samesite="lax",
             max_age=7 * 24 * 3600,
             path="/api/auth",
@@ -91,7 +95,7 @@ async def refresh(request: Request, response: Response):
         key="refresh_token",
         value=new_refresh,
         httponly=True,
-        secure=False,
+        secure=_COOKIE_SECURE,
         samesite="lax",
         max_age=7 * 24 * 3600,
         path="/api/auth",

@@ -64,7 +64,7 @@ class CLICache:
 class GatewayCLI:
     def __init__(self):
         self.cache = CLICache()
-        self._sem = asyncio.Semaphore(3)  # Max 3 concurrent CLI processes
+        self._sem = asyncio.Semaphore(2)  # Max 2 concurrent CLI processes (matches 2 CPU cores)
 
     async def _run(self, *args, json_output=True, timeout=30) -> dict | str:
         cmd = [OPENCLAW_BIN] + list(args)
@@ -109,33 +109,31 @@ class GatewayCLI:
         return await self.cache.get("sessions", lambda: self._run("sessions", "list"), 30, stale_ok=True)
 
     async def skills(self):
-        return await self.cache.get("skills", lambda: self._run("skills", "list"), 120)
+        return await self.cache.get("skills", lambda: self._run("skills", "list"), 120, stale_ok=True)
 
     async def health(self):
-        return await self.cache.get("health", lambda: self._run("health"), 30, stale_ok=True)
+        return await self.cache.get("health", lambda: self._run("health", timeout=45), 30, stale_ok=True)
 
     async def cron_jobs(self):
-        return await self.cache.get("cron", lambda: self._run("cron", "list"), 60)
+        return await self.cache.get("cron", lambda: self._run("cron", "list"), 60, stale_ok=True)
 
     async def models(self):
         return await self.cache.get("models", lambda: self._run("models", "list"), 120)
 
     async def warmup(self):
-        """Pre-populate cache on startup. Dashboard deps first."""
+        """Pre-populate cache on startup.
+
+        Runs in pairs to match 2 CPU cores — avoids CPU contention that
+        makes each process slower than running sequentially.
+        """
         try:
-            # Phase 1: Dashboard + Sessions dependencies
-            await asyncio.gather(
-                self.health(),
-                self.sessions(),
-                self.skills(),
-                self.cron_jobs(),
-                self.config_read(),
-            )
-            # Phase 2: Other pages (lower priority)
-            await asyncio.gather(
-                self.agents(),
-                self.models(),
-            )
+            await self.config_read()  # instant (file read)
+            # Pair 1: health (slowest) + sessions
+            await asyncio.gather(self.health(), self.sessions())
+            # Pair 2: skills + cron
+            await asyncio.gather(self.skills(), self.cron_jobs())
+            # Pair 3: other pages
+            await asyncio.gather(self.agents(), self.models())
         except Exception:
             pass  # Non-fatal, cache will fill on demand
 
@@ -145,7 +143,7 @@ class GatewayCLI:
             async with aiofiles.open(OPENCLAW_CONFIG, 'r') as f:
                 content = await f.read()
             return json.loads(content)
-        return await self.cache.get("config", _read, 5)
+        return await self.cache.get("config", _read, 30)
 
     async def config_write(self, data: dict):
         import aiofiles

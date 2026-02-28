@@ -1,5 +1,8 @@
+import logging
 import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Body
+from pydantic import BaseModel
 from sqlmodel import select
 from sqlalchemy import desc
 
@@ -9,6 +12,31 @@ from utils import utcnow
 from models.notification import NotificationRule
 from models.bot_group import BotGroup
 from gateway_cli import gateway
+
+logger = logging.getLogger(__name__)
+
+
+class CreateRuleRequest(BaseModel):
+    event_type: str
+    channel: str = "telegram"
+    target: str
+    target_name: str = ""
+    enabled: bool = True
+    cooldown_minutes: int = 30
+
+
+class UpdateRuleRequest(BaseModel):
+    event_type: str | None = None
+    channel: str | None = None
+    target: str | None = None
+    target_name: str | None = None
+    enabled: bool | None = None
+    cooldown_minutes: int | None = None
+
+
+class TestNotificationRequest(BaseModel):
+    channel: str = "telegram"
+    target: str
 
 notification_router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -53,20 +81,17 @@ async def list_rules(user=Depends(get_current_user)):
 
 
 @notification_router.post("/rules")
-async def create_rule(body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
-    event_type = body.get("event_type", "").strip()
-    channel = body.get("channel", "telegram").strip()
-    target = body.get("target", "").strip()
-    if not event_type or not target:
+async def create_rule(body: CreateRuleRequest, user=Depends(require_role("superadmin", "admin"))):
+    if not body.event_type.strip() or not body.target.strip():
         raise HTTPException(400, "event_type and target are required")
 
     rule = NotificationRule(
-        event_type=event_type,
-        channel=channel,
-        target=target,
-        target_name=body.get("target_name", ""),
-        enabled=body.get("enabled", True),
-        cooldown_minutes=body.get("cooldown_minutes", 30),
+        event_type=body.event_type.strip(),
+        channel=body.channel.strip(),
+        target=body.target.strip(),
+        target_name=body.target_name,
+        enabled=body.enabled,
+        cooldown_minutes=body.cooldown_minutes,
     )
     async with async_session() as session:
         session.add(rule)
@@ -76,14 +101,20 @@ async def create_rule(body: dict = Body(...), user=Depends(require_role("superad
 
 
 @notification_router.put("/rules/{rule_id}")
-async def update_rule(rule_id: str, body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
+async def update_rule(rule_id: str, body: UpdateRuleRequest, user=Depends(require_role("superadmin", "admin"))):
+    try:
+        rid = uuid.UUID(rule_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid rule ID")
+
     async with async_session() as session:
-        rule = await session.get(NotificationRule, uuid.UUID(rule_id))
+        rule = await session.get(NotificationRule, rid)
         if not rule:
             raise HTTPException(404, "Rule not found")
         for field in ("event_type", "channel", "target", "target_name", "enabled", "cooldown_minutes"):
-            if field in body:
-                setattr(rule, field, body[field])
+            value = getattr(body, field)
+            if value is not None:
+                setattr(rule, field, value)
         rule.updated_at = utcnow()
         await session.commit()
         await session.refresh(rule)
@@ -92,8 +123,13 @@ async def update_rule(rule_id: str, body: dict = Body(...), user=Depends(require
 
 @notification_router.delete("/rules/{rule_id}")
 async def delete_rule(rule_id: str, user=Depends(require_role("superadmin", "admin"))):
+    try:
+        rid = uuid.UUID(rule_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid rule ID")
+
     async with async_session() as session:
-        rule = await session.get(NotificationRule, uuid.UUID(rule_id))
+        rule = await session.get(NotificationRule, rid)
         if not rule:
             raise HTTPException(404, "Rule not found")
         await session.delete(rule)
@@ -102,18 +138,17 @@ async def delete_rule(rule_id: str, user=Depends(require_role("superadmin", "adm
 
 
 @notification_router.post("/test")
-async def test_notification(body: dict = Body(...), user=Depends(require_role("superadmin", "admin"))):
+async def test_notification(body: TestNotificationRequest, user=Depends(require_role("superadmin", "admin"))):
     """Send a test notification to verify the target is reachable."""
-    channel = body.get("channel", "telegram")
-    target = body.get("target", "")
-    if not target:
+    if not body.target.strip():
         raise HTTPException(400, "target is required")
     message = "🔔 Test notification from OpenClaw Manager"
     try:
-        await gateway.send_message(channel, target, message)
+        await gateway.send_message(body.channel, body.target.strip(), message)
         return {"ok": True, "message": "Test notification sent"}
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        logger.warning(f"Test notification failed: {e}")
+        return {"ok": False, "error": "Failed to send notification. Check server logs."}
 
 
 @notification_router.get("/groups")
