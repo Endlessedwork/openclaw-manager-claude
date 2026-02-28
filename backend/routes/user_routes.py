@@ -11,7 +11,7 @@ from models.user import User
 
 user_router = APIRouter(prefix="/users", tags=["users"])
 
-VALID_ROLES = {"superadmin", "admin", "user"}
+VALID_ROLES = {"superadmin", "admin", "manager", "user"}
 
 
 class CreateUserRequest(BaseModel):

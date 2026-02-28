@@ -22,12 +22,14 @@ const navGroups = [
   {
     id: 'usage',
     type: 'standalone',
+    roles: ['superadmin', 'admin', 'manager'],
     items: [{ path: '/usage', label: 'Usage', icon: Coins }],
   },
   {
     id: 'ai-models',
     label: 'AI Models',
     icon: BrainCircuit,
+    roles: ['superadmin', 'admin'],
     items: [
       { path: '/providers', label: 'Providers', icon: Server },
       { path: '/models', label: 'Models', icon: Cpu },
@@ -48,6 +50,7 @@ const navGroups = [
     id: 'integrations',
     label: 'Integrations',
     icon: Link2,
+    roles: ['superadmin', 'admin'],
     items: [
       { path: '/channels', label: 'Channels', icon: Radio },
       { path: '/hooks', label: 'Hooks', icon: Webhook },
@@ -58,6 +61,7 @@ const navGroups = [
     id: 'operations',
     label: 'Operations',
     icon: PlayCircle,
+    roles: ['superadmin', 'admin', 'manager'],
     items: [
       { path: '/sessions', label: 'Sessions', icon: MessageSquare },
       { path: '/cron', label: 'Cron Jobs', icon: Clock },
@@ -67,6 +71,7 @@ const navGroups = [
     id: 'monitoring',
     label: 'Monitoring',
     icon: Eye,
+    roles: ['superadmin', 'admin'],
     items: [
       { path: '/activities', label: 'Activities', icon: MonitorDot },
       { path: '/logs', label: 'Logs', icon: ScrollText },
@@ -88,6 +93,7 @@ const navGroups = [
     id: 'system',
     label: 'System',
     icon: Settings,
+    roles: ['superadmin', 'admin'],
     items: [
       { path: '/notifications', label: 'Notifications', icon: Bell },
       { path: '/config', label: 'Config', icon: FileCode },
@@ -249,13 +255,15 @@ export default function Sidebar({ isMobileMenuOpen, onClose }) {
     if (isMobile && onClose) onClose();
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Build groups with admin-only items
-  const groups = navGroups.map((group) => {
-    if (group.id === 'system' && isAdmin()) {
-      return { ...group, items: [...group.items, { path: '/users', label: 'Users', icon: Users }] };
-    }
-    return group;
-  });
+  // Build groups: filter by role, then add admin-only items
+  const groups = navGroups
+    .filter((group) => !group.roles || group.roles.includes(user?.role))
+    .map((group) => {
+      if (group.id === 'system' && isAdmin()) {
+        return { ...group, items: [...group.items, { path: '/users', label: 'Users', icon: Users }] };
+      }
+      return group;
+    });
 
   const sidebarContent = (
     <aside
