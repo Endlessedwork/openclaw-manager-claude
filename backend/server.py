@@ -227,26 +227,43 @@ async def _check_fallback_notification(rule):
 
 # ===== DASHBOARD =====
 async def _build_dashboard():
-    """Build dashboard data from CLI calls."""
-    results = await asyncio.gather(
+    """Build dashboard data from CLI calls.
+
+    Splits into two phases to reduce CPU contention on low-core machines:
+    Phase 1 (critical): health + config — enough to render the dashboard
+    Phase 2 (parallel): skills + cron — secondary stats
+    Sessions/fallback detection is deferred to avoid blocking the dashboard.
+    """
+    # Phase 1: health is slowest and most important, config is instant (file read)
+    health_result, config = await asyncio.gather(
         gateway.health(),
-        gateway.skills(),
-        gateway.cron_jobs(),
         gateway.config_read(),
-        gateway.sessions(),
         return_exceptions=True,
     )
-    health = results[0] if not isinstance(results[0], Exception) else {}
-    skills = results[1] if not isinstance(results[1], Exception) else {}
-    cron = results[2] if not isinstance(results[2], Exception) else {}
-    config = results[3] if not isinstance(results[3], Exception) else {}
-    sessions_raw = results[4] if not isinstance(results[4], Exception) else {}
+    health = health_result if not isinstance(health_result, Exception) else {}
+    config = config if not isinstance(config, Exception) else {}
+
+    # Phase 2: skills + cron (run after health frees a semaphore slot)
+    skills_result, cron_result = await asyncio.gather(
+        gateway.skills(),
+        gateway.cron_jobs(),
+        return_exceptions=True,
+    )
+    skills = skills_result if not isinstance(skills_result, Exception) else {}
+    cron = cron_result if not isinstance(cron_result, Exception) else {}
+
     skill_list = skills.get("skills", [])
     active_skills = [s for s in skill_list if s.get("eligible") and not s.get("disabled")]
     channel_list = health.get("channels", {})
     active_channels = [k for k, v in channel_list.items() if v.get("configured")]
     session_data = health.get("sessions", {})
-    fallback_count = len(_detect_fallback_sessions(sessions_raw, config))
+
+    # Fallback detection: use cached sessions if available, don't block for it
+    try:
+        sessions_raw = gateway.cache._cache.get("sessions", {}).get("data", {})
+    except Exception:
+        sessions_raw = {}
+    fallback_count = len(_detect_fallback_sessions(sessions_raw, config)) if sessions_raw else 0
 
     return {
         "agents": len(health.get("agents", [])),
