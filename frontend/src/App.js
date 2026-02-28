@@ -5,6 +5,7 @@ import { Toaster } from "./components/ui/sonner";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { GatewayBannerProvider } from "./contexts/GatewayBannerContext";
+import { AppConfigProvider } from "./contexts/AppConfigContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./layout/MainLayout";
 import LoginPage from "./pages/LoginPage";
@@ -33,6 +34,7 @@ import WorkspaceKBPage from "./pages/WorkspaceKBPage";
 import WorkspaceDocsPage from "./pages/WorkspaceDocsPage";
 import BindingsPage from "./pages/BindingsPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import GeneralSettingsPage from "./pages/GeneralSettingsPage";
 
 function ThemedToaster() {
   const { isDark } = useTheme();
@@ -44,6 +46,7 @@ function App() {
     <div className="App">
       <ThemeProvider>
         <BrowserRouter>
+          <AppConfigProvider>
           <AuthProvider>
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -76,11 +79,13 @@ function App() {
                 <Route path="/gateway" element={<ProtectedRoute roles={["superadmin","admin"]}><GatewayPage /></ProtectedRoute>} />
                 <Route path="/files" element={<ProtectedRoute roles={["superadmin","admin"]}><FilesPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute roles={["superadmin","admin"]}><NotificationsPage /></ProtectedRoute>} />
+                <Route path="/settings/general" element={<ProtectedRoute roles={["superadmin","admin"]}><GeneralSettingsPage /></ProtectedRoute>} />
                 {/* Superadmin only */}
                 <Route path="/users" element={<ProtectedRoute roles={["superadmin"]}><UsersPage /></ProtectedRoute>} />
               </Route>
             </Routes>
           </AuthProvider>
+          </AppConfigProvider>
         </BrowserRouter>
         <ThemedToaster />
       </ThemeProvider>

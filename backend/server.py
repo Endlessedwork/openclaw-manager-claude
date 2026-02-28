@@ -35,6 +35,7 @@ from routes.conversation_routes import conversation_router
 from routes.session_routes import session_router
 from routes.memory_routes import memory_router
 from routes.notification_routes import notification_router
+from routes.settings_routes import settings_router
 
 app = FastAPI()
 
@@ -122,6 +123,7 @@ api_router.include_router(conversation_router)
 api_router.include_router(session_router)
 api_router.include_router(memory_router)
 api_router.include_router(notification_router)
+api_router.include_router(settings_router)
 
 
 # ===== HELPER =====

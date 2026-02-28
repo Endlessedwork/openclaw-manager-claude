@@ -3,6 +3,7 @@ import { getDashboard } from '../lib/api';
 import { Activity, Bot, Zap, Radio, MessageSquare, Cpu, Clock, Server, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useAppConfig } from '../contexts/AppConfigContext';
 
 function StatCard({ icon: Icon, label, value, sub, color = 'orange' }) {
   const colors = {
@@ -26,6 +27,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'orange' }) {
 }
 
 export default function DashboardPage() {
+  const { config } = useAppConfig();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,7 +59,7 @@ export default function DashboardPage() {
         <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>
           Dashboard
         </h1>
-        <p className="text-sm text-theme-faint mt-1">W.I.N.E Operation Control</p>
+        <p className="text-sm text-theme-faint mt-1">{config.app_name} {config.app_subtitle}</p>
       </div>
 
       {/* Gateway Status Banner */}

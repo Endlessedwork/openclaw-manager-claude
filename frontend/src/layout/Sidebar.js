@@ -5,9 +5,11 @@ import {
   Clock, FileCode, Server, ChevronLeft, ChevronRight, ChevronDown, Activity,
   Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
   BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins,
-  Database, UserCircle, UsersRound, BookOpen, FileText, X, GitBranch, Bell
+  Database, UserCircle, UsersRound, BookOpen, FileText, X, GitBranch, Bell,
+  SlidersHorizontal
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { Button } from '../components/ui/button';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -90,17 +92,26 @@ const navGroups = [
     ],
   },
   {
-    id: 'system',
-    label: 'System',
+    id: 'settings',
+    label: 'Settings',
     icon: Settings,
     roles: ['superadmin', 'admin'],
     items: [
+      { path: '/settings/general', label: 'General', icon: SlidersHorizontal },
       { path: '/notifications', label: 'Notifications', icon: Bell },
+    ],
+    // Users item added dynamically for superadmins
+  },
+  {
+    id: 'gateway',
+    label: 'Gateway',
+    icon: Server,
+    roles: ['superadmin', 'admin'],
+    items: [
       { path: '/config', label: 'Config', icon: FileCode },
       { path: '/files', label: 'Files', icon: FolderOpen },
       { path: '/gateway', label: 'Gateway', icon: Server },
     ],
-    // Users item added dynamically for admins
   },
 ];
 
@@ -248,6 +259,7 @@ export default function Sidebar({ isMobileMenuOpen, onClose }) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { user, logout, isAdmin } = useAuth();
+  const { config } = useAppConfig();
   const isMobile = useIsMobile();
 
   // Close drawer on route change (mobile only)
@@ -259,7 +271,7 @@ export default function Sidebar({ isMobileMenuOpen, onClose }) {
   const groups = navGroups
     .filter((group) => !group.roles || group.roles.includes(user?.role))
     .map((group) => {
-      if (group.id === 'system' && isAdmin()) {
+      if (group.id === 'settings' && isAdmin()) {
         return { ...group, items: [...group.items, { path: '/users', label: 'Users', icon: Users }] };
       }
       return group;
@@ -279,8 +291,8 @@ export default function Sidebar({ isMobileMenuOpen, onClose }) {
         </div>
         {(isMobile || !collapsed) && (
           <div className="flex flex-col leading-tight flex-1">
-            <span className="font-bold text-base tracking-widest" style={{ fontFamily: 'Manrope, sans-serif' }}>W.I.N.E</span>
-            <span className="text-[10px] text-theme-faint tracking-wider">Operation Control</span>
+            <span className="font-bold text-base tracking-widest" style={{ fontFamily: 'Manrope, sans-serif' }}>{config.app_name}</span>
+            <span className="text-[10px] text-theme-faint tracking-wider">{config.app_subtitle}</span>
           </div>
         )}
         {isMobile && (
@@ -321,7 +333,7 @@ export default function Sidebar({ isMobileMenuOpen, onClose }) {
       {/* Version label */}
       <div className={`px-3 pb-1 ${!isMobile && collapsed ? 'text-center' : ''}`}>
         <span className="text-[10px] text-theme-faint/40 tracking-wider font-mono">
-          {(isMobile || !collapsed) ? 'W.I.N.E. 3.0' : '3.0'}
+          {(isMobile || !collapsed) ? `${config.app_name} ${config.app_version}` : config.app_version}
         </span>
       </div>
 

@@ -123,6 +123,10 @@ export const testNotification = (data) => api.post('/notifications/test', data);
 // Config Validation
 export const validateConfig = (data) => api.post('/config/validate', data);
 
+// App Settings (branding)
+export const getAppSettings = () => api.get('/settings');
+export const updateAppSettings = (data) => api.put('/settings', data);
+
 // Agent Activities
 export const getActivities = (params = {}) => {
   const q = new URLSearchParams();
