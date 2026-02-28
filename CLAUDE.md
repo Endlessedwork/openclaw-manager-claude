@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenClaw Manager is a web dashboard for managing an OpenClaw bot gateway. It provides a UI to view/manage agents, skills, models, channels, sessions, cron jobs, hooks, and configuration. The backend is a thin orchestration layer that bridges the frontend to the `openclaw` CLI tool, a MongoDB database, and a PostgreSQL database.
+OpenClaw Manager is a web dashboard for managing an OpenClaw bot gateway. It provides a UI to view/manage agents, skills, models, channels, sessions, cron jobs, hooks, and configuration. The backend is a thin orchestration layer that bridges the frontend to the `openclaw` CLI tool and a PostgreSQL database.
 
 ## Commands
 
@@ -42,7 +42,7 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 ```
 
 ### Environment
-- Backend requires `backend/.env` with: `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, `DATABASE_URL`
+- Backend requires `backend/.env` with: `JWT_SECRET`, `DATABASE_URL`
 - Frontend uses `REACT_APP_BACKEND_URL` (defaults to same origin)
 - Python 3.12, venv at `./venv/`
 
@@ -51,17 +51,19 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 ### Backend (`backend/`)
 - **FastAPI** app in `server.py` — all API routes are defined here under `/api` prefix
 - **`gateway_cli.py`** — wraps the `openclaw` CLI binary (`~/.npm-global/bin/openclaw`). All agent/skill/model/session/cron/health data comes from shelling out to this CLI with `--json`. Results are cached via `CLICache` with TTLs and stale-while-revalidate support. Max 3 concurrent CLI processes (semaphore).
-- **`auth.py`** — JWT auth (access + refresh tokens). Refresh token is httponly cookie. Roles: `admin`, `editor`, `viewer`. Use `get_current_user` dependency for auth, `require_role("admin", "editor")` for write endpoints.
+- **`auth.py`** — JWT auth (access + refresh tokens). Refresh token is httponly cookie. Roles: `superadmin`, `admin`, `manager`, `user`. Use `get_current_user` dependency for auth, `require_role("superadmin", "admin")` for write endpoints.
 - **`routes/auth_routes.py`** — login/logout/refresh/me endpoints
 - **`routes/user_routes.py`** — admin-only user CRUD
-- **MongoDB** (via motor async driver) stores: `users`, `activity_logs`, `agent_activities`, `system_logs`, `clawhub_skills`
-- **PostgreSQL** (via SQLAlchemy async + SQLModel) stores persistent bot data:
+- **PostgreSQL** (via SQLAlchemy async + SQLModel) stores all data:
+  - `users` — dashboard login accounts
   - `sessions` — synced from gateway JSONL files via `sync_sessions.py`
   - `conversations` — chat messages linked to sessions via `session_id`
-  - `bot_users` — user profiles (display_name, avatar_url, platform, platform_user_id). IDs are stored as **raw platform IDs** (e.g. `Ubc9c7dda...`, `90988085`) without platform prefix — the `platform` column stores the platform separately.
-  - `bot_groups` — group profiles (group_subject, avatar_url, platform, platform_group_id). Same raw ID convention as bot_users.
+  - `bot_users` — user profiles (display_name, avatar_url, platform, platform_user_id). IDs are stored as **raw platform IDs** (e.g. `Ubc9c7dda...`, `90988085`) without platform prefix — the `platform` column stores the platform separately. Auto-backfilled from disk profiles when missing.
+  - `bot_groups` — group profiles (name, platform, platform_group_id). Same raw ID convention as bot_users. Auto-backfilled from disk profiles when missing.
+  - `workspace_documents`, `knowledge_articles` — imported from workspace files
+  - `activity_logs`, `agent_activities`, `system_logs` — operational logs
+  - `notification_rules`, `app_settings`, `clawhub_skills`, `agent_memory`, `daily_usage`, `agent_fallbacks`
   - Database config: `database.py` with async engine, connection pool (10+20)
-  - Data import: `import_file_data.py` imports user/group profiles from JSON files
 - **`routes/conversation_routes.py`** — conversation query endpoints including `/by-session-key` (enriches messages with user profiles)
 - **`routes/workspace_routes.py`** — CRUD for bot_users and bot_groups
 - **WebSocket endpoints** at `/api/ws/logs` and `/api/ws/activities` — stream real-time data from `openclaw logs --follow --json`
