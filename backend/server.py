@@ -62,6 +62,9 @@ async def set_db():
     asyncio.create_task(_warmup())
     asyncio.create_task(_usage_collector())
     asyncio.create_task(_notification_checker())
+    # Auto-sync file-based data (documents, knowledge, sessions) from disk to DB
+    from auto_sync import run_auto_sync
+    asyncio.create_task(run_auto_sync())
 
 
 async def _upsert_daily_usage(daily: list):

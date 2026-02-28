@@ -56,16 +56,18 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 - **`routes/user_routes.py`** — admin-only user CRUD
 - **PostgreSQL** (via SQLAlchemy async + SQLModel) stores all data:
   - `users` — dashboard login accounts
-  - `sessions` — synced from gateway JSONL files via `sync_sessions.py`
-  - `conversations` — chat messages linked to sessions via `session_id`
+  - `sessions` — auto-synced from gateway JSONL files on startup (`auto_sync.py`)
+  - `conversations` — chat messages linked to sessions via `session_id`, auto-synced on startup
   - `bot_users` — user profiles (display_name, avatar_url, platform, platform_user_id). IDs are stored as **raw platform IDs** (e.g. `Ubc9c7dda...`, `90988085`) without platform prefix — the `platform` column stores the platform separately. Auto-backfilled from disk profiles when missing.
   - `bot_groups` — group profiles (name, platform, platform_group_id). Same raw ID convention as bot_users. Auto-backfilled from disk profiles when missing.
-  - `workspace_documents`, `knowledge_articles` — imported from workspace files
+  - `workspace_documents` — auto-synced from workspace files on startup
+  - `knowledge_articles` — auto-synced from workspace knowledge base on startup
   - `activity_logs`, `agent_activities`, `system_logs` — operational logs
   - `notification_rules`, `app_settings`, `clawhub_skills`, `agent_memory`, `daily_usage`, `agent_fallbacks`
   - Database config: `database.py` with async engine, connection pool (10+20)
+- **`auto_sync.py`** — runs on startup, syncs documents/knowledge/sessions from disk to PostgreSQL. Idempotent (skips existing records).
 - **`routes/conversation_routes.py`** — conversation query endpoints including `/by-session-key` (enriches messages with user profiles)
-- **`routes/workspace_routes.py`** — CRUD for bot_users and bot_groups
+- **`routes/workspace_routes.py`** — CRUD for bot_users/bot_groups, document access control (RBAC by sensitivity + role)
 - **WebSocket endpoints** at `/api/ws/logs` and `/api/ws/activities` — stream real-time data from `openclaw logs --follow --json`
 
 ### Session keys & platform ID matching
