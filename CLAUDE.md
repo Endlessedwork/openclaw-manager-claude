@@ -91,72 +91,44 @@ Most resources (agents, skills, models, channels, sessions, cron) are **read-onl
 
 ### Deployment
 
-#### Infrastructure Overview
-All services run on a single AWS instance. Nginx runs inside a Docker container and reverse-proxies to backends.
+#### Architecture Pattern
 
 ```
-Internet (HTTP :80)
+Internet (HTTP/HTTPS)
     │
     ▼
-┌──────────────────────────────────────┐
-│  repo-frontend-1 (Docker, nginx)     │
-│  Port 80 → serves all domains        │
-└──┬──────────┬──────────┬─────────────┘
-   │          │          │
-   ▼          ▼          ▼
-wine.       control.    winecore.work
-winecore.   winecore.   (landing page)
-work        work
-→ :8000     → :8001
-(repo-      (openclaw-manager
-backend-1)   backend, uvicorn
-              on HOST, not Docker)
+┌────────────────────────────────┐
+│  Nginx (Docker container)      │
+│  Reverse proxy + static files  │
+└──────────────┬─────────────────┘
+               │
+               ▼
+        Backend (uvicorn)
+        Runs on HOST, port 8001
+        ├── MongoDB (Docker)
+        └── PostgreSQL (Docker)
 ```
 
-#### Domains & What They Serve
+- **Nginx container** serves the frontend static build and reverse-proxies `/api` to the backend on the host
+- **Backend** runs on the host (not Docker) via uvicorn on port **8001**
+- **MongoDB** and **PostgreSQL** run as Docker containers, accessible from the host via localhost
 
-| Domain | Root in container | Backend | Purpose |
-|--------|-------------------|---------|---------|
-| `control.winecore.work` | `/usr/share/nginx/openclaw-manager` | `http://172.18.0.1:8001` (host) | **This project** — OpenClaw Manager dashboard |
-| `wine.winecore.work` | `/usr/share/nginx/html` | `http://backend:8000` (Docker) | Other WINE app |
-| `winecore.work` | `/usr/share/nginx/landing` | None | Landing page |
+#### How to Deploy Frontend
 
-#### Docker Containers
-
-| Container | Image | Port | Purpose |
-|-----------|-------|------|---------|
-| `repo-frontend-1` | nginx:latest | `:80` | Reverse proxy + static files for ALL domains |
-| `repo-backend-1` | repo-backend | `:8000` | WINE app backend (PostgreSQL) |
-| `repo-db-1` | postgres:16-alpine | `:5432` | PostgreSQL for WINE app |
-| `openclaw-mongo` | mongo:7 | `:27017` | MongoDB for OpenClaw Manager |
-| `openclaw-pg` | postgres:16-alpine | `:5433` | PostgreSQL for OpenClaw Manager (bot data) |
-
-Docker network: `repo_wine-network` (172.18.0.0/16), gateway `172.18.0.1` = host.
-
-#### OpenClaw Manager Backend (this project)
-- Runs on **HOST** (not Docker): `uvicorn` on port **8001**
-- Activated via: `source venv/bin/activate && cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 8001`
-- Uses MongoDB at `localhost:27017` (openclaw-mongo container)
-- Uses PostgreSQL at `localhost:5433` (openclaw-pg container)
-
-#### How to Deploy Frontend (IMPORTANT)
-
-The frontend is served from inside the `repo-frontend-1` Docker container. You MUST deploy there:
+The frontend build output must be accessible to the nginx container. Check your nginx setup — it may use a **bind mount** from the host or require `docker cp`.
 
 ```bash
 # 1. Build
-cd /home/ubuntu/openclaw-manager/frontend && yarn build
+cd frontend && yarn build
 
-# 2. Copy INTO the Docker container (NOT to host filesystem)
-docker cp /home/ubuntu/openclaw-manager/frontend/build/. repo-frontend-1:/usr/share/nginx/openclaw-manager/
+# 2. Deploy to where nginx serves static files
+#    Option A: If bind-mounted, just build in place
+#    Option B: If no bind mount, copy into container:
+#    docker cp frontend/build/. <nginx-container>:/usr/share/nginx/openclaw-manager/
 
-# 3. Reload nginx inside the container
-docker exec repo-frontend-1 nginx -s reload
+# 3. Reload nginx
+docker exec <nginx-container> nginx -s reload
 ```
 
-**Common mistake**: Do NOT copy to `/usr/share/nginx/openclaw-manager/` on the host — that path only exists inside the container.
-
-#### Nginx Config Files
-- `nginx-control.conf` — config for `control.winecore.work` (this project)
-- `nginx-landing.conf` — config for `winecore.work` (landing page)
-- Inside container: `/etc/nginx/conf.d/control.conf`, `/etc/nginx/conf.d/default.conf`
+#### Environment-Specific Details
+Server paths, container names, domains, and ports vary per deployment. Do NOT hardcode these — refer to each server's actual Docker/nginx configuration.
