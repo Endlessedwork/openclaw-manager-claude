@@ -42,7 +42,7 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 ```
 
 ### Environment
-- Backend requires `backend/.env` with: `JWT_SECRET`, `DATABASE_URL`
+- Backend requires `backend/.env` with: `JWT_SECRET`, `DATABASE_URL`, `ANTHROPIC_API_KEY`
 - Frontend uses `REACT_APP_BACKEND_URL` (defaults to same origin)
 - Python 3.12, venv at `./venv/`
 
@@ -54,6 +54,9 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 - **`auth.py`** — JWT auth (access + refresh tokens). Refresh token is httponly cookie. Roles: `superadmin`, `admin`, `manager`, `user`. Use `get_current_user` dependency for auth, `require_role("superadmin", "admin")` for write endpoints.
 - **`routes/auth_routes.py`** — login/logout/refresh/me endpoints
 - **`routes/user_routes.py`** — admin-only user CRUD
+- **`routes/ai_chat_routes.py`** — AI chat assistant endpoints (superadmin only). SSE streaming for messages, thread CRUD.
+- **`services/ai_chat_service.py`** — Claude API integration with streaming + tool calling loop (max 5 rounds). Uses `anthropic` SDK.
+- **`services/ai_chat_tools.py`** — 12 tool definitions for querying system data (sessions, agents, skills, models, channels, health, cron, bot_users, bot_groups, conversations, usage, dashboard). Tools call gateway CLI or DB as appropriate.
 - **PostgreSQL** (via SQLAlchemy async + SQLModel) stores all data:
   - `users` — dashboard login accounts
   - `sessions` — auto-synced from gateway JSONL files on startup (`auto_sync.py`)
@@ -63,12 +66,15 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
   - `workspace_documents` — auto-synced from workspace files on startup
   - `knowledge_articles` — auto-synced from workspace knowledge base on startup
   - `activity_logs`, `agent_activities`, `system_logs` — operational logs
+  - `ai_chat_threads` — AI assistant conversation threads (per user)
+  - `ai_chat_messages` — messages within threads (role: user/assistant, tool metadata)
   - `notification_rules`, `app_settings`, `clawhub_skills`, `agent_memory`, `daily_usage`, `agent_fallbacks`
   - Database config: `database.py` with async engine, connection pool (10+20)
 - **`auto_sync.py`** — runs on startup, syncs documents/knowledge/sessions from disk to PostgreSQL. Idempotent (skips existing records).
 - **`routes/conversation_routes.py`** — conversation query endpoints including `/by-session-key` (enriches messages with user profiles)
 - **`routes/workspace_routes.py`** — CRUD for bot_users/bot_groups, document access control (RBAC by sensitivity + role)
 - **WebSocket endpoints** at `/api/ws/logs` and `/api/ws/activities` — stream real-time data from `openclaw logs --follow --json`
+- **SSE endpoint** at `POST /api/ai-chat/messages` — streams Claude API responses with tool calling indicators
 
 ### Session keys & platform ID matching
 - **Session key format**: `agent:<agent>:<channel>:<kind>:<id>` (e.g. `agent:main:line:direct:ubc9c7ddaa81fca73cf03b226d93af03b`). Some keys have extra segments (e.g. `agent:main:line:group:group:<id>`) — always use `parts[-1]` for the platform ID and `parts[3]` for kind.
@@ -78,13 +84,22 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 ### Data flow pattern
 Most resources (agents, skills, models, channels, sessions, cron) are **read-only from the CLI**. The backend calls `openclaw <resource> list --json`, caches the result, and transforms it for the frontend. Write operations go through config modification (`openclaw.json` at `~/.openclaw/openclaw.json`) followed by `gateway reload`. Only model providers and ClawHub skills have full CRUD.
 
+### AI Chat Assistant (`/ai-chat`)
+- Superadmin-only page for querying system data via natural language
+- Backend calls Claude API (Sonnet) with 12 tool definitions — Claude decides which tools to call based on the question
+- Tools query live data from CLI (`gateway.sessions()`, `gateway.agents()`, etc.) and DB (`bot_users`, `bot_groups`, `conversations`)
+- Responses stream via SSE (`StreamingResponse` with `text/event-stream`). Events: `message_start`, `content_delta`, `tool_use`, `message_done`, `error`
+- Frontend parses SSE via `fetch` + `ReadableStream` reader (not axios — axios doesn't support streaming)
+- Conversation threads persisted in `ai_chat_threads` + `ai_chat_messages` tables
+- UI: thread sidebar (left) + chat area (right) with markdown rendering (`react-markdown`)
+
 ### Frontend (`frontend/`)
 - **React 19** with Create React App + **CRACO** (for `@` path alias to `src/`)
 - **Tailwind CSS** with shadcn/ui components (`src/components/ui/`)
 - **Routing**: React Router v7 in `App.js`. All pages wrapped in `ProtectedRoute` + `MainLayout` (sidebar + content area)
 - **Auth**: `AuthContext.js` manages JWT tokens with axios interceptors for auto-refresh on 401
 - **API layer**: `src/lib/api.js` — axios instance with all endpoint functions
-- **Pages**: one file per page in `src/pages/` (DashboardPage, AgentsPage, SkillsPage, etc.)
+- **Pages**: one file per page in `src/pages/` (DashboardPage, AgentsPage, SkillsPage, AIChatPage, etc.)
 - **Layout**: `MainLayout.js` uses `Sidebar.js` for navigation. Sidebar shows different items based on user role.
 
 ### Design System
