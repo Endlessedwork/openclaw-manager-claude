@@ -1,13 +1,16 @@
 """
 Auto-sync file-based data from OpenClaw workspace into PostgreSQL on server startup.
 
-Syncs three data sources:
-  1. Workspace Documents:  ~/.openclaw/workspace/shared/documents/{domain}/*
-  2. Knowledge Articles:   ~/.openclaw/workspace/shared/knowledge_base/{domain}/*.md
-  3. Sessions + Messages:  ~/.openclaw/agents/*/sessions/*.jsonl
+Syncs six data sources:
+  1. Bot Users:            ~/.openclaw/workspace/shared/users/profiles/*.json
+  2. Bot Groups:           ~/.openclaw/workspace/shared/groups/profiles/*.json
+  3. Workspace Documents:  ~/.openclaw/workspace/shared/documents/{domain}/*
+  4. Knowledge Articles:   ~/.openclaw/workspace/shared/knowledge_base/{domain}/*.md
+  5. Sessions + Messages:  ~/.openclaw/agents/*/sessions/*.jsonl
+  6. Agent Memory:         ~/.openclaw/workspace/memory/*.md + ~/.openclaw/memory/main.sqlite
 
-Runs as a background task during FastAPI startup. Idempotent — skips records
-that already exist in the database.
+Runs as a background task during FastAPI startup. Idempotent — uses upsert for
+users/groups, dedup checks for other records.
 """
 
 import json
@@ -24,6 +27,7 @@ from database import async_session
 from models.conversation import Conversation
 from models.document import WorkspaceDocument
 from models.knowledge import KnowledgeArticle
+from models.memory import AgentMemory
 from models.session import Session
 from utils import utcnow
 
@@ -32,10 +36,179 @@ logger = logging.getLogger(__name__)
 OPENCLAW_DIR = Path.home() / ".openclaw"
 WORKSPACE_SHARED = OPENCLAW_DIR / "workspace" / "shared"
 AGENTS_DIR = OPENCLAW_DIR / "agents"
+WORKSPACE_MEMORY_DIR = OPENCLAW_DIR / "workspace" / "memory"
+SQLITE_MEMORY_PATH = OPENCLAW_DIR / "memory" / "main.sqlite"
 
 
 # ---------------------------------------------------------------------------
-# 1. Workspace Documents
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _parse_iso(dt_str: str | None) -> datetime | None:
+    """Parse ISO-8601 string into naive UTC datetime for asyncpg compatibility."""
+    if not dt_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# 1. Bot Users
+# ---------------------------------------------------------------------------
+
+async def sync_bot_users() -> int:
+    """Upsert bot user profiles from disk JSON files."""
+    profiles_dir = WORKSPACE_SHARED / "users" / "profiles"
+    if not profiles_dir.is_dir():
+        return 0
+
+    count = 0
+    async with async_session() as session:
+        for fpath in sorted(profiles_dir.glob("*.json")):
+            try:
+                data = json.loads(fpath.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            platform_user_id = data.get("user_id", "")
+            if not platform_user_id:
+                stem = fpath.stem
+                platform = data.get("platform", "")
+                if platform and stem.startswith(f"{platform}_"):
+                    platform_user_id = stem[len(platform) + 1:]
+                else:
+                    platform_user_id = stem
+
+            if not platform_user_id:
+                continue
+
+            first_seen = _parse_iso(
+                data.get("first_seen_at") or data.get("created_at")
+            )
+            last_seen = _parse_iso(data.get("last_seen_at"))
+            created_at = _parse_iso(data.get("created_at")) or utcnow()
+
+            meta = {}
+            if data.get("picture_url"):
+                meta["picture_url"] = data["picture_url"]
+
+            await session.execute(sa_text("""
+                INSERT INTO bot_users
+                    (id, platform_user_id, platform, display_name, avatar_url,
+                     role, status, notes, metadata, first_seen_at, last_seen_at,
+                     created_at, updated_at)
+                VALUES
+                    (:id, :platform_user_id, :platform, :display_name, :avatar_url,
+                     :role, :status, :notes, :metadata, :first_seen_at, :last_seen_at,
+                     :created_at, :updated_at)
+                ON CONFLICT (platform_user_id) DO UPDATE SET
+                    display_name = EXCLUDED.display_name,
+                    avatar_url   = EXCLUDED.avatar_url,
+                    role         = EXCLUDED.role,
+                    status       = EXCLUDED.status,
+                    notes        = EXCLUDED.notes,
+                    metadata     = EXCLUDED.metadata,
+                    last_seen_at = EXCLUDED.last_seen_at,
+                    updated_at   = EXCLUDED.updated_at
+            """), {
+                "id": str(uuid.uuid4()),
+                "platform_user_id": platform_user_id,
+                "platform": data.get("platform", "unknown"),
+                "display_name": data.get("display_name", ""),
+                "avatar_url": data.get("avatar_url"),
+                "role": data.get("role", ""),
+                "status": data.get("status", ""),
+                "notes": data.get("notes"),
+                "metadata": json.dumps(meta) if meta else None,
+                "first_seen_at": first_seen,
+                "last_seen_at": last_seen,
+                "created_at": created_at,
+                "updated_at": utcnow(),
+            })
+            count += 1
+
+        await session.commit()
+
+    return count
+
+
+# ---------------------------------------------------------------------------
+# 2. Bot Groups
+# ---------------------------------------------------------------------------
+
+async def sync_bot_groups() -> int:
+    """Upsert bot group profiles from disk JSON files."""
+    profiles_dir = WORKSPACE_SHARED / "groups" / "profiles"
+    if not profiles_dir.is_dir():
+        return 0
+
+    count = 0
+    async with async_session() as session:
+        for fpath in sorted(profiles_dir.glob("*.json")):
+            try:
+                data = json.loads(fpath.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            platform_group_id = data.get("group_id", "")
+            if not platform_group_id:
+                stem = fpath.stem
+                platform = data.get("platform", "")
+                if platform and stem.startswith(f"{platform}_"):
+                    platform_group_id = stem[len(platform) + 1:]
+                else:
+                    platform_group_id = stem
+
+            if not platform_group_id:
+                continue
+
+            members = data.get("members", {})
+            member_count = len(members) if isinstance(members, dict) else 0
+            created_at = _parse_iso(data.get("created_at")) or utcnow()
+
+            await session.execute(sa_text("""
+                INSERT INTO bot_groups
+                    (id, platform_group_id, platform, name, status,
+                     member_count, members, assigned_agent_id, metadata,
+                     created_at, updated_at)
+                VALUES
+                    (:id, :platform_group_id, :platform, :name, :status,
+                     :member_count, :members, :assigned_agent_id, :metadata,
+                     :created_at, :updated_at)
+                ON CONFLICT (platform_group_id) DO UPDATE SET
+                    name              = EXCLUDED.name,
+                    status            = EXCLUDED.status,
+                    member_count      = EXCLUDED.member_count,
+                    members           = EXCLUDED.members,
+                    assigned_agent_id = EXCLUDED.assigned_agent_id,
+                    updated_at        = EXCLUDED.updated_at
+            """), {
+                "id": str(uuid.uuid4()),
+                "platform_group_id": platform_group_id,
+                "platform": data.get("platform", "unknown"),
+                "name": data.get("group_name", ""),
+                "status": data.get("status", "active"),
+                "member_count": member_count,
+                "members": json.dumps(members) if members else None,
+                "assigned_agent_id": data.get("assigned_agent_id"),
+                "metadata": None,
+                "created_at": created_at,
+                "updated_at": utcnow(),
+            })
+            count += 1
+
+        await session.commit()
+
+    return count
+
+
+# ---------------------------------------------------------------------------
+# 3. Workspace Documents
 # ---------------------------------------------------------------------------
 
 async def sync_documents() -> int:
@@ -137,7 +310,7 @@ async def sync_documents() -> int:
 
 
 # ---------------------------------------------------------------------------
-# 2. Knowledge Articles
+# 4. Knowledge Articles
 # ---------------------------------------------------------------------------
 
 def _extract_title(content: str, fallback: str) -> str:
@@ -248,7 +421,7 @@ async def sync_knowledge() -> int:
 
 
 # ---------------------------------------------------------------------------
-# 3. Sessions + Conversations
+# 5. Sessions + Conversations
 # ---------------------------------------------------------------------------
 
 def _parse_session_key(key: str) -> dict:
@@ -488,11 +661,194 @@ async def sync_sessions() -> tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
+# 6. Agent Memory
+# ---------------------------------------------------------------------------
+
+def _parse_memory_md(file_path: Path) -> dict | None:
+    """Parse a memory markdown file and extract structured data."""
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    session_id = None
+    agent_id = "main"
+    session_date = None
+
+    date_match = re.search(r"# Session:\s*(.+)", text)
+    if date_match:
+        try:
+            date_str = date_match.group(1).strip().replace(" UTC", "").strip()
+            session_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError):
+            pass
+
+    key_match = re.search(r"\*\*Session Key\*\*:\s*(.+)", text)
+    if key_match:
+        parts = key_match.group(1).strip().split(":")
+        if len(parts) > 1:
+            agent_id = parts[1]
+
+    id_match = re.search(r"\*\*Session ID\*\*:\s*([a-f0-9-]+)", text)
+    if id_match:
+        try:
+            session_id = uuid.UUID(id_match.group(1).strip())
+        except ValueError:
+            pass
+
+    return {
+        "agent_id": agent_id,
+        "session_id": session_id,
+        "content": text.strip(),
+        "filename": file_path.name,
+        "created_at": session_date or utcnow(),
+    }
+
+
+async def sync_memory() -> int:
+    """Import memory entries from markdown files and optional SQLite database."""
+    count = 0
+
+    # --- Markdown files ---
+    if WORKSPACE_MEMORY_DIR.is_dir():
+        async with async_session() as session:
+            result = await session.execute(
+                select(AgentMemory.source).where(
+                    AgentMemory.source.like("file:%")
+                )
+            )
+            existing_sources = {r[0] for r in result.all()}
+
+        for md_path in sorted(WORKSPACE_MEMORY_DIR.glob("*.md")):
+            source_key = f"file:{md_path.name}"
+            if source_key in existing_sources:
+                continue
+
+            parsed = _parse_memory_md(md_path)
+            if not parsed or not parsed["content"]:
+                continue
+
+            # Verify FK if session_id is set
+            source_session_id = parsed["session_id"]
+            if source_session_id:
+                async with async_session() as session:
+                    exists = await session.get(Session, source_session_id)
+                    if not exists:
+                        source_session_id = None
+
+            async with async_session() as session:
+                entry = AgentMemory(
+                    agent_id=parsed["agent_id"],
+                    memory_type="summary",
+                    content=parsed["content"],
+                    source=source_key,
+                    source_session_id=source_session_id,
+                    created_at=parsed["created_at"],
+                    updated_at=parsed["created_at"],
+                )
+                session.add(entry)
+                await session.commit()
+
+            count += 1
+
+    # --- SQLite database ---
+    if SQLITE_MEMORY_PATH.exists():
+        try:
+            import sqlite3
+
+            conn = sqlite3.connect(str(SQLITE_MEMORY_PATH))
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
+
+            skip_tables = {"meta", "files", "embedding_cache"}
+            skip_prefixes = ("chunks_fts",)
+
+            for (table_name,) in tables:
+                if table_name in skip_tables:
+                    continue
+                if any(table_name.startswith(p) for p in skip_prefixes):
+                    continue
+                if not re.match(r'^[a-zA-Z0-9_]+$', table_name):
+                    continue
+
+                cursor.execute(f"PRAGMA table_info({table_name})")
+                columns = [col[1] for col in cursor.fetchall()]
+                cursor.execute(f"SELECT * FROM {table_name}")
+                rows = cursor.fetchall()
+
+                for row in rows:
+                    row_dict = dict(zip(columns, row))
+                    content = (
+                        row_dict.get("content", "")
+                        or row_dict.get("text", "")
+                        or row_dict.get("value", "")
+                        or str(row_dict)
+                    )
+                    if not content or content == "{}":
+                        continue
+
+                    source_key = f"sqlite:{table_name}"
+
+                    # Dedup by source + content prefix
+                    async with async_session() as session:
+                        existing = (await session.execute(
+                            select(AgentMemory).where(
+                                AgentMemory.source == source_key,
+                                AgentMemory.content == content[:500],
+                            )
+                        )).scalar_one_or_none()
+                        if existing:
+                            continue
+
+                    agent_id = row_dict.get(
+                        "agent_id", row_dict.get("agent", "main")
+                    )
+                    memory_type = row_dict.get(
+                        "memory_type", row_dict.get("type", "fact")
+                    )
+
+                    async with async_session() as session:
+                        entry = AgentMemory(
+                            agent_id=agent_id,
+                            memory_type=memory_type,
+                            content=content,
+                            source=source_key,
+                            created_at=utcnow(),
+                            updated_at=utcnow(),
+                        )
+                        session.add(entry)
+                        await session.commit()
+
+                    count += 1
+
+            conn.close()
+        except Exception:
+            logger.exception("Auto-sync: SQLite memory import failed")
+
+    return count
+
+
+# ---------------------------------------------------------------------------
 # Main entry point (called from server.py startup)
 # ---------------------------------------------------------------------------
 
 async def run_auto_sync():
     logger.info("Auto-sync: starting...")
+
+    try:
+        n_users = await sync_bot_users()
+        if n_users:
+            logger.info(f"Auto-sync: {n_users} bot users synced")
+    except Exception:
+        logger.exception("Auto-sync: bot users sync failed")
+
+    try:
+        n_groups = await sync_bot_groups()
+        if n_groups:
+            logger.info(f"Auto-sync: {n_groups} bot groups synced")
+    except Exception:
+        logger.exception("Auto-sync: bot groups sync failed")
 
     try:
         n_docs = await sync_documents()
@@ -516,5 +872,12 @@ async def run_auto_sync():
             )
     except Exception:
         logger.exception("Auto-sync: sessions sync failed")
+
+    try:
+        n_memory = await sync_memory()
+        if n_memory:
+            logger.info(f"Auto-sync: {n_memory} new memory entries imported")
+    except Exception:
+        logger.exception("Auto-sync: memory sync failed")
 
     logger.info("Auto-sync: complete")
