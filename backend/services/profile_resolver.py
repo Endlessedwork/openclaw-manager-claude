@@ -284,7 +284,7 @@ async def _fetch_from_api_users(
     channels = config.get("channels", {})
     line_token = channels.get("line", {}).get("channelAccessToken", "")
     telegram_token = channels.get("telegram", {}).get("botToken", "")
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     for pid, platform in missing.items():
         profile = None
@@ -320,7 +320,7 @@ async def _fetch_from_api_groups(
     channels = config.get("channels", {})
     line_token = channels.get("line", {}).get("channelAccessToken", "")
     telegram_token = channels.get("telegram", {}).get("botToken", "")
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     for pid, platform in missing.items():
         info = None

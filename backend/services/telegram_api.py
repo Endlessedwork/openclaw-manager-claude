@@ -7,6 +7,8 @@ import urllib.request
 
 logger = logging.getLogger(__name__)
 
+_ssl_ctx = ssl.create_default_context()
+
 
 def fetch_user_profile(user_id: str, bot_token: str) -> dict | None:
     """Fetch a Telegram user profile via the Bot API.
@@ -18,9 +20,8 @@ def fetch_user_profile(user_id: str, bot_token: str) -> dict | None:
     """
     url = f"https://api.telegram.org/bot{bot_token}/getChat?chat_id={user_id}"
     try:
-        ctx = ssl.create_default_context()
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=5, context=ctx) as resp:
+        with urllib.request.urlopen(req, timeout=5, context=_ssl_ctx) as resp:
             data = json.loads(resp.read().decode())
     except Exception:
         logger.debug("Failed to fetch Telegram user profile for %s", user_id)
@@ -53,9 +54,8 @@ def fetch_group_info(group_id: str, bot_token: str) -> dict | None:
     """
     url = f"https://api.telegram.org/bot{bot_token}/getChat?chat_id={group_id}"
     try:
-        ctx = ssl.create_default_context()
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=5, context=ctx) as resp:
+        with urllib.request.urlopen(req, timeout=5, context=_ssl_ctx) as resp:
             data = json.loads(resp.read().decode())
     except Exception:
         logger.debug("Failed to fetch Telegram group info for %s", group_id)
