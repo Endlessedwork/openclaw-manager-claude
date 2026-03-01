@@ -580,13 +580,18 @@ async def sync_sessions() -> tuple[int, int]:
     if not AGENTS_DIR.exists():
         return 0, 0
 
-    # Get existing session UUIDs from DB
+    # Get existing session UUIDs and keys from DB
     async with async_session() as db:
-        result = await db.execute(select(Session.id))
-        existing_ids = {str(r[0]) for r in result.all()}
-        # Also get existing session_keys for dedup
-        result2 = await db.execute(select(Session.session_key))
-        existing_keys = {r[0] for r in result2.all()}
+        result = await db.execute(select(Session.id, Session.session_key))
+        rows = result.all()
+        existing_ids = {str(r[0]) for r in rows}
+        existing_keys = {r[1] for r in rows}
+        key_to_uuid = {r[1]: str(r[0]) for r in rows}
+        # Get conversation counts per session for incremental sync
+        conv_counts_result = await db.execute(
+            sa_text("SELECT session_id, COUNT(*) FROM conversations GROUP BY session_id")
+        )
+        conv_counts = {str(r[0]): r[1] for r in conv_counts_result.all()}
 
     total_sessions = 0
     total_messages = 0
@@ -623,15 +628,23 @@ async def sync_sessions() -> tuple[int, int]:
             except ValueError:
                 continue
 
-            if session_uuid_str in existing_ids:
-                continue
+            is_existing = session_uuid_str in existing_ids
 
             meta = id_to_meta.get(session_uuid_str, {})
             session_key = meta.get("_session_key", f"agent:{agent_id}:unknown")
 
-            # Skip if session_key already exists (different UUID, same chat)
-            if session_key in existing_keys:
-                continue
+            # Handle session key collision (gateway reset with new UUID)
+            db_session_uuid = session_uuid_str
+            is_reset = False
+            if not is_existing and session_key in existing_keys:
+                # Gateway reset: new JSONL file for same session_key.
+                # Import ALL messages under the existing DB session UUID.
+                db_session_uuid = key_to_uuid.get(session_key, session_uuid_str)
+                is_existing = True
+                is_reset = True
+
+            # For resets, import all messages (they're new). For incremental, skip already-imported.
+            existing_msg_count = 0 if is_reset else (conv_counts.get(db_session_uuid, 0) if is_existing else 0)
 
             parsed_key = _parse_session_key(session_key)
             model_used = meta.get("model", "")
@@ -641,6 +654,7 @@ async def sync_sessions() -> tuple[int, int]:
             messages = []
             session_start_ts = None
             last_ts = None
+            importable_idx = 0
 
             try:
                 with open(jsonl_path, "r", encoding="utf-8") as f:
@@ -667,6 +681,12 @@ async def sync_sessions() -> tuple[int, int]:
                         content = msg.get("content", [])
 
                         if role == "toolResult":
+                            continue
+
+                        # For incremental sync: skip messages already in DB
+                        importable_idx += 1
+                        if importable_idx <= existing_msg_count:
+                            last_ts = timestamp
                             continue
 
                         sender_type = "user" if role == "user" else "agent" if role == "assistant" else "system"
@@ -708,7 +728,7 @@ async def sync_sessions() -> tuple[int, int]:
                             }
 
                         messages.append(Conversation(
-                            session_id=uuid.UUID(session_uuid_str),
+                            session_id=uuid.UUID(db_session_uuid),
                             agent_id=agent_id,
                             platform=channel or parsed_key["platform"],
                             peer_id=parsed_key["peer_id"],
@@ -731,29 +751,44 @@ async def sync_sessions() -> tuple[int, int]:
             if not last_ts:
                 last_ts = session_start_ts
 
-            async with async_session() as db:
-                new_session = Session(
-                    id=uuid.UUID(session_uuid_str),
-                    session_key=session_key,
-                    agent_id=agent_id,
-                    platform=channel or parsed_key["platform"],
-                    peer_id=parsed_key["peer_id"],
-                    model_used=model_used,
-                    total_tokens=total_tokens,
-                    status="active",
-                    started_at=session_start_ts,
-                    last_activity_at=last_ts,
-                )
-                db.add(new_session)
-                await db.flush()
-                for msg in messages:
-                    db.add(msg)
-                await db.commit()
+            if is_existing:
+                # Incremental: append new conversations, update session timestamp
+                async with async_session() as db:
+                    for msg in messages:
+                        db.add(msg)
+                    await db.execute(
+                        sa_text(
+                            "UPDATE sessions SET last_activity_at = :ts WHERE id = :sid"
+                        ),
+                        {"ts": last_ts, "sid": db_session_uuid},
+                    )
+                    await db.commit()
+                total_messages += len(messages)
+            else:
+                # New session: create session + conversations
+                async with async_session() as db:
+                    new_session = Session(
+                        id=uuid.UUID(session_uuid_str),
+                        session_key=session_key,
+                        agent_id=agent_id,
+                        platform=channel or parsed_key["platform"],
+                        peer_id=parsed_key["peer_id"],
+                        model_used=model_used,
+                        total_tokens=total_tokens,
+                        status="active",
+                        started_at=session_start_ts,
+                        last_activity_at=last_ts,
+                    )
+                    db.add(new_session)
+                    await db.flush()
+                    for msg in messages:
+                        db.add(msg)
+                    await db.commit()
 
-            existing_ids.add(session_uuid_str)
-            existing_keys.add(session_key)
-            total_sessions += 1
-            total_messages += len(messages)
+                existing_ids.add(session_uuid_str)
+                existing_keys.add(session_key)
+                total_sessions += 1
+                total_messages += len(messages)
 
     return total_sessions, total_messages
 
@@ -1107,7 +1142,7 @@ async def run_auto_sync():
 
     try:
         n_sessions, n_messages = await sync_sessions()
-        if n_sessions:
+        if n_sessions or n_messages:
             logger.info(
                 f"Auto-sync: {n_sessions} new sessions, {n_messages} messages imported"
             )

@@ -133,10 +133,13 @@ async def resolve_display_names(
                 continue
             await db.execute(
                 sa_text("""
-                    INSERT INTO bot_users (id, platform_user_id, platform, display_name, created_at, updated_at)
-                    VALUES (:id, :pid, :platform, :name, :now, :now)
+                    INSERT INTO bot_users
+                        (id, platform_user_id, platform, display_name,
+                         role, status, created_at, updated_at)
+                    VALUES (:id, :pid, :platform, :name, '', '', :now, :now)
                     ON CONFLICT (platform_user_id) DO UPDATE SET
-                        display_name = EXCLUDED.display_name, updated_at = EXCLUDED.updated_at
+                        display_name = EXCLUDED.display_name,
+                        updated_at = EXCLUDED.updated_at
                 """),
                 {
                     "id": str(uuid.uuid4()),
@@ -160,11 +163,16 @@ async def resolve_display_names(
                 members = None
             await db.execute(
                 sa_text("""
-                    INSERT INTO bot_groups (id, platform_group_id, platform, name, status, member_count, members, created_at, updated_at)
-                    VALUES (:id, :pid, :platform, :name, 'active', :member_count, :members, :now, :now)
+                    INSERT INTO bot_groups
+                        (id, platform_group_id, platform, name, status,
+                         member_count, members, created_at, updated_at)
+                    VALUES (:id, :pid, :platform, :name, 'active',
+                            :member_count, :members, :now, :now)
                     ON CONFLICT (platform_group_id) DO UPDATE SET
-                        name = EXCLUDED.name, member_count = EXCLUDED.member_count,
-                        members = EXCLUDED.members, updated_at = EXCLUDED.updated_at
+                        name = EXCLUDED.name,
+                        member_count = EXCLUDED.member_count,
+                        members = EXCLUDED.members,
+                        updated_at = EXCLUDED.updated_at
                 """),
                 {
                     "id": str(uuid.uuid4()),
