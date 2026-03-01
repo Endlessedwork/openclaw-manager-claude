@@ -264,10 +264,10 @@ async def sync_bot_users_from_group_members() -> int:
                 await session.execute(sa_text("""
                     INSERT INTO bot_users
                         (id, platform_user_id, platform, display_name,
-                         first_seen_at, created_at, updated_at)
+                         role, status, first_seen_at, created_at, updated_at)
                     VALUES
                         (:id, :platform_user_id, :platform, :display_name,
-                         :first_seen_at, :created_at, :updated_at)
+                         :role, :status, :first_seen_at, :created_at, :updated_at)
                     ON CONFLICT (platform_user_id) DO UPDATE SET
                         display_name = CASE
                             WHEN bot_users.display_name IS NULL
@@ -284,6 +284,8 @@ async def sync_bot_users_from_group_members() -> int:
                     "platform_user_id": platform_user_id,
                     "platform": platform,
                     "display_name": display_name,
+                    "role": "",
+                    "status": "",
                     "first_seen_at": first_seen,
                     "created_at": utcnow(),
                     "updated_at": utcnow(),
@@ -796,16 +798,18 @@ async def sync_bot_users_from_conversations() -> int:
             await session.execute(sa_text("""
                 INSERT INTO bot_users
                     (id, platform_user_id, platform, display_name,
-                     created_at, updated_at)
+                     role, status, created_at, updated_at)
                 VALUES
                     (:id, :platform_user_id, :platform, :display_name,
-                     :created_at, :updated_at)
+                     :role, :status, :created_at, :updated_at)
                 ON CONFLICT (platform_user_id) DO NOTHING
             """), {
                 "id": str(uuid.uuid4()),
                 "platform_user_id": sender_platform_id,
                 "platform": platform or "unknown",
                 "display_name": display_name,
+                "role": "",
+                "status": "",
                 "created_at": utcnow(),
                 "updated_at": utcnow(),
             })
