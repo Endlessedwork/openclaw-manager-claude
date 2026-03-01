@@ -1,13 +1,15 @@
 """
 Auto-sync file-based data from OpenClaw workspace into PostgreSQL on server startup.
 
-Syncs six data sources:
-  1. Bot Users:            ~/.openclaw/workspace/shared/users/profiles/*.json
-  2. Bot Groups:           ~/.openclaw/workspace/shared/groups/profiles/*.json
-  3. Workspace Documents:  ~/.openclaw/workspace/shared/documents/{domain}/*
-  4. Knowledge Articles:   ~/.openclaw/workspace/shared/knowledge_base/{domain}/*.md
-  5. Sessions + Messages:  ~/.openclaw/agents/*/sessions/*.jsonl
-  6. Agent Memory:         ~/.openclaw/workspace/memory/*.md + ~/.openclaw/memory/main.sqlite
+Syncs eight data sources:
+  1. Bot Users:                 ~/.openclaw/workspace/shared/users/profiles/*.json
+  2. Bot Groups:                ~/.openclaw/workspace/shared/groups/profiles/*.json
+  3. Bot Users (group members): extracted from group profile ``members`` dicts
+  4. Workspace Documents:       ~/.openclaw/workspace/shared/documents/{domain}/*
+  5. Knowledge Articles:        ~/.openclaw/workspace/shared/knowledge_base/{domain}/*.md
+  6. Sessions + Messages:       ~/.openclaw/agents/*/sessions/*.jsonl
+  7. Bot Users (conversations): extracted from conversation sender_platform_id
+  8. Agent Memory:              ~/.openclaw/workspace/memory/*.md + ~/.openclaw/memory/main.sqlite
 
 Runs as a background task during FastAPI startup. Idempotent — uses upsert for
 users/groups, dedup checks for other records.
@@ -208,7 +210,94 @@ async def sync_bot_groups() -> int:
 
 
 # ---------------------------------------------------------------------------
-# 3. Workspace Documents
+# 3. Bot Users from Group Members
+# ---------------------------------------------------------------------------
+
+async def sync_bot_users_from_group_members() -> int:
+    """Extract user records from group profile member dicts.
+
+    Group JSON files contain a ``members`` dict mapping platform_user_id to
+    ``{display_name, first_seen_at}``.  We upsert these into bot_users with a
+    *conditional* update — only fill empty display_name so that richer data
+    from disk user profiles is never overwritten.
+    """
+    profiles_dir = WORKSPACE_SHARED / "groups" / "profiles"
+    if not profiles_dir.is_dir():
+        return 0
+
+    count = 0
+    async with async_session() as session:
+        # Pre-fetch existing IDs (lowercased) to avoid case-variant duplicates.
+        # The unique index on platform_user_id is case-sensitive, but IDs from
+        # group member dicts may differ in case from disk profiles.
+        result = await session.execute(sa_text(
+            "SELECT LOWER(platform_user_id) FROM bot_users"
+        ))
+        existing_lower_ids = {r[0] for r in result.all()}
+
+        for fpath in sorted(profiles_dir.glob("*.json")):
+            try:
+                data = json.loads(fpath.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            platform = data.get("platform", "unknown")
+            members = data.get("members", {})
+            if not isinstance(members, dict):
+                continue
+
+            for platform_user_id, member_info in members.items():
+                if not platform_user_id:
+                    continue
+
+                # Skip if a case-variant already exists from disk profiles
+                lower_id = platform_user_id.lower()
+                if lower_id in existing_lower_ids:
+                    continue
+
+                if not isinstance(member_info, dict):
+                    member_info = {}
+
+                display_name = member_info.get("display_name", "")
+                first_seen = _parse_iso(member_info.get("first_seen_at"))
+
+                await session.execute(sa_text("""
+                    INSERT INTO bot_users
+                        (id, platform_user_id, platform, display_name,
+                         first_seen_at, created_at, updated_at)
+                    VALUES
+                        (:id, :platform_user_id, :platform, :display_name,
+                         :first_seen_at, :created_at, :updated_at)
+                    ON CONFLICT (platform_user_id) DO UPDATE SET
+                        display_name = CASE
+                            WHEN bot_users.display_name IS NULL
+                                 OR bot_users.display_name = ''
+                            THEN EXCLUDED.display_name
+                            ELSE bot_users.display_name
+                        END,
+                        first_seen_at = COALESCE(
+                            bot_users.first_seen_at, EXCLUDED.first_seen_at
+                        ),
+                        updated_at = EXCLUDED.updated_at
+                """), {
+                    "id": str(uuid.uuid4()),
+                    "platform_user_id": platform_user_id,
+                    "platform": platform,
+                    "display_name": display_name,
+                    "first_seen_at": first_seen,
+                    "created_at": utcnow(),
+                    "updated_at": utcnow(),
+                })
+                existing_lower_ids.add(lower_id)
+                count += 1
+
+        await session.commit()
+
+    return count
+
+
+# ---------------------------------------------------------------------------
+# 4. Workspace Documents
 # ---------------------------------------------------------------------------
 
 async def sync_documents() -> int:
@@ -250,7 +339,7 @@ async def sync_documents() -> int:
             # Read metadata sidecar
             sidecar_data = {}
             for sc in [fpath.parent / f"{fpath.name}.metadata.json",
-                        fpath.parent / ".metadata" / f"{fpath.stem}.json"]:
+                       fpath.parent / ".metadata" / f"{fpath.stem}.json"]:
                 if sc.exists():
                     try:
                         sidecar_data = json.loads(sc.read_text(encoding="utf-8"))
@@ -268,7 +357,7 @@ async def sync_documents() -> int:
 
             meta = {}
             for k in ["description", "tags", "domain", "file_type",
-                       "original_name", "raw_path", "restored_at"]:
+                      "original_name", "raw_path", "restored_at"]:
                 if k in sidecar_data:
                     meta[k] = sidecar_data[k]
             if src and isinstance(src, dict):
@@ -310,7 +399,7 @@ async def sync_documents() -> int:
 
 
 # ---------------------------------------------------------------------------
-# 4. Knowledge Articles
+# 5. Knowledge Articles
 # ---------------------------------------------------------------------------
 
 def _extract_title(content: str, fallback: str) -> str:
@@ -421,7 +510,7 @@ async def sync_knowledge() -> int:
 
 
 # ---------------------------------------------------------------------------
-# 5. Sessions + Conversations
+# 6. Sessions + Conversations
 # ---------------------------------------------------------------------------
 
 def _parse_session_key(key: str) -> dict:
@@ -661,7 +750,74 @@ async def sync_sessions() -> tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
-# 6. Agent Memory
+# 7. Bot Users from Conversations
+# ---------------------------------------------------------------------------
+
+async def sync_bot_users_from_conversations() -> int:
+    """Create minimal bot_user records from conversation sender data.
+
+    This is the lowest-priority source — it only inserts users that don't
+    already exist (case-insensitive match on platform_user_id).  It skips
+    rows where sender_name equals sender_platform_id (Telegram numeric IDs
+    used as placeholder names).
+    """
+    async with async_session() as session:
+        result = await session.execute(sa_text("""
+            SELECT DISTINCT ON (LOWER(c.sender_platform_id))
+                c.sender_platform_id, c.sender_name, c.platform
+            FROM conversations c
+            WHERE c.sender_type = 'user'
+              AND c.sender_platform_id IS NOT NULL
+              AND c.sender_platform_id != ''
+              AND NOT EXISTS (
+                  SELECT 1 FROM bot_users bu
+                  WHERE LOWER(bu.platform_user_id) = LOWER(c.sender_platform_id)
+              )
+            ORDER BY LOWER(c.sender_platform_id),
+                     CASE WHEN c.sender_name IS NOT NULL
+                               AND c.sender_name != ''
+                               AND c.sender_name != c.sender_platform_id
+                          THEN 0 ELSE 1 END,
+                     c.timestamp DESC
+        """))
+        rows = result.fetchall()
+
+    if not rows:
+        return 0
+
+    count = 0
+    async with async_session() as session:
+        for sender_platform_id, sender_name, platform in rows:
+            # Skip if sender_name is just the platform ID (no real name)
+            display_name = ""
+            if sender_name and sender_name != sender_platform_id:
+                display_name = sender_name
+
+            await session.execute(sa_text("""
+                INSERT INTO bot_users
+                    (id, platform_user_id, platform, display_name,
+                     created_at, updated_at)
+                VALUES
+                    (:id, :platform_user_id, :platform, :display_name,
+                     :created_at, :updated_at)
+                ON CONFLICT (platform_user_id) DO NOTHING
+            """), {
+                "id": str(uuid.uuid4()),
+                "platform_user_id": sender_platform_id,
+                "platform": platform or "unknown",
+                "display_name": display_name,
+                "created_at": utcnow(),
+                "updated_at": utcnow(),
+            })
+            count += 1
+
+        await session.commit()
+
+    return count
+
+
+# ---------------------------------------------------------------------------
+# 8. Agent Memory
 # ---------------------------------------------------------------------------
 
 def _parse_memory_md(file_path: Path) -> dict | None:
@@ -851,6 +1007,15 @@ async def run_auto_sync():
         logger.exception("Auto-sync: bot groups sync failed")
 
     try:
+        n_group_users = await sync_bot_users_from_group_members()
+        if n_group_users:
+            logger.info(
+                f"Auto-sync: {n_group_users} bot users upserted from group members"
+            )
+    except Exception:
+        logger.exception("Auto-sync: bot users from group members sync failed")
+
+    try:
         n_docs = await sync_documents()
         if n_docs:
             logger.info(f"Auto-sync: {n_docs} new documents imported")
@@ -872,6 +1037,15 @@ async def run_auto_sync():
             )
     except Exception:
         logger.exception("Auto-sync: sessions sync failed")
+
+    try:
+        n_conv_users = await sync_bot_users_from_conversations()
+        if n_conv_users:
+            logger.info(
+                f"Auto-sync: {n_conv_users} bot users created from conversations"
+            )
+    except Exception:
+        logger.exception("Auto-sync: bot users from conversations sync failed")
 
     try:
         n_memory = await sync_memory()
