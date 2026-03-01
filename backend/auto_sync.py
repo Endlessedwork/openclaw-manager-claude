@@ -678,16 +678,22 @@ async def sync_sessions() -> tuple[int, int]:
                             for block in content:
                                 if isinstance(block, dict) and block.get("type") == "text":
                                     text_val = block.get("text", "")
-                                    if "sender_id" in text_val:
+                                    if "sender_id" in text_val or "Sender" in text_val:
                                         try:
-                                            json_match = re.search(
+                                            for jm in re.finditer(
                                                 r'```json\s*(\{[^`]+\})\s*```',
                                                 text_val, re.DOTALL,
-                                            )
-                                            if json_match:
-                                                info = json.loads(json_match.group(1))
-                                                sender_platform_id = info.get("sender_id")
-                                                sender_name = info.get("sender", "")
+                                            ):
+                                                info = json.loads(jm.group(1))
+                                                # Old format: {sender_id, sender}
+                                                if info.get("sender_id"):
+                                                    sender_platform_id = info["sender_id"]
+                                                    sender_name = info.get("sender", "")
+                                                    break
+                                                # New format: {label, name, username}
+                                                if info.get("username") or info.get("name"):
+                                                    sender_platform_id = info.get("username") or info.get("name")
+                                                    sender_name = info.get("label") or info.get("name", "")
                                         except (json.JSONDecodeError, AttributeError):
                                             pass
 
