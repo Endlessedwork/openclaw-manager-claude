@@ -1105,95 +1105,11 @@ async def list_sessions(limit: int = Query(50, le=200), user=Depends(get_current
             elif kind == "group":
                 group_ids[pid] = platform
 
-    # Batch-lookup display names from PostgreSQL
-    # Session keys use lowercase IDs but DB stores with original case (e.g. U..., C...)
-    # so we use case-insensitive matching via func.lower()
-    user_names = {}  # lowercase pid -> display_name
-    group_names = {}  # lowercase pid -> name
-    if direct_ids or group_ids:
-        from models.bot_user import BotUser
-        from models.bot_group import BotGroup
-        async with async_session() as db:
-            if direct_ids:
-                res = await db.execute(
-                    select(BotUser.platform_user_id, BotUser.display_name)
-                    .where(func.lower(BotUser.platform_user_id).in_([x.lower() for x in direct_ids]))
-                )
-                user_names = {r[0].lower(): r[1] for r in res.all() if r[1]}
-            if group_ids:
-                res = await db.execute(
-                    select(BotGroup.platform_group_id, BotGroup.name)
-                    .where(func.lower(BotGroup.platform_group_id).in_([x.lower() for x in group_ids]))
-                )
-                group_names = {r[0].lower(): r[1] for r in res.all() if r[1]}
-
-            # Backfill missing profiles from disk → DB
-            profiles_base = Path.home() / ".openclaw" / "workspace" / "shared"
-            missing_users = {pid: pl for pid, pl in direct_ids.items() if pid.lower() not in user_names}
-            missing_groups = {pid: pl for pid, pl in group_ids.items() if pid.lower() not in group_names}
-
-            if missing_users:
-                udir = profiles_base / "users" / "profiles"
-                if udir.is_dir():
-                    file_map = {}
-                    for f in udir.glob("*.json"):
-                        parts_ = f.stem.split("_", 1)
-                        if len(parts_) == 2:
-                            file_map[parts_[1].lower()] = f
-                    for pid, platform in missing_users.items():
-                        fpath = file_map.get(pid.lower())
-                        if not fpath:
-                            continue
-                        try:
-                            data = json.loads(fpath.read_text(encoding="utf-8"))
-                        except (json.JSONDecodeError, OSError):
-                            continue
-                        name = data.get("display_name", "")
-                        if not name:
-                            continue
-                        raw_id = data.get("user_id", "") or pid
-                        user_names[pid.lower()] = name
-                        from sqlalchemy import text as sa_text
-                        await db.execute(sa_text("""
-                            INSERT INTO bot_users (id, platform_user_id, platform, display_name, created_at, updated_at)
-                            VALUES (:id, :pid, :platform, :name, :now, :now)
-                            ON CONFLICT (platform_user_id) DO UPDATE SET
-                                display_name = EXCLUDED.display_name, updated_at = EXCLUDED.updated_at
-                        """), {"id": str(uuid.uuid4()), "pid": raw_id, "platform": platform, "name": name, "now": utcnow()})
-
-            if missing_groups:
-                gdir = profiles_base / "groups" / "profiles"
-                if gdir.is_dir():
-                    file_map = {}
-                    for f in gdir.glob("*.json"):
-                        parts_ = f.stem.split("_", 1)
-                        if len(parts_) == 2:
-                            file_map[parts_[1].lower()] = f
-                    for pid, platform in missing_groups.items():
-                        fpath = file_map.get(pid.lower())
-                        if not fpath:
-                            continue
-                        try:
-                            data = json.loads(fpath.read_text(encoding="utf-8"))
-                        except (json.JSONDecodeError, OSError):
-                            continue
-                        name = data.get("group_name", "")
-                        if not name:
-                            continue
-                        raw_id = data.get("group_id", "") or pid
-                        group_names[pid.lower()] = name
-                        members = data.get("members", {})
-                        member_count = len(members) if isinstance(members, dict) else 0
-                        from sqlalchemy import text as sa_text
-                        await db.execute(sa_text("""
-                            INSERT INTO bot_groups (id, platform_group_id, platform, name, status, member_count, members, created_at, updated_at)
-                            VALUES (:id, :pid, :platform, :name, 'active', :member_count, :members, :now, :now)
-                            ON CONFLICT (platform_group_id) DO UPDATE SET
-                                name = EXCLUDED.name, member_count = EXCLUDED.member_count, members = EXCLUDED.members, updated_at = EXCLUDED.updated_at
-                        """), {"id": str(uuid.uuid4()), "pid": raw_id, "platform": platform, "name": name, "member_count": member_count, "members": json.dumps(members) if members else None, "now": utcnow()})
-
-            if missing_users or missing_groups:
-                await db.commit()
+    # Resolve display names: DB → disk → platform API → cache to DB
+    from services.profile_resolver import resolve_display_names
+    user_names, group_names = await resolve_display_names(
+        direct_ids, group_ids, cfg
+    )
 
     result = []
     for s in sessions:
