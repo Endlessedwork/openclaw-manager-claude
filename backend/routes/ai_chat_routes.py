@@ -26,7 +26,7 @@ async def send_message(
     req: SendMessageRequest,
     user=Depends(require_role("superadmin")),
 ):
-    user_id = user["id"]
+    user_id = _uuid.UUID(user["id"]) if isinstance(user["id"], str) else user["id"]
 
     async with async_session() as session:
         if req.thread_id:
@@ -90,7 +90,7 @@ async def send_message(
 
 @ai_chat_router.get("/threads")
 async def list_threads(user=Depends(require_role("superadmin"))):
-    user_id = user["id"]
+    user_id = _uuid.UUID(user["id"]) if isinstance(user["id"], str) else user["id"]
     async with async_session() as session:
         result = await session.execute(
             select(AIChatThread).where(AIChatThread.user_id == user_id).order_by(desc(AIChatThread.updated_at))
