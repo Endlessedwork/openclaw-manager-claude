@@ -1,14 +1,15 @@
 """
 Auto-sync file-based data from OpenClaw workspace into PostgreSQL on server startup.
 
-Syncs eight data sources:
+Syncs eight data sources (plus one backfill step):
   1. Bot Users:                 ~/.openclaw/workspace/shared/users/profiles/*.json
   2. Bot Groups:                ~/.openclaw/workspace/shared/groups/profiles/*.json
   3. Bot Users (group members): extracted from group profile ``members`` dicts
   4. Workspace Documents:       ~/.openclaw/workspace/shared/documents/{domain}/*
   5. Knowledge Articles:        ~/.openclaw/workspace/shared/knowledge_base/{domain}/*.md
   6. Sessions + Messages:       ~/.openclaw/agents/*/sessions/*.jsonl
-  7. Bot Users (conversations): extracted from conversation sender_platform_id
+  7a. Backfill senders:         re-parse existing conversations for sender metadata
+  7b. Bot Users (conversations): extracted from conversation sender_platform_id
   8. Agent Memory:              ~/.openclaw/workspace/memory/*.md + ~/.openclaw/memory/main.sqlite
 
 Runs as a background task during FastAPI startup. Idempotent — uses upsert for
@@ -758,7 +759,72 @@ async def sync_sessions() -> tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
-# 7. Bot Users from Conversations
+# 7a. Backfill conversation sender data
+# ---------------------------------------------------------------------------
+
+def _extract_sender_from_message(message: str) -> tuple[str | None, str]:
+    """Parse sender metadata from a conversation message string.
+
+    Supports both old format (``sender_id``) and new format
+    (``label``/``name``/``username``).  Returns (platform_id, display_name).
+    """
+    if "sender_id" not in message and "Sender" not in message:
+        return None, ""
+    for jm in re.finditer(r'```json\s*(\{[^`]+\})\s*```', message, re.DOTALL):
+        try:
+            info = json.loads(jm.group(1))
+        except json.JSONDecodeError:
+            continue
+        if info.get("sender_id"):
+            return info["sender_id"], info.get("sender", "")
+        if info.get("username") or info.get("name"):
+            pid = info.get("username") or info.get("name")
+            name = info.get("label") or info.get("name", "")
+            return pid, name
+    return None, ""
+
+
+async def backfill_conversation_senders() -> int:
+    """Update existing conversations that have NULL sender_platform_id.
+
+    Re-parses the message text column to extract sender metadata that the
+    original sync may have missed (e.g. due to format changes).
+    """
+    async with async_session() as session:
+        result = await session.execute(sa_text("""
+            SELECT id, message FROM conversations
+            WHERE sender_type = 'user'
+              AND sender_platform_id IS NULL
+              AND (message LIKE '%sender_id%' OR message LIKE '%Sender%')
+        """))
+        rows = result.fetchall()
+
+    if not rows:
+        return 0
+
+    count = 0
+    async with async_session() as session:
+        for conv_id, message in rows:
+            pid, name = _extract_sender_from_message(message or "")
+            if not pid:
+                continue
+            await session.execute(sa_text("""
+                UPDATE conversations
+                SET sender_platform_id = :pid,
+                    sender_name = CASE
+                        WHEN sender_name IS NULL OR sender_name = ''
+                        THEN :name ELSE sender_name
+                    END
+                WHERE id = :id
+            """), {"id": conv_id, "pid": pid, "name": name})
+            count += 1
+        await session.commit()
+
+    return count
+
+
+# ---------------------------------------------------------------------------
+# 7b. Bot Users from Conversations
 # ---------------------------------------------------------------------------
 
 async def sync_bot_users_from_conversations() -> int:
@@ -1047,6 +1113,15 @@ async def run_auto_sync():
             )
     except Exception:
         logger.exception("Auto-sync: sessions sync failed")
+
+    try:
+        n_backfill = await backfill_conversation_senders()
+        if n_backfill:
+            logger.info(
+                f"Auto-sync: {n_backfill} conversation senders backfilled"
+            )
+    except Exception:
+        logger.exception("Auto-sync: conversation sender backfill failed")
 
     try:
         n_conv_users = await sync_bot_users_from_conversations()
