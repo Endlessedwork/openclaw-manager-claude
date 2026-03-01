@@ -27,6 +27,7 @@ const navGroups = [
     roles: ['superadmin', 'admin', 'manager'],
     items: [{ path: '/usage', label: 'Usage', icon: Coins }],
   },
+  { id: 'ai-chat', type: 'standalone', roles: ['superadmin'], items: [{ path: '/ai-chat', label: 'AI Assistant', icon: BrainCircuit }] },
   {
     id: 'ai-models',
     label: 'AI Models',

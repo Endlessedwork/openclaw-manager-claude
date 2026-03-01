@@ -35,6 +35,7 @@ import WorkspaceDocsPage from "./pages/WorkspaceDocsPage";
 import BindingsPage from "./pages/BindingsPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import GeneralSettingsPage from "./pages/GeneralSettingsPage";
+import AIChatPage from './pages/AIChatPage';
 
 function ThemedToaster() {
   const { isDark } = useTheme();
@@ -81,6 +82,7 @@ function App() {
                 <Route path="/notifications" element={<ProtectedRoute roles={["superadmin","admin"]}><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/settings/general" element={<ProtectedRoute roles={["superadmin","admin"]}><GeneralSettingsPage /></ProtectedRoute>} />
                 {/* Superadmin only */}
+                <Route path="/ai-chat" element={<ProtectedRoute roles={["superadmin"]}><AIChatPage /></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute roles={["superadmin"]}><UsersPage /></ProtectedRoute>} />
               </Route>
             </Routes>
