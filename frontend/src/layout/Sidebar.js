@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Bot, Zap, Wrench, Cpu, Radio, MessageSquare,
   Clock, FileCode, Server, ChevronLeft, ChevronRight, ChevronDown, Activity,
   Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
-  BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins,
+  BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins, Sparkles,
   Database, UserCircle, UsersRound, BookOpen, FileText, X, GitBranch, Bell,
   SlidersHorizontal
 } from 'lucide-react';
@@ -16,6 +16,7 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
 const navGroups = [
+  { id: 'ai-chat', type: 'featured', roles: ['superadmin'], items: [{ path: '/ai-chat', label: 'W.I.N.E. AMA', icon: Sparkles }] },
   {
     id: 'dashboard',
     type: 'standalone',
@@ -27,7 +28,6 @@ const navGroups = [
     roles: ['superadmin', 'admin', 'manager'],
     items: [{ path: '/usage', label: 'Usage', icon: Coins }],
   },
-  { id: 'ai-chat', type: 'standalone', roles: ['superadmin'], items: [{ path: '/ai-chat', label: 'AI Assistant', icon: BrainCircuit }] },
   {
     id: 'ai-models',
     label: 'AI Models',
@@ -155,6 +155,46 @@ function NavGroup({ group, collapsed, location }) {
   useEffect(() => {
     if (isGroupActive && !open) setOpen(true);
   }, [isGroupActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Featured item — visually distinct, gradient border
+  if (group.type === 'featured') {
+    const item = group.items[0];
+    const isActive = location.pathname === item.path;
+    const link = (
+      <NavLink
+        to={item.path}
+        data-testid={`nav-${item.label.toLowerCase().replace(/[\s.]/g, '-')}`}
+        className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 group ${
+          isActive
+            ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/10 text-orange-400 border border-orange-500/40 shadow-[0_0_12px_rgba(249,115,22,0.15)]'
+            : 'bg-gradient-to-r from-orange-500/5 to-amber-500/5 text-orange-300/80 hover:text-orange-300 hover:from-orange-500/10 hover:to-amber-500/10 border border-orange-500/10 hover:border-orange-500/25'
+        }`}
+      >
+        <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-400' : 'text-orange-400/60 group-hover:text-orange-400/80'}`} />
+        {!collapsed && <span className="tracking-wide">{item.label}</span>}
+      </NavLink>
+    );
+
+    const wrapped = (
+      <div className="mb-2">
+        {link}
+      </div>
+    );
+
+    if (collapsed) {
+      return (
+        <div className="mb-2">
+          <Tooltip>
+            <TooltipTrigger asChild>{link}</TooltipTrigger>
+            <TooltipContent side="right" className="bg-surface-card text-theme-primary border-subtle">
+              {item.label}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      );
+    }
+    return wrapped;
+  }
 
   // Standalone items (Dashboard) — no group header
   if (group.type === 'standalone') {

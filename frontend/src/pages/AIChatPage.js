@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Bot } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -151,7 +151,7 @@ export default function AIChatPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-theme-primary flex items-center gap-2">
-          <Bot className="w-6 h-6 text-orange-500" /> AI Assistant
+          <Sparkles className="w-6 h-6 text-orange-500" /> W.I.N.E. AMA
         </h1>
         <p className="text-theme-faint text-sm mt-1">Ask questions about your bot system</p>
       </div>
