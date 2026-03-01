@@ -106,7 +106,7 @@ class GatewayCLI:
         return await self.cache.get("agents", lambda: self._run("agents", "list"), 60)
 
     async def sessions(self):
-        return await self.cache.get("sessions", lambda: self._run("sessions", "list"), 30, stale_ok=True)
+        return await self.cache.get("sessions", lambda: self._run("sessions"), 30, stale_ok=True)
 
     async def skills(self):
         return await self.cache.get("skills", lambda: self._run("skills", "list"), 120, stale_ok=True)
