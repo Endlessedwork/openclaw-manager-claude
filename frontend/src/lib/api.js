@@ -184,4 +184,33 @@ export const getDocumentFile = (docId) => api.get(`/workspace/documents/file/${d
 export const patchDocument = (id, data) => api.patch(`/workspace/documents/${id}`, data);
 export const deleteDocument = (id) => api.delete(`/workspace/documents/${id}`);
 
+// ── AI Chat ──────────────────────────────────────────
+export const getAIChatThreads = () => api.get('/ai-chat/threads');
+export const getAIChatThread = (threadId) => api.get(`/ai-chat/threads/${threadId}`);
+export const deleteAIChatThread = (threadId) => api.delete(`/ai-chat/threads/${threadId}`);
+
+/**
+ * Send a message to AI chat and return an SSE reader.
+ * Returns a ReadableStream reader for SSE events.
+ */
+export const sendAIChatMessage = async ({ message, thread_id }, token) => {
+  const baseUrl = process.env.REACT_APP_BACKEND_URL || '';
+  const res = await fetch(`${baseUrl}/api/ai-chat/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify({ message, thread_id }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+
+  return res.body.getReader();
+};
+
 export default api;
