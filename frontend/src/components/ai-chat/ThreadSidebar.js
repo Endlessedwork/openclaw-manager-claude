@@ -2,9 +2,9 @@ import { Plus, MessageSquare, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 
-export default function ThreadSidebar({ threads, activeThreadId, onSelectThread, onNewThread, onDeleteThread }) {
+export default function ThreadSidebar({ threads, activeThreadId, onSelectThread, onNewThread, onDeleteThread, className }) {
   return (
-    <div className="w-64 border-r border-subtle bg-surface-card flex flex-col shrink-0">
+    <div className={`border-r border-subtle bg-surface-card flex flex-col shrink-0 ${className || 'w-64'}`}>
       <div className="p-3 border-b border-subtle">
         <Button
           onClick={onNewThread}

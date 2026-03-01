@@ -1,21 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, History, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { getAIChatThreads, getAIChatThread, deleteAIChatThread, sendAIChatMessage } from '@/lib/api';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import ThreadSidebar from '@/components/ai-chat/ThreadSidebar';
 import ChatArea from '@/components/ai-chat/ChatArea';
 import ChatInput from '@/components/ai-chat/ChatInput';
 
 export default function AIChatPage() {
   const { token } = useAuth();
+  const isMobile = useIsMobile();
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [toolStatus, setToolStatus] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const loadThreads = useCallback(async () => {
     try {
@@ -34,6 +38,7 @@ export default function AIChatPage() {
     setActiveThreadId(threadId);
     setStreamingText('');
     setToolStatus(null);
+    setSidebarOpen(false);
     try {
       const res = await getAIChatThread(threadId);
       setMessages(res.data.messages || []);
@@ -47,6 +52,7 @@ export default function AIChatPage() {
     setMessages([]);
     setStreamingText('');
     setToolStatus(null);
+    setSidebarOpen(false);
   };
 
   const handleDeleteThread = async (threadId) => {
@@ -147,33 +153,80 @@ export default function AIChatPage() {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-theme-primary flex items-center gap-2">
-          <Sparkles className="w-6 h-6 text-orange-500" /> W.I.N.E. AMA
-        </h1>
-        <p className="text-theme-faint text-sm mt-1">Ask questions about your bot system</p>
-      </div>
+  const threadSidebarProps = {
+    threads,
+    activeThreadId,
+    onSelectThread: selectThread,
+    onNewThread: handleNewThread,
+    onDeleteThread: handleDeleteThread,
+  };
 
-      <div className="bg-surface-card border border-subtle rounded-xl overflow-hidden flex" style={{ height: 'calc(100vh - 200px)' }}>
-        <ThreadSidebar
-          threads={threads}
-          activeThreadId={activeThreadId}
-          onSelectThread={selectThread}
-          onNewThread={handleNewThread}
-          onDeleteThread={handleDeleteThread}
-        />
-        <div className="flex-1 flex flex-col min-w-0">
-          <ChatArea
-            messages={messages}
-            streamingText={streamingText}
-            toolStatus={toolStatus}
-            isStreaming={isStreaming}
-          />
-          <ChatInput onSend={handleSend} disabled={isStreaming} />
+  return (
+    <div className={isMobile ? '' : 'space-y-4'}>
+      {/* Desktop header */}
+      {!isMobile && (
+        <div>
+          <h1 className="text-2xl font-bold text-theme-primary flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-orange-500" /> W.I.N.E. AMA
+          </h1>
+          <p className="text-theme-faint text-sm mt-1">Ask questions about your bot system</p>
+        </div>
+      )}
+
+      <div
+        className={`bg-surface-card border border-subtle overflow-hidden flex flex-col ${
+          isMobile ? 'rounded-none border-x-0 -mx-4' : 'rounded-xl'
+        }`}
+        style={{ height: isMobile ? 'calc(100dvh - 72px)' : 'calc(100vh - 200px)' }}
+      >
+        {/* Mobile chat header */}
+        {isMobile && (
+          <div className="flex items-center justify-between px-3 py-2 border-b border-subtle shrink-0">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-orange-500" />
+              <span className="text-sm font-semibold text-theme-primary">W.I.N.E. AMA</span>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-theme-secondary hover:text-theme-primary hover:bg-muted/30 transition-colors"
+            >
+              <History className="w-3.5 h-3.5" />
+              History
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-1 min-h-0">
+          {/* Desktop sidebar */}
+          {!isMobile && <ThreadSidebar {...threadSidebarProps} />}
+
+          {/* Chat area */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <ChatArea
+              messages={messages}
+              streamingText={streamingText}
+              toolStatus={toolStatus}
+              isStreaming={isStreaming}
+            />
+            <ChatInput onSend={handleSend} disabled={isStreaming} />
+          </div>
         </div>
       </div>
+
+      {/* Mobile thread sidebar as Sheet */}
+      {isMobile && (
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="left" className="p-0 w-[280px] bg-surface-card border-r border-subtle">
+            <div className="flex items-center justify-between px-3 py-3 border-b border-subtle">
+              <span className="text-sm font-semibold text-theme-primary">Chat History</span>
+              <button onClick={() => setSidebarOpen(false)} className="p-1 rounded hover:bg-muted/30 text-theme-faint hover:text-theme-primary transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <ThreadSidebar {...threadSidebarProps} className="w-full border-r-0" />
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }
