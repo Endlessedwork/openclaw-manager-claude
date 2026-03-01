@@ -23,6 +23,27 @@ const navGroups = [
     items: [{ path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }],
   },
   {
+    id: 'workspace',
+    label: 'Workspace',
+    icon: Database,
+    items: [
+      { path: '/workspace/users', label: 'Bot Users', icon: UserCircle },
+      { path: '/workspace/groups', label: 'Groups', icon: UsersRound },
+      { path: '/workspace/kb', label: 'Knowledge Base', icon: BookOpen },
+      { path: '/workspace/docs', label: 'Documents', icon: FileText },
+    ],
+  },
+  {
+    id: 'operations',
+    label: 'Operations',
+    icon: PlayCircle,
+    roles: ['superadmin', 'admin', 'manager'],
+    items: [
+      { path: '/sessions', label: 'Sessions', icon: MessageSquare },
+      { path: '/cron', label: 'Cron Jobs', icon: Clock },
+    ],
+  },
+  {
     id: 'usage',
     type: 'standalone',
     roles: ['superadmin', 'admin', 'manager'],
@@ -61,16 +82,6 @@ const navGroups = [
     ],
   },
   {
-    id: 'operations',
-    label: 'Operations',
-    icon: PlayCircle,
-    roles: ['superadmin', 'admin', 'manager'],
-    items: [
-      { path: '/sessions', label: 'Sessions', icon: MessageSquare },
-      { path: '/cron', label: 'Cron Jobs', icon: Clock },
-    ],
-  },
-  {
     id: 'monitoring',
     label: 'Monitoring',
     icon: Eye,
@@ -79,17 +90,6 @@ const navGroups = [
       { path: '/activities', label: 'Activities', icon: MonitorDot },
       { path: '/logs', label: 'Logs', icon: ScrollText },
       { path: '/health', label: 'Health', icon: Activity },
-    ],
-  },
-  {
-    id: 'workspace',
-    label: 'Workspace',
-    icon: Database,
-    items: [
-      { path: '/workspace/users', label: 'Bot Users', icon: UserCircle },
-      { path: '/workspace/groups', label: 'Groups', icon: UsersRound },
-      { path: '/workspace/kb', label: 'Knowledge Base', icon: BookOpen },
-      { path: '/workspace/docs', label: 'Documents', icon: FileText },
     ],
   },
   {
@@ -167,10 +167,10 @@ function NavGroup({ group, collapsed, location }) {
         className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 group ${
           isActive
             ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/10 text-orange-400 border border-orange-500/40 shadow-[0_0_12px_rgba(249,115,22,0.15)]'
-            : 'bg-gradient-to-r from-orange-500/5 to-amber-500/5 text-orange-300/80 hover:text-orange-300 hover:from-orange-500/10 hover:to-amber-500/10 border border-orange-500/10 hover:border-orange-500/25'
+            : 'bg-gradient-to-r from-orange-500/10 to-amber-500/5 text-orange-400 hover:text-orange-300 hover:from-orange-500/15 hover:to-amber-500/10 border border-orange-500/20 hover:border-orange-500/30'
         }`}
       >
-        <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-400' : 'text-orange-400/60 group-hover:text-orange-400/80'}`} />
+        <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-400' : 'text-orange-500 group-hover:text-orange-400'}`} />
         {!collapsed && <span className="tracking-wide">{item.label}</span>}
       </NavLink>
     );
