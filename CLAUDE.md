@@ -56,8 +56,8 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 - **`routes/auth_routes.py`** — login/logout/refresh/me endpoints
 - **`routes/user_routes.py`** — admin-only user CRUD
 - **`routes/ai_chat_routes.py`** — AI chat assistant endpoints (superadmin only). SSE streaming for messages, thread CRUD, settings endpoints (`GET/PUT /ai-chat/settings` for API key + model config).
-- **`services/ai_chat_service.py`** — Claude API integration with streaming + tool calling loop (max 10 rounds). Reads API key and model from DB (`app_settings` table) with env var fallback. Uses `anthropic` SDK.
-- **`services/ai_chat_tools.py`** — 3 powerful tools: `bash` (run shell commands, 30s timeout), `read_file` (read files up to 1MB), `write_file` (write files). The AI assistant works like Claude Code with full system access.
+- **`services/ai_chat_service.py`** — Claude API integration with streaming + tool calling loop (max 20 rounds). Reads API key and model from DB (`app_settings` table) with env var fallback. Uses `anthropic` SDK.
+- **`services/ai_chat_tools.py`** — 6 tools: `bash` (run shell commands, 30s timeout), `read_file` (read files up to 1MB, with offset/limit), `write_file` (write files), `edit_file` (surgical find-and-replace), `glob` (file pattern matching), `grep` (regex content search). The AI assistant works like Claude Code with full system access.
 - **PostgreSQL** (via SQLAlchemy async + SQLModel) stores all data:
   - `users` — dashboard login accounts
   - `sessions` — auto-synced from gateway JSONL files on startup (`auto_sync.py`)
@@ -87,7 +87,7 @@ Most resources (agents, skills, models, channels, sessions, cron) are **read-onl
 
 ### System Editor Mode (`/ai-chat`)
 - Superadmin-only page for managing the bot system via natural language (menu: "System Editor Mode")
-- Backend calls Claude API with 3 powerful tools: `bash` (shell commands), `read_file`, `write_file` — the AI assistant works like Claude Code with full system access
+- Backend calls Claude API with 6 tools: `bash`, `read_file`, `write_file`, `edit_file`, `glob`, `grep` — the AI assistant works like Claude Code with full system access
 - API key and model configurable via Settings page (stored in `app_settings` table) with `ANTHROPIC_API_KEY` env var as fallback
 - Responses stream via SSE (`StreamingResponse` with `text/event-stream`). Events: `message_start`, `content_delta`, `tool_use`, `message_done`, `error`
 - Frontend parses SSE via `fetch` + `ReadableStream` reader (not axios — axios doesn't support streaming)
