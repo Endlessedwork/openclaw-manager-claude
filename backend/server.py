@@ -566,6 +566,7 @@ async def create_provider(body: dict, user=Depends(require_role("superadmin", "a
     # Save API key to ~/.openclaw/.env if provided
     if body.get("api_key", "").strip():
         _save_api_key(pid, body["api_key"].strip())
+    _sync_models_json(pid, config["models"]["providers"][pid])
     gateway.cache.invalidate("models")
     await log_activity("create", "provider", pid, f"Created provider {pid}")
     return {"status": "ok", "id": pid, "restart_needed": True}
@@ -589,6 +590,7 @@ async def update_provider(provider_id: str, body: dict, user=Depends(require_rol
     # Save API key to ~/.openclaw/.env if provided
     if body.get("api_key", "").strip():
         _save_api_key(provider_id, body["api_key"].strip())
+    _sync_models_json(provider_id, providers[provider_id])
     gateway.cache.invalidate("models")
     await log_activity("update", "provider", provider_id, f"Updated provider {provider_id}")
     return {"status": "ok", "restart_needed": True}
@@ -602,10 +604,13 @@ async def delete_provider(provider_id: str, user=Depends(require_role("superadmi
         raise HTTPException(404, f"Provider '{provider_id}' not found")
     del providers[provider_id]
     await gateway.config_write(config)
+    _sync_models_json(provider_id, delete=True)
     gateway.cache.invalidate("models")
     await log_activity("delete", "provider", provider_id, f"Deleted provider {provider_id}")
     return {"status": "ok", "restart_needed": True}
 
+
+MODELS_JSON = Path.home() / ".openclaw" / "agents" / "main" / "agent" / "models.json"
 
 # Well-known base URLs for built-in providers
 PROVIDER_BASE_URLS = {
@@ -839,6 +844,41 @@ def _save_api_key(provider_id: str, api_key: str):
     if not replaced:
         lines.append(f"{env_var}={api_key}")
     env_path.write_text("\n".join(lines) + "\n")
+
+
+def _sync_models_json(provider_id: str, provider_data: dict = None, *, delete: bool = False):
+    """Sync a provider to models.json (gateway catalog).
+    If delete=True, remove the provider. Otherwise upsert it."""
+    try:
+        data = json.loads(MODELS_JSON.read_text()) if MODELS_JSON.exists() else {"providers": {}}
+    except (json.JSONDecodeError, OSError):
+        data = {"providers": {}}
+    if "providers" not in data:
+        data["providers"] = {}
+
+    if delete:
+        data["providers"].pop(provider_id, None)
+    else:
+        if not provider_data:
+            return
+        api_type = provider_data.get("api", "openai-completions")
+        api_key = _resolve_api_key(provider_id)
+        models = []
+        for m in provider_data.get("models", []):
+            entry = dict(m)
+            if "api" not in entry:
+                entry["api"] = api_type
+            models.append(entry)
+        catalog_entry = {
+            "baseUrl": provider_data.get("baseUrl", ""),
+            "api": api_type,
+            "models": models,
+        }
+        if api_key:
+            catalog_entry["apiKey"] = api_key
+        data["providers"][provider_id] = catalog_entry
+
+    MODELS_JSON.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 
 @api_router.post("/models/providers/{provider_id}/fetch-models")
