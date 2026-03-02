@@ -53,7 +53,7 @@ function ToolIndicator({ toolName, status }) {
         ) : (
           <Wrench className="w-3 h-3" />
         )}
-        {toolName.replace('query_', '')}
+        {toolName}
         {status === 'calling' && '...'}
       </span>
     </div>
