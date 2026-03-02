@@ -279,33 +279,35 @@ async def _glob(input_data: dict) -> str:
     if not os.path.isdir(path):
         return json.dumps({"error": f"Directory not found: {path}"})
 
-    try:
-        matches = glob_module.glob(pattern, root_dir=path, recursive=True)
-    except Exception as e:
-        return json.dumps({"error": f"Glob error: {str(e)}"})
+    def _glob_sync():
+        try:
+            matches = glob_module.glob(pattern, root_dir=path, recursive=True)
+        except Exception as e:
+            return json.dumps({"error": f"Glob error: {str(e)}"})
 
-    # Convert to absolute paths and sort by mtime descending
-    abs_matches = []
-    for m in matches:
-        full_path = os.path.join(path, m)
-        if os.path.isfile(full_path):
-            try:
-                mtime = os.path.getmtime(full_path)
-                abs_matches.append((full_path, mtime))
-            except OSError:
-                abs_matches.append((full_path, 0))
+        abs_matches = []
+        for m in matches:
+            full_path = os.path.join(path, m)
+            if os.path.isfile(full_path):
+                try:
+                    mtime = os.path.getmtime(full_path)
+                    abs_matches.append((full_path, mtime))
+                except OSError:
+                    abs_matches.append((full_path, 0))
 
-    abs_matches.sort(key=lambda x: x[1], reverse=True)
+        abs_matches.sort(key=lambda x: x[1], reverse=True)
 
-    truncated = len(abs_matches) > MAX_GLOB_RESULTS
-    results = [p for p, _ in abs_matches[:MAX_GLOB_RESULTS]]
+        truncated = len(abs_matches) > MAX_GLOB_RESULTS
+        results = [p for p, _ in abs_matches[:MAX_GLOB_RESULTS]]
 
-    result = {"pattern": pattern, "path": path, "count": len(results), "files": results}
-    if truncated:
-        result["truncated"] = True
-        result["total_matches"] = len(abs_matches)
+        result = {"pattern": pattern, "path": path, "count": len(results), "files": results}
+        if truncated:
+            result["truncated"] = True
+            result["total_matches"] = len(abs_matches)
 
-    return json.dumps(result, ensure_ascii=False)
+        return json.dumps(result, ensure_ascii=False)
+
+    return await asyncio.to_thread(_glob_sync)
 
 
 async def _grep(input_data: dict) -> str:
@@ -388,6 +390,9 @@ async def _edit_file(input_data: dict) -> str:
 
     if not old_string:
         return json.dumps({"error": "No old_string provided"})
+
+    if old_string == new_string:
+        return json.dumps({"error": "old_string and new_string are identical"})
 
     async with aiofiles.open(path, "r", encoding="utf-8", errors="replace") as f:
         content = await f.read()
