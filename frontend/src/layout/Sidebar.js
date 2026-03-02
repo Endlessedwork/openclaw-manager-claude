@@ -16,7 +16,7 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
 const navGroups = [
-  { id: 'ai-chat', type: 'featured', roles: ['superadmin'], items: [{ path: '/ai-chat', label: 'W.I.N.E. AMA', icon: Sparkles }] },
+  { id: 'ai-chat', type: 'featured', roles: ['superadmin'], items: [{ path: '/ai-chat', label: 'System Editor Mode', icon: Sparkles }] },
   {
     id: 'dashboard',
     type: 'standalone',

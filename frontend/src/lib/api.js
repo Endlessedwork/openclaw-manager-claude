@@ -188,6 +188,8 @@ export const deleteDocument = (id) => api.delete(`/workspace/documents/${id}`);
 export const getAIChatThreads = () => api.get('/ai-chat/threads');
 export const getAIChatThread = (threadId) => api.get(`/ai-chat/threads/${threadId}`);
 export const deleteAIChatThread = (threadId) => api.delete(`/ai-chat/threads/${threadId}`);
+export const getAIChatSettings = () => api.get('/ai-chat/settings');
+export const updateAIChatSettings = (data) => api.put('/ai-chat/settings', data);
 
 /**
  * Send a message to AI chat and return an SSE reader.

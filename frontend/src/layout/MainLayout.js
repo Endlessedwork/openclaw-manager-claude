@@ -38,7 +38,7 @@ const PAGE_TITLES = {
   '/gateway': 'Gateway',
   '/users': 'Users',
   '/settings/general': 'General Settings',
-  '/ai-chat': 'W.I.N.E. AMA',
+  '/ai-chat': 'System Editor Mode',
 };
 
 function getPageTitle(pathname) {

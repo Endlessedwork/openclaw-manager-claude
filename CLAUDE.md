@@ -42,7 +42,8 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 ```
 
 ### Environment
-- Backend requires `backend/.env` with: `JWT_SECRET`, `DATABASE_URL`, `ANTHROPIC_API_KEY`
+- Backend requires `backend/.env` with: `JWT_SECRET`, `DATABASE_URL`
+- `ANTHROPIC_API_KEY` can be set in `.env` (fallback) or via the Settings page in the UI (preferred, stored in DB)
 - Frontend uses `REACT_APP_BACKEND_URL` (defaults to same origin)
 - Python 3.12, venv at `./venv/`
 
@@ -54,9 +55,9 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 - **`auth.py`** — JWT auth (access + refresh tokens). Refresh token is httponly cookie. Roles: `superadmin`, `admin`, `manager`, `user`. Use `get_current_user` dependency for auth, `require_role("superadmin", "admin")` for write endpoints.
 - **`routes/auth_routes.py`** — login/logout/refresh/me endpoints
 - **`routes/user_routes.py`** — admin-only user CRUD
-- **`routes/ai_chat_routes.py`** — AI chat assistant endpoints (superadmin only). SSE streaming for messages, thread CRUD.
-- **`services/ai_chat_service.py`** — Claude API integration with streaming + tool calling loop (max 5 rounds). Uses `anthropic` SDK.
-- **`services/ai_chat_tools.py`** — 12 tool definitions for querying system data (sessions, agents, skills, models, channels, health, cron, bot_users, bot_groups, conversations, usage, dashboard). Tools call gateway CLI or DB as appropriate.
+- **`routes/ai_chat_routes.py`** — AI chat assistant endpoints (superadmin only). SSE streaming for messages, thread CRUD, settings endpoints (`GET/PUT /ai-chat/settings` for API key + model config).
+- **`services/ai_chat_service.py`** — Claude API integration with streaming + tool calling loop (max 10 rounds). Reads API key and model from DB (`app_settings` table) with env var fallback. Uses `anthropic` SDK.
+- **`services/ai_chat_tools.py`** — 3 powerful tools: `bash` (run shell commands, 30s timeout), `read_file` (read files up to 1MB), `write_file` (write files). The AI assistant works like Claude Code with full system access.
 - **PostgreSQL** (via SQLAlchemy async + SQLModel) stores all data:
   - `users` — dashboard login accounts
   - `sessions` — auto-synced from gateway JSONL files on startup (`auto_sync.py`)
@@ -84,10 +85,10 @@ cd frontend && yarn test -- --testPathPattern=DashboardPage
 ### Data flow pattern
 Most resources (agents, skills, models, channels, sessions, cron) are **read-only from the CLI**. The backend calls `openclaw <resource> list --json`, caches the result, and transforms it for the frontend. Write operations go through config modification (`openclaw.json` at `~/.openclaw/openclaw.json`) followed by `gateway reload`. Only model providers and ClawHub skills have full CRUD.
 
-### AI Chat Assistant (`/ai-chat`)
-- Superadmin-only page for querying system data via natural language
-- Backend calls Claude API (Sonnet) with 12 tool definitions — Claude decides which tools to call based on the question
-- Tools query live data from CLI (`gateway.sessions()`, `gateway.agents()`, etc.) and DB (`bot_users`, `bot_groups`, `conversations`)
+### System Editor Mode (`/ai-chat`)
+- Superadmin-only page for managing the bot system via natural language (menu: "System Editor Mode")
+- Backend calls Claude API with 3 powerful tools: `bash` (shell commands), `read_file`, `write_file` — the AI assistant works like Claude Code with full system access
+- API key and model configurable via Settings page (stored in `app_settings` table) with `ANTHROPIC_API_KEY` env var as fallback
 - Responses stream via SSE (`StreamingResponse` with `text/event-stream`). Events: `message_start`, `content_delta`, `tool_use`, `message_done`, `error`
 - Frontend parses SSE via `fetch` + `ReadableStream` reader (not axios — axios doesn't support streaming)
 - Conversation threads persisted in `ai_chat_threads` + `ai_chat_messages` tables

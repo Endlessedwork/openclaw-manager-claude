@@ -2,20 +2,58 @@
 import os
 import json
 import anthropic
+from sqlmodel import select
+from database import async_session
+from models.app_setting import AppSetting
 from services.ai_chat_tools import TOOLS, execute_tool
 
-SYSTEM_PROMPT = """You are an AI assistant for the OpenClaw bot management dashboard.
-You help administrators query and understand their bot system — sessions, agents, users, channels, models, usage, and more.
-You have tools to query live system data. Always use tools to get real data before answering — do not guess or make up information.
+SYSTEM_PROMPT = """You are a powerful system management AI for the OpenClaw bot gateway.
+You have full access to the server via bash commands, and can read/write files directly.
+
+Your capabilities:
+- Run any bash command (use `openclaw` CLI for gateway operations)
+- Read and write files on the system
+- Query and modify gateway configuration
+
+Key commands:
+- `openclaw sessions list --json` — list active sessions
+- `openclaw agents list --json` — list agents
+- `openclaw skills list --json` — list skills
+- `openclaw models list --json` — list models
+- `openclaw health --json` — gateway health
+- `openclaw cron list --json` — cron jobs
+- Gateway config: `~/.openclaw/openclaw.json`
+
 Answer in the same language the user uses. Be concise and helpful.
-When presenting data, use markdown tables or bullet lists for clarity."""
+When presenting data, use markdown tables or bullet lists for clarity.
+Always use tools to get real data — do not guess."""
 
 
-def _get_client():
+async def _get_api_key() -> str:
+    """Get API key from DB settings, falling back to env var."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(AppSetting).where(AppSetting.key == "ai_chat_api_key")
+        )
+        setting = result.scalar_one_or_none()
+        if setting and setting.value:
+            return setting.value
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY not configured")
-    return anthropic.Anthropic(api_key=api_key)
+    return api_key
+
+
+async def _get_model() -> str:
+    """Get model name from DB settings, falling back to default."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(AppSetting).where(AppSetting.key == "ai_chat_model")
+        )
+        setting = result.scalar_one_or_none()
+        if setting and setting.value:
+            return setting.value
+    return "claude-sonnet-4-20250514"
 
 
 def _sse(event: str, data: dict) -> str:
@@ -26,15 +64,17 @@ async def stream_chat(messages: list[dict], thread_id: str):
     """Async generator yielding SSE-formatted strings."""
     yield _sse("message_start", {"thread_id": thread_id})
 
-    client = _get_client()
+    api_key = await _get_api_key()
+    model = await _get_model()
+    client = anthropic.Anthropic(api_key=api_key)
     full_response = ""
-    max_tool_rounds = 5
+    max_tool_rounds = 10
     current_messages = list(messages)
 
     for _round in range(max_tool_rounds + 1):
         try:
             with client.messages.stream(
-                model="claude-sonnet-4-20250514",
+                model=model,
                 max_tokens=4096,
                 system=SYSTEM_PROMPT,
                 messages=current_messages,

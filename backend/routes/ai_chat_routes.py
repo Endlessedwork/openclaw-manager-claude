@@ -1,3 +1,4 @@
+import os
 import uuid as _uuid
 from typing import Optional
 
@@ -10,6 +11,7 @@ from sqlalchemy import desc
 from auth import require_role
 from database import async_session
 from models.ai_chat import AIChatThread, AIChatMessage
+from models.app_setting import AppSetting
 from services.ai_chat_service import stream_chat
 from utils import utcnow
 
@@ -19,6 +21,76 @@ ai_chat_router = APIRouter(prefix="/ai-chat", tags=["ai-chat"])
 class SendMessageRequest(BaseModel):
     thread_id: Optional[str] = None
     message: str
+
+
+class UpdateAIChatSettingsRequest(BaseModel):
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+
+
+@ai_chat_router.get("/settings")
+async def get_ai_chat_settings(user=Depends(require_role("superadmin"))):
+    async with async_session() as session:
+        result = await session.execute(
+            select(AppSetting).where(AppSetting.key.in_(["ai_chat_api_key", "ai_chat_model"]))
+        )
+        settings = {s.key: s.value for s in result.scalars().all()}
+
+    db_key = settings.get("ai_chat_api_key", "")
+    env_key = os.environ.get("ANTHROPIC_API_KEY", "")
+
+    if db_key:
+        has_api_key = True
+        key_source = "database"
+    elif env_key:
+        has_api_key = True
+        key_source = "environment"
+    else:
+        has_api_key = False
+        key_source = "none"
+
+    model = settings.get("ai_chat_model", "") or "claude-sonnet-4-20250514"
+
+    return {
+        "has_api_key": has_api_key,
+        "key_source": key_source,
+        "model": model,
+    }
+
+
+@ai_chat_router.put("/settings")
+async def update_ai_chat_settings(
+    req: UpdateAIChatSettingsRequest,
+    user=Depends(require_role("superadmin")),
+):
+    async with async_session() as session:
+        if req.api_key is not None:
+            result = await session.execute(
+                select(AppSetting).where(AppSetting.key == "ai_chat_api_key")
+            )
+            setting = result.scalar_one_or_none()
+            if setting:
+                setting.value = req.api_key
+                setting.updated_at = utcnow()
+            else:
+                setting = AppSetting(key="ai_chat_api_key", value=req.api_key)
+                session.add(setting)
+
+        if req.model is not None:
+            result = await session.execute(
+                select(AppSetting).where(AppSetting.key == "ai_chat_model")
+            )
+            setting = result.scalar_one_or_none()
+            if setting:
+                setting.value = req.model
+                setting.updated_at = utcnow()
+            else:
+                setting = AppSetting(key="ai_chat_model", value=req.model)
+                session.add(setting)
+
+        await session.commit()
+
+    return {"status": "updated"}
 
 
 @ai_chat_router.post("/messages")

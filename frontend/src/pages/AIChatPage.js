@@ -167,9 +167,9 @@ export default function AIChatPage() {
       {!isMobile && (
         <div>
           <h1 className="text-2xl font-bold text-theme-primary flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-orange-500" /> W.I.N.E. AMA
+            <Sparkles className="w-6 h-6 text-orange-500" /> System Editor Mode
           </h1>
-          <p className="text-theme-faint text-sm mt-1">Ask questions about your bot system</p>
+          <p className="text-theme-faint text-sm mt-1">Manage your bot system with AI assistance</p>
         </div>
       )}
 
@@ -184,7 +184,7 @@ export default function AIChatPage() {
           <div className="flex items-center justify-between px-3 py-2 border-b border-subtle shrink-0">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-orange-500" />
-              <span className="text-sm font-semibold text-theme-primary">W.I.N.E. AMA</span>
+              <span className="text-sm font-semibold text-theme-primary">System Editor Mode</span>
             </div>
             <button
               onClick={() => setSidebarOpen(true)}
