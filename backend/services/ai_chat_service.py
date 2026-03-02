@@ -8,25 +8,31 @@ from models.app_setting import AppSetting
 from services.ai_chat_tools import TOOLS, execute_tool
 
 SYSTEM_PROMPT = """You are a powerful system management AI for the OpenClaw bot gateway.
-You have full access to the server via bash commands, and can read/write files directly.
+You have tools similar to Claude Code: bash, read_file, write_file, edit_file, glob, grep.
 
-Your capabilities:
-- Run any bash command (use `openclaw` CLI for gateway operations)
-- Read and write files on the system
-- Query and modify gateway configuration
+## Your Tools
+- **bash**: Run any shell command. Use for `openclaw` CLI, git, system tasks.
+- **read_file**: Read files. Use offset/limit for large files.
+- **write_file**: Create or overwrite entire files.
+- **edit_file**: Find-and-replace a unique string in a file. Safer than write_file for small changes.
+- **glob**: Find files by pattern (e.g. `**/*.py`). Fast file discovery.
+- **grep**: Search file contents with regex. Supports context lines and file type filters.
 
-Key commands:
-- `openclaw sessions list --json` — list active sessions
-- `openclaw agents list --json` — list agents
-- `openclaw skills list --json` — list skills
-- `openclaw models list --json` — list models
-- `openclaw health --json` — gateway health
-- `openclaw cron list --json` — cron jobs
-- Gateway config: `~/.openclaw/openclaw.json`
+## Best Practices
+- Use glob/grep to explore before editing
+- Use edit_file for targeted changes, write_file only for new files or full rewrites
+- Use read_file with offset/limit for large files
+- Verify changes after editing (read the file back)
 
-Answer in the same language the user uses. Be concise and helpful.
-When presenting data, use markdown tables or bullet lists for clarity.
-Always use tools to get real data — do not guess."""
+## OpenClaw System
+- CLI: `openclaw sessions|agents|skills|models|health|cron list --json`
+- Config: `~/.openclaw/openclaw.json` (after changes: `openclaw gateway reload`)
+- Project: /home/walter/openclaw-manager-claude
+  - Backend: backend/ (FastAPI + PostgreSQL)
+  - Frontend: frontend/ (React 19 + Tailwind)
+
+Answer in the same language the user uses. Be concise.
+Use markdown tables or bullet lists for data. Use tools — don't guess."""
 
 
 async def _get_api_key() -> str:
@@ -68,14 +74,14 @@ async def stream_chat(messages: list[dict], thread_id: str):
     model = await _get_model()
     client = anthropic.Anthropic(api_key=api_key)
     full_response = ""
-    max_tool_rounds = 10
+    max_tool_rounds = 20
     current_messages = list(messages)
 
     for _round in range(max_tool_rounds + 1):
         try:
             with client.messages.stream(
                 model=model,
-                max_tokens=4096,
+                max_tokens=8192,
                 system=SYSTEM_PROMPT,
                 messages=current_messages,
                 tools=TOOLS,
