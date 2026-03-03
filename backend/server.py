@@ -419,6 +419,26 @@ def _transform_skill(raw: dict) -> dict:
     }
 
 
+def _toggle_skill_in_config(config: dict, skill_name: str, enabled: bool) -> dict:
+    """Toggle a skill's enabled state in the config dict.
+
+    Convention: only *disabled* skills are stored in config.skills.entries.
+    Enabled skills have no entry (clean config).
+    """
+    if "skills" not in config:
+        config["skills"] = {}
+    if "entries" not in config["skills"]:
+        config["skills"]["entries"] = {}
+
+    if enabled:
+        # Remove the disabled entry (clean config — only disabled skills stored)
+        config["skills"]["entries"].pop(skill_name, None)
+    else:
+        config["skills"]["entries"][skill_name] = {"enabled": False}
+
+    return config
+
+
 @api_router.get("/skills")
 async def list_skills(user=Depends(get_current_user)):
     raw = await gateway.skills()
@@ -432,6 +452,37 @@ async def get_skill(skill_id: str, user=Depends(get_current_user)):
         if s["name"] == skill_id:
             return _transform_skill(s)
     raise HTTPException(404, "Skill not found")
+
+
+@api_router.post("/skills/{skill_name}/toggle")
+async def toggle_skill(skill_name: str, body: dict, user=Depends(require_role("superadmin", "admin"))):
+    # Validate body
+    if "enabled" not in body or not isinstance(body["enabled"], bool):
+        raise HTTPException(400, "Body must include 'enabled' (boolean)")
+
+    enabled = body["enabled"]
+
+    # Validate skill exists
+    raw = await gateway.skills()
+    skill_names = [s["name"] for s in raw.get("skills", [])]
+    if skill_name not in skill_names:
+        raise HTTPException(404, f"Skill '{skill_name}' not found")
+
+    # Read config, apply toggle, write back
+    config = await gateway.config_read()
+    _toggle_skill_in_config(config, skill_name, enabled)
+    await gateway.config_write(config)
+
+    # Restart gateway (non-fatal)
+    try:
+        await gateway.gateway_restart()
+    except Exception:
+        pass
+
+    # Invalidate skills cache so next GET reflects the change
+    gateway.cache.invalidate("skills")
+
+    return {"ok": True, "skill": skill_name, "enabled": enabled}
 
 
 # ===== TOOLS (from config) =====

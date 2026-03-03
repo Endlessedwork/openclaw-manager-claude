@@ -180,3 +180,101 @@ class TestTransformSkill:
             "source", "missing",
         }
         assert set(result.keys()) == expected_keys
+
+
+# ── _toggle_skill_in_config ──────────────────────────────────────
+
+from server import _toggle_skill_in_config
+
+
+class TestToggleSkillInConfig:
+    """Tests for the pure helper that mutates the config dict."""
+
+    # --- Disable a skill (enabled=False → add disabled entry) ---
+
+    def test_disable_skill_empty_config(self):
+        """Disabling a skill in a config with no skills section creates it."""
+        config = {}
+        result = _toggle_skill_in_config(config, "web-search", False)
+        assert result["skills"]["entries"]["web-search"] == {"enabled": False}
+
+    def test_disable_skill_no_entries(self):
+        """Disabling when skills section exists but entries is missing."""
+        config = {"skills": {}}
+        result = _toggle_skill_in_config(config, "browser", False)
+        assert result["skills"]["entries"]["browser"] == {"enabled": False}
+
+    def test_disable_skill_existing_entries(self):
+        """Disabling adds entry alongside existing disabled skills."""
+        config = {"skills": {"entries": {"canvas": {"enabled": False}}}}
+        result = _toggle_skill_in_config(config, "browser", False)
+        assert result["skills"]["entries"]["browser"] == {"enabled": False}
+        assert result["skills"]["entries"]["canvas"] == {"enabled": False}
+
+    def test_disable_already_disabled(self):
+        """Disabling an already-disabled skill is idempotent."""
+        config = {"skills": {"entries": {"browser": {"enabled": False}}}}
+        result = _toggle_skill_in_config(config, "browser", False)
+        assert result["skills"]["entries"]["browser"] == {"enabled": False}
+
+    # --- Enable a skill (enabled=True → remove disabled entry) ---
+
+    def test_enable_skill_removes_entry(self):
+        """Enabling a skill removes its disabled entry (clean config)."""
+        config = {"skills": {"entries": {"browser": {"enabled": False}}}}
+        result = _toggle_skill_in_config(config, "browser", True)
+        assert "browser" not in result["skills"]["entries"]
+
+    def test_enable_skill_not_in_entries(self):
+        """Enabling a skill not in entries is a no-op (already enabled)."""
+        config = {"skills": {"entries": {"canvas": {"enabled": False}}}}
+        result = _toggle_skill_in_config(config, "browser", True)
+        assert "browser" not in result["skills"]["entries"]
+        assert result["skills"]["entries"]["canvas"] == {"enabled": False}
+
+    def test_enable_skill_empty_config(self):
+        """Enabling on empty config creates sections but no entries."""
+        config = {}
+        result = _toggle_skill_in_config(config, "web-search", True)
+        assert result["skills"]["entries"] == {}
+
+    def test_enable_skill_no_entries(self):
+        """Enabling when entries section is missing."""
+        config = {"skills": {}}
+        result = _toggle_skill_in_config(config, "web-search", True)
+        assert result["skills"]["entries"] == {}
+
+    # --- Does not clobber other config keys ---
+
+    def test_preserves_other_config_keys(self):
+        """Toggle should not affect other top-level config keys."""
+        config = {"agents": {"main": {}}, "channels": {"line": {}}}
+        result = _toggle_skill_in_config(config, "browser", False)
+        assert result["agents"] == {"main": {}}
+        assert result["channels"] == {"line": {}}
+        assert result["skills"]["entries"]["browser"] == {"enabled": False}
+
+    def test_preserves_other_skills_keys(self):
+        """Toggle should not remove other keys within the skills section."""
+        config = {"skills": {"some_other_key": "value", "entries": {}}}
+        result = _toggle_skill_in_config(config, "browser", False)
+        assert result["skills"]["some_other_key"] == "value"
+        assert result["skills"]["entries"]["browser"] == {"enabled": False}
+
+    # --- Returns the same dict (mutates in place) ---
+
+    def test_returns_same_dict(self):
+        """The function should mutate and return the same config dict."""
+        config = {"skills": {"entries": {}}}
+        result = _toggle_skill_in_config(config, "browser", False)
+        assert result is config
+
+    # --- Round-trip: disable then enable ---
+
+    def test_round_trip_disable_then_enable(self):
+        """Disable then enable should leave config clean."""
+        config = {}
+        config = _toggle_skill_in_config(config, "browser", False)
+        assert "browser" in config["skills"]["entries"]
+        config = _toggle_skill_in_config(config, "browser", True)
+        assert "browser" not in config["skills"]["entries"]
