@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Bot, Zap, Wrench, Cpu, Radio, MessageSquare,
   Clock, FileCode, Server, ChevronLeft, ChevronRight, ChevronDown, Activity,
-  Store, Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
+  Webhook, MonitorDot, ScrollText, LogOut, Users, FolderOpen,
   BrainCircuit, Link2, PlayCircle, Eye, Settings, Coins, Sparkles,
   Database, UserCircle, UsersRound, BookOpen, FileText, X, GitBranch, Bell,
   SlidersHorizontal
@@ -67,7 +67,7 @@ const navGroups = [
       { path: '/agents', label: 'Agents', icon: Bot },
       { path: '/skills', label: 'Skills', icon: Zap },
       { path: '/tools', label: 'Tools', icon: Wrench },
-      { path: '/clawhub', label: 'ClawHub', icon: Store },
+      // { path: '/clawhub', label: 'ClawHub', icon: Store }, // Hidden until ClawHub API integration
     ],
   },
   {
@@ -323,7 +323,7 @@ export default function Sidebar({ isMobileMenuOpen, onClose }) {
       data-testid="sidebar"
       className={`fixed left-0 top-0 h-screen z-50 flex flex-col transition-all duration-300 ${
         isMobile ? 'w-64' : (collapsed ? 'w-16' : 'w-64')
-      } backdrop-blur-xl bg-surface-raised/95 border-r border-subtle`}
+      } ${isMobile ? 'bg-surface-raised' : 'backdrop-blur-xl bg-surface-raised/95'} border-r border-subtle`}
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-16 border-b border-subtle shrink-0">

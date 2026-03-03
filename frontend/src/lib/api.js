@@ -16,9 +16,10 @@ export const getAgents = () => api.get('/agents');
 export const getAgent = (id) => api.get(`/agents/${id}`);
 export const updateAgentMd = (id, data) => api.put(`/agents/${id}/md`, data);
 
-// Skills (read-only)
+// Skills
 export const getSkills = () => api.get('/skills');
 export const getSkill = (id) => api.get(`/skills/${id}`);
+export const toggleSkill = (name, enabled) => api.post(`/skills/${name}/toggle`, { enabled });
 
 // Tools (read-only)
 export const getTools = () => api.get('/tools');
