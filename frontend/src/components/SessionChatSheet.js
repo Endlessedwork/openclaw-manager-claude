@@ -237,16 +237,18 @@ export default function SessionChatSheet({ open, onOpenChange, session }) {
   }, [messages]);
 
   // Primary contact name for the header title
+  // Prefer: session display_name (resolved by backend) > group_subject from metadata > first user display_name
   const primaryContactName = useMemo(() => {
+    if (session?.display_name) return session.display_name;
     if (groupName) return groupName;
     for (const msg of messages) {
       if (msg.sender_type === 'user') {
-        const name = msg.display_name || profiles[msg.sender_platform_id]?.display_name || msg.sender_name;
+        const name = msg.display_name || profiles[msg.sender_platform_id]?.display_name;
         if (name) return name;
       }
     }
     return null;
-  }, [messages, profiles, groupName]);
+  }, [session, messages, profiles, groupName]);
 
   const peerInfo = parsePeerLabel(session?.session_key);
 
