@@ -55,4 +55,16 @@ describe('MediaPreview', () => {
     const { container } = render(<MediaPreview media={null} onImageClick={mockOnImageClick} />);
     expect(container.firstChild).toBeNull();
   });
+
+  test('shows placeholder when image fails to load', () => {
+    const singleImage = {
+      images: [{ path: '/tmp/broken.jpg', type: 'image/jpeg' }],
+      files: []
+    };
+    render(<MediaPreview media={singleImage} onImageClick={mockOnImageClick} />);
+    const img = screen.getByRole('img');
+    fireEvent.error(img);
+    expect(screen.getByText('Image unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).toBeNull();
+  });
 });

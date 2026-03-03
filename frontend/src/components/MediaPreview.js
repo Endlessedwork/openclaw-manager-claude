@@ -1,9 +1,11 @@
-import React from 'react';
-import { FileIcon } from 'lucide-react';
+import React, { useState } from 'react';
+import { FileIcon, ImageOff } from 'lucide-react';
 
 const MEDIA_SERVER = 'https://files.winecore.work';
 
 function MediaPreview({ media, onImageClick }) {
+  const [imgError, setImgError] = useState(false);
+
   if (!media) return null;
 
   const { images = [], files = [] } = media;
@@ -14,17 +16,25 @@ function MediaPreview({ media, onImageClick }) {
       {/* First image thumbnail */}
       {images.length > 0 && (
         <div className="relative inline-block">
-          <button
-            onClick={() => onImageClick(images[0].path)}
-            className="relative group overflow-hidden rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
-          >
-            <img
-              src={`${MEDIA_SERVER}${images[0].path}`}
-              alt="Media"
-              className="h-40 w-auto object-cover bg-zinc-900"
-            />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-          </button>
+          {imgError ? (
+            <div className="h-40 w-40 bg-zinc-900 rounded-md flex items-center justify-center gap-2 text-xs text-zinc-500">
+              <ImageOff className="w-4 h-4" />
+              Image unavailable
+            </div>
+          ) : (
+            <button
+              onClick={() => onImageClick(images[0].path)}
+              className="relative group overflow-hidden rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
+            >
+              <img
+                src={`${MEDIA_SERVER}${images[0].path}`}
+                alt="Media"
+                className="h-40 w-auto object-cover bg-zinc-900"
+                onError={() => setImgError(true)}
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+            </button>
+          )}
 
           {/* Count badge */}
           {totalOthers > 0 && (
