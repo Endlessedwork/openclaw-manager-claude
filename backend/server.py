@@ -381,21 +381,48 @@ async def update_agent_md(agent_id: str, body: dict, user=Depends(require_role("
 
 
 # ===== SKILLS (read-only from CLI) =====
+
+def _normalize_source(raw_source: str) -> str:
+    """Map a raw CLI source string to a clean category name."""
+    s = raw_source.lower()
+    if "bundled" in s:
+        return "bundled"
+    if "workspace" in s:
+        return "workspace"
+    if "personal" in s or "managed" in s or "agents-skills" in s:
+        return "managed"
+    return "unknown"
+
+
+def _transform_skill(raw: dict) -> dict:
+    """Transform a raw CLI skill dict into the API response format."""
+    name = raw["name"]
+    eligible = raw.get("eligible", False)
+    disabled = raw.get("disabled", False)
+    missing_raw = raw.get("missing", {})
+    bins = list(missing_raw.get("bins", []))
+    bins.extend(missing_raw.get("anyBins", []))
+    return {
+        "id": name,
+        "name": name,
+        "description": raw.get("description", ""),
+        "emoji": raw.get("emoji", ""),
+        "eligible": eligible,
+        "disabled": disabled,
+        "enabled": eligible and not disabled,
+        "source": _normalize_source(raw.get("source", "")),
+        "missing": {
+            "bins": bins,
+            "env": list(missing_raw.get("env", [])),
+            "os": list(missing_raw.get("os", [])),
+        },
+    }
+
+
 @api_router.get("/skills")
 async def list_skills(user=Depends(get_current_user)):
     raw = await gateway.skills()
-    return [
-        {
-            "id": s["name"],
-            "name": s["name"],
-            "description": s.get("description", ""),
-            "enabled": s.get("eligible", False) and not s.get("disabled", False),
-            "location": s.get("source", "unknown"),
-            "env_keys": s.get("missing", {}).get("env", []),
-            "emoji": s.get("emoji", ""),
-        }
-        for s in raw.get("skills", [])
-    ]
+    return [_transform_skill(s) for s in raw.get("skills", [])]
 
 
 @api_router.get("/skills/{skill_id}")
@@ -403,15 +430,7 @@ async def get_skill(skill_id: str, user=Depends(get_current_user)):
     raw = await gateway.skills()
     for s in raw.get("skills", []):
         if s["name"] == skill_id:
-            return {
-                "id": s["name"],
-                "name": s["name"],
-                "description": s.get("description", ""),
-                "enabled": s.get("eligible", False) and not s.get("disabled", False),
-                "location": s.get("source", "unknown"),
-                "env_keys": s.get("missing", {}).get("env", []),
-                "emoji": s.get("emoji", ""),
-            }
+            return _transform_skill(s)
     raise HTTPException(404, "Skill not found")
 
 
