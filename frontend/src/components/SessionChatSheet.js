@@ -4,6 +4,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
 import { Bot, User, Hash, MessageSquare, Reply, Wrench, Clock, Info, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { parseMediaBlock } from '../utils/mediaParser';
+import MediaPreview from './MediaPreview';
+import ImageModal from './ImageModal';
 
 function formatTime(isoStr) {
   if (!isoStr) return '';
@@ -72,6 +75,7 @@ function processDirectives(text) {
 }
 
 function MessageContent({ msg }) {
+  const [selectedImage, setSelectedImage] = useState(null);
   const isToolCall = msg.message_type === 'tool_call';
   const text = msg.message || '';
 
@@ -92,26 +96,45 @@ function MessageContent({ msg }) {
   if (meta) {
     const afterMeta = text.replace(/Conversation info \(untrusted metadata\):\s*```json\s*\{[\s\S]*?\}\s*```\s*/, '').trim();
     if (!afterMeta) return null;
-    return <div>{processDirectives(afterMeta)}</div>;
+    const parsed = parseMediaBlock(afterMeta);
+    return (
+      <>
+        <ImageModal imagePath={selectedImage} onClose={() => setSelectedImage(null)} />
+        {parsed.media && <MediaPreview media={parsed.media} onImageClick={setSelectedImage} />}
+        <div>{processDirectives(parsed.remaining)}</div>
+      </>
+    );
   }
 
   // System preamble: strip [date][System Message][sessionId] and show body
   const { timestamp: sysTs, body: sysBody } = parseSystemPreamble(text);
   if (sysTs) {
     const cleaned = stripInternalInstructions(sysBody);
+    const parsed = parseMediaBlock(cleaned);
     return (
-      <div className="space-y-1.5">
-        <span className="inline-flex items-center gap-1 text-[10px] text-theme-dimmed">
-          <Clock className="w-2.5 h-2.5" />
-          {sysTs}
-        </span>
-        <div className="whitespace-pre-wrap">{processDirectives(cleaned)}</div>
-      </div>
+      <>
+        <ImageModal imagePath={selectedImage} onClose={() => setSelectedImage(null)} />
+        <div className="space-y-1.5">
+          <span className="inline-flex items-center gap-1 text-[10px] text-theme-dimmed">
+            <Clock className="w-2.5 h-2.5" />
+            {sysTs}
+          </span>
+          {parsed.media && <MediaPreview media={parsed.media} onImageClick={setSelectedImage} />}
+          <div className="whitespace-pre-wrap">{processDirectives(parsed.remaining)}</div>
+        </div>
+      </>
     );
   }
 
-  // Regular message: process [[directives]]
-  return <div className="whitespace-pre-wrap">{processDirectives(text)}</div>;
+  // Regular message: process [[directives]] and media
+  const parsed = parseMediaBlock(text);
+  return (
+    <>
+      <ImageModal imagePath={selectedImage} onClose={() => setSelectedImage(null)} />
+      {parsed.media && <MediaPreview media={parsed.media} onImageClick={setSelectedImage} />}
+      <div className="whitespace-pre-wrap">{processDirectives(parsed.remaining)}</div>
+    </>
+  );
 }
 
 // --- Collapsible long messages ---
