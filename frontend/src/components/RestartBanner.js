@@ -10,10 +10,10 @@ export default function RestartBanner() {
   if (!restartNeeded || dismissed) return null;
 
   return (
-    <div
-      data-testid="restart-banner"
-      className="mx-8 mt-4 mb-0 flex items-center gap-3 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/5"
-    >
+      <div
+        data-testid="restart-banner"
+        className="sticky top-0 z-30 -mx-4 px-4 py-3 mt-2 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 backdrop-blur-sm flex items-center gap-3"
+      >
       <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
       <div className="flex-1 min-w-0">
         <span className="text-sm font-semibold text-amber-500" style={{ fontFamily: 'Manrope, sans-serif' }}>

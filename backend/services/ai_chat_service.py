@@ -51,14 +51,23 @@ async def _get_api_key() -> str:
 
 
 async def _get_model() -> str:
-    """Get model name from DB settings, falling back to default."""
+    """Get model name from DB settings, falling back to default.
+
+    Stored value may be an openclaw key (e.g. 'anthropic/claude-sonnet-4-6')
+    or a raw model ID (e.g. 'claude-sonnet-4-20250514'). Strip provider prefix
+    if present so the Anthropic SDK receives a valid model name.
+    """
     async with async_session() as session:
         result = await session.execute(
             select(AppSetting).where(AppSetting.key == "ai_chat_model")
         )
         setting = result.scalar_one_or_none()
         if setting and setting.value:
-            return setting.value
+            val = setting.value
+            # Strip provider prefix (e.g. "anthropic/claude-sonnet-4-6" → "claude-sonnet-4-6")
+            if "/" in val:
+                val = val.split("/", 1)[1]
+            return val
     return "claude-sonnet-4-20250514"
 
 

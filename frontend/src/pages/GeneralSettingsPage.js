@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { updateAppSettings, getAIChatSettings, updateAIChatSettings } from '../lib/api';
+import { updateAppSettings, getAIChatSettings, updateAIChatSettings, getModels } from '../lib/api';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import { useAuth } from '../contexts/AuthContext';
 import { SlidersHorizontal, Save, Eye, EyeOff, Key, Sparkles } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { toast } from 'sonner';
 
 export default function GeneralSettingsPage() {
@@ -24,6 +25,8 @@ export default function GeneralSettingsPage() {
   const [aiForm, setAiForm] = useState({ api_key: '', model: '' });
   const [showKey, setShowKey] = useState(false);
   const [aiSaving, setAiSaving] = useState(false);
+  const [availableModels, setAvailableModels] = useState([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
 
   useEffect(() => {
     setForm({
@@ -33,7 +36,7 @@ export default function GeneralSettingsPage() {
     });
   }, [config]);
 
-  // Load AI settings on mount (superadmin only)
+  // Load AI settings and available models on mount (superadmin only)
   useEffect(() => {
     if (!isSuperadmin) return;
     getAIChatSettings()
@@ -42,6 +45,11 @@ export default function GeneralSettingsPage() {
         setAiForm((prev) => ({ ...prev, model: res.data.model || '' }));
       })
       .catch(() => {});
+    setModelsLoading(true);
+    getModels()
+      .then((res) => setAvailableModels(res.data))
+      .catch(() => {})
+      .finally(() => setModelsLoading(false));
   }, [isSuperadmin]);
 
   const handleSave = async () => {
@@ -196,19 +204,38 @@ export default function GeneralSettingsPage() {
 
             <div>
               <Label className="text-theme-secondary">Model</Label>
-              <Input
-                value={aiForm.model}
-                onChange={(e) => setAiForm({ ...aiForm, model: e.target.value })}
-                placeholder="claude-sonnet-4-20250514"
-                className="mt-1.5 font-mono text-sm"
-              />
+              <Select
+                key={aiSettings.model || 'init'}
+                defaultValue={aiForm.model || undefined}
+                onValueChange={(val) => setAiForm({ ...aiForm, model: val })}
+                disabled={modelsLoading}
+              >
+                <SelectTrigger className="mt-1.5 font-mono text-sm border-subtle bg-surface-card">
+                  <SelectValue placeholder="Select a model..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {aiForm.model && !availableModels.some((m) => m.key === aiForm.model) && (
+                    <SelectItem value={aiForm.model} className="font-mono text-sm">
+                      {aiForm.model} (custom)
+                    </SelectItem>
+                  )}
+                  {availableModels.map((m) => (
+                    <SelectItem key={m.key} value={m.key} className="font-mono text-sm">
+                      {m.name || m.key}{m.is_primary ? ' ★' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {aiForm.model && (
+                <p className="text-xs text-theme-faint mt-1 font-mono">{aiForm.model}</p>
+              )}
             </div>
           </div>
 
           <div className="pt-2">
             <Button
               onClick={handleAiSave}
-              disabled={aiSaving || (!aiForm.api_key && !aiForm.model)}
+              disabled={aiSaving || (!aiForm.api_key && aiForm.model === (aiSettings.model || ''))}
               className="bg-orange-600 hover:bg-orange-500 text-white"
             >
               <Save className="w-4 h-4 mr-2" />

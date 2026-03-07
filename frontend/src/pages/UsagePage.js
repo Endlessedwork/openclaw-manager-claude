@@ -76,7 +76,7 @@ function ChartCard({ title, icon: Icon, children }) {
 function CustomTooltip({ active, payload, label, formatter }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1a1a1f] border border-white/10 rounded-lg px-3 py-2 shadow-xl text-xs">
+    <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-xl text-xs">
       <p className="text-theme-faint mb-1 font-mono">{label}</p>
       {payload.map((entry, i) => (
         <div key={i} className="flex items-center gap-2">

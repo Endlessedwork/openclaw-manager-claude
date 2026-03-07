@@ -16,6 +16,7 @@ Runs as a background task during FastAPI startup. Idempotent — uses upsert for
 users/groups, dedup checks for other records.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -793,6 +794,191 @@ async def sync_sessions() -> tuple[int, int]:
     return total_sessions, total_messages
 
 
+async def sync_single_session(session_key: str) -> int:
+    """On-demand sync: read new messages from the JSONL file for one session.
+
+    Called by the conversation endpoint before returning results so that the
+    user always sees fresh data.  Returns the number of new messages imported.
+    """
+    sessions_json_path = AGENTS_DIR / "main" / "sessions" / "sessions.json"
+    if not sessions_json_path.exists():
+        # Try to find the agent from the session key
+        parts = session_key.split(":")
+        agent_id = parts[1] if len(parts) > 1 else "main"
+        sessions_json_path = AGENTS_DIR / agent_id / "sessions" / "sessions.json"
+        if not sessions_json_path.exists():
+            return 0
+
+    try:
+        with open(sessions_json_path) as f:
+            sessions_meta = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return 0
+
+    meta = sessions_meta.get(session_key)
+    if not meta:
+        return 0
+
+    session_file = meta.get("sessionFile")
+    if not session_file:
+        return 0
+    jsonl_path = Path(session_file)
+    if not jsonl_path.exists():
+        return 0
+
+    # Look up the session in DB
+    async with async_session() as db:
+        result = await db.execute(
+            select(Session).where(Session.session_key == session_key)
+        )
+        sess = result.scalar_one_or_none()
+
+        if not sess:
+            # Session not in DB yet — create it, then import all messages
+            parsed_key = _parse_session_key(session_key)
+            jsonl_uuid = jsonl_path.stem
+            channel = meta.get("channel", "") or parsed_key["platform"]
+            sess = Session(
+                id=uuid.UUID(jsonl_uuid),
+                session_key=session_key,
+                agent_id=parsed_key["agent_id"],
+                platform=channel,
+                peer_id=parsed_key["peer_id"],
+                model_used=meta.get("model", ""),
+                total_tokens=meta.get("totalTokens", 0),
+                status="active",
+                started_at=utcnow(),
+                last_activity_at=utcnow(),
+            )
+            db.add(sess)
+            await db.flush()
+            last_db_ts = None
+        else:
+            # Get the timestamp of the last message in DB for this session.
+            # Using timestamp (not count) handles gateway resets correctly:
+            # after a reset the DB has more messages than the current JSONL
+            # because it accumulated messages from all prior JSONL files.
+            ts_result = await db.execute(
+                sa_text(
+                    "SELECT MAX(timestamp) FROM conversations WHERE session_id = :sid"
+                ),
+                {"sid": str(sess.id)},
+            )
+            last_db_ts = ts_result.scalar()
+
+        # Parse JSONL and collect new messages
+        parsed_key = _parse_session_key(session_key)
+        channel = meta.get("channel", "") or parsed_key["platform"]
+        messages = []
+        last_ts = None
+
+        try:
+            with open(jsonl_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    if entry.get("type") == "session":
+                        continue
+                    if entry.get("type") != "message":
+                        continue
+
+                    msg = entry.get("message", {})
+                    role = msg.get("role", "")
+                    content = msg.get("content", [])
+
+                    if role == "toolResult":
+                        continue
+
+                    timestamp = _parse_ts(entry.get("timestamp", ""))
+                    # Skip messages already in DB (by timestamp comparison)
+                    if last_db_ts and timestamp <= last_db_ts:
+                        last_ts = timestamp
+                        continue
+
+                    sender_type = (
+                        "user" if role == "user"
+                        else "agent" if role == "assistant"
+                        else "system"
+                    )
+                    message_text = _extract_text(content)
+                    message_type = _msg_type(content)
+
+                    sender_name = ""
+                    sender_platform_id = None
+                    if role == "user" and isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, dict) and block.get("type") == "text":
+                                text_val = block.get("text", "")
+                                if "sender_id" in text_val or "Sender" in text_val:
+                                    try:
+                                        for jm in re.finditer(
+                                            r'```json\s*(\{[^`]+\})\s*```',
+                                            text_val, re.DOTALL,
+                                        ):
+                                            info = json.loads(jm.group(1))
+                                            if info.get("sender_id"):
+                                                sender_platform_id = info["sender_id"]
+                                                sender_name = info.get("sender", "")
+                                                break
+                                            if info.get("username") or info.get("name"):
+                                                sender_platform_id = (
+                                                    info.get("username") or info.get("name")
+                                                )
+                                                sender_name = (
+                                                    info.get("label") or info.get("name", "")
+                                                )
+                                    except (json.JSONDecodeError, AttributeError):
+                                        pass
+
+                    msg_model = msg.get("model", "")
+                    msg_usage = msg.get("usage", {})
+                    conv_meta = None
+                    if msg_model or msg_usage.get("totalTokens"):
+                        conv_meta = {
+                            "model": msg_model,
+                            "tokens": msg_usage.get("totalTokens"),
+                        }
+
+                    messages.append(Conversation(
+                        session_id=sess.id,
+                        agent_id=parsed_key["agent_id"],
+                        platform=channel,
+                        peer_id=parsed_key["peer_id"],
+                        sender_type=sender_type,
+                        sender_name=sender_name,
+                        sender_platform_id=sender_platform_id,
+                        message=message_text[:10000] if message_text else "",
+                        message_type=message_type,
+                        meta=conv_meta,
+                        timestamp=timestamp,
+                    ))
+                    last_ts = timestamp
+        except (OSError, UnicodeDecodeError):
+            return 0
+
+        if not messages:
+            return 0
+
+        for m in messages:
+            db.add(m)
+        if last_ts:
+            await db.execute(
+                sa_text(
+                    "UPDATE sessions SET last_activity_at = :ts WHERE id = :sid"
+                ),
+                {"ts": last_ts, "sid": str(sess.id)},
+            )
+        await db.commit()
+
+    return len(messages)
+
+
 # ---------------------------------------------------------------------------
 # 7a. Backfill conversation sender data
 # ---------------------------------------------------------------------------
@@ -1099,6 +1285,19 @@ async def sync_memory() -> int:
 # ---------------------------------------------------------------------------
 # Main entry point (called from server.py startup)
 # ---------------------------------------------------------------------------
+
+async def run_knowledge_sync_loop():
+    """Background task: sync knowledge articles every hour."""
+    _log = logging.getLogger("knowledge_sync")
+    while True:
+        await asyncio.sleep(3600)  # 1 hour
+        try:
+            n = await sync_knowledge()
+            if n:
+                _log.info(f"Knowledge hourly sync: {n} new articles imported")
+        except Exception:
+            _log.exception("Knowledge hourly sync failed")
+
 
 async def run_auto_sync():
     logger.info("Auto-sync: starting...")

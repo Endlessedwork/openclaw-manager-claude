@@ -222,6 +222,12 @@ async def delete_thread(thread_id: str, user=Depends(require_role("superadmin"))
         thread = await session.get(AIChatThread, tid)
         if not thread:
             raise HTTPException(404, "Thread not found")
+        # Delete messages first (FK constraint)
+        msgs = await session.execute(
+            select(AIChatMessage).where(AIChatMessage.thread_id == tid)
+        )
+        for msg in msgs.scalars().all():
+            await session.delete(msg)
         await session.delete(thread)
         await session.commit()
     return {"status": "deleted"}

@@ -14,7 +14,7 @@ import ssl
 import datetime as dt
 
 from sqlmodel import select
-from sqlalchemy import func, or_, desc, case
+from sqlalchemy import func, or_, desc, case, literal
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -23,6 +23,7 @@ from database import engine, async_session
 from utils import utcnow
 from models.usage import DailyUsage
 from models.activity import ActivityLog, AgentActivity, SystemLog
+from models.session import Session
 from models.fallback import AgentFallback
 from models.clawhub import ClawHubSkill
 from gateway_cli import gateway
@@ -64,8 +65,10 @@ async def set_db():
     asyncio.create_task(_usage_collector())
     asyncio.create_task(_notification_checker())
     # Auto-sync file-based data (documents, knowledge, sessions) from disk to DB
-    from auto_sync import run_auto_sync
+    from auto_sync import run_auto_sync, run_knowledge_sync_loop
     asyncio.create_task(run_auto_sync())
+    asyncio.create_task(run_knowledge_sync_loop())
+    asyncio.create_task(_profile_refresher())
 
 
 async def _upsert_daily_usage(daily: list):
@@ -116,6 +119,21 @@ async def _usage_collector():
             await _upsert_daily_usage(daily)
         except Exception as e:
             logger.warning(f"Usage hourly sync failed: {e}")
+
+
+async def _profile_refresher():
+    """Background task: re-sync bot user/group profiles from disk every 15 min."""
+    _log = logging.getLogger("profile_refresher")
+    while True:
+        await asyncio.sleep(900)  # 15 minutes
+        try:
+            from auto_sync import sync_bot_users, sync_bot_groups
+            n = await sync_bot_users()
+            g = await sync_bot_groups()
+            if n or g:
+                _log.info(f"Profile refresh: {n} users, {g} groups updated")
+        except Exception as e:
+            _log.warning(f"Profile refresh failed: {e}")
 
 
 api_router = APIRouter(prefix="/api")
@@ -1316,59 +1334,59 @@ async def get_usage_breakdown(
     end: str = Query(None),
     user=Depends(get_current_user),
 ):
-    # Build base filter
-    base_filter = [AgentActivity.event_type == "llm_request"]
+    # Build date filter on sessions.last_activity_at
+    base_filter = []
     if start and end:
-        base_filter.append(AgentActivity.timestamp >= start)
-        base_filter.append(AgentActivity.timestamp <= end)
+        base_filter.append(Session.last_activity_at >= start)
+        base_filter.append(Session.last_activity_at <= end)
     else:
         d = days or 30
         cutoff = utcnow() - timedelta(days=d)
-        base_filter.append(AgentActivity.timestamp >= cutoff)
+        base_filter.append(Session.last_activity_at >= cutoff)
+    base_filter.append(Session.total_tokens > 0)
 
     async with async_session() as session:
-        # By agent
+        # By agent (using sessions.agent_id)
         q_agent = (
             select(
-                AgentActivity.agent_name.label("_id"),
-                func.coalesce(func.sum(AgentActivity.tokens_in), 0).label("tokens_in"),
-                func.coalesce(func.sum(AgentActivity.tokens_out), 0).label("tokens_out"),
+                Session.agent_id.label("_id"),
+                func.coalesce(func.sum(Session.total_tokens), 0).label("tokens_in"),
+                literal(0).label("tokens_out"),
                 func.count().label("count"),
             )
             .where(*base_filter)
-            .group_by(AgentActivity.agent_name)
-            .order_by(desc(func.coalesce(func.sum(AgentActivity.tokens_out), 0)))
+            .group_by(Session.agent_id)
+            .order_by(desc(func.sum(Session.total_tokens)))
             .limit(20)
         )
         by_agent = [dict(r._mapping) for r in (await session.execute(q_agent)).all()]
 
-        # By model
+        # By model (using sessions.model_used)
         q_model = (
             select(
-                AgentActivity.model_used.label("_id"),
-                func.coalesce(func.sum(AgentActivity.tokens_in), 0).label("tokens_in"),
-                func.coalesce(func.sum(AgentActivity.tokens_out), 0).label("tokens_out"),
+                Session.model_used.label("_id"),
+                func.coalesce(func.sum(Session.total_tokens), 0).label("tokens_in"),
+                literal(0).label("tokens_out"),
                 func.count().label("count"),
-                func.avg(AgentActivity.duration_ms).label("avg_ms"),
             )
-            .where(*base_filter)
-            .group_by(AgentActivity.model_used)
-            .order_by(desc(func.coalesce(func.sum(AgentActivity.tokens_out), 0)))
+            .where(*base_filter, Session.model_used.isnot(None))
+            .group_by(Session.model_used)
+            .order_by(desc(func.sum(Session.total_tokens)))
             .limit(20)
         )
         by_model = [dict(r._mapping) for r in (await session.execute(q_model)).all()]
 
-        # By channel
+        # By channel (using sessions.platform)
         q_channel = (
             select(
-                AgentActivity.channel.label("_id"),
-                func.coalesce(func.sum(AgentActivity.tokens_in), 0).label("tokens_in"),
-                func.coalesce(func.sum(AgentActivity.tokens_out), 0).label("tokens_out"),
+                Session.platform.label("_id"),
+                func.coalesce(func.sum(Session.total_tokens), 0).label("tokens_in"),
+                literal(0).label("tokens_out"),
                 func.count().label("count"),
             )
-            .where(*base_filter)
-            .group_by(AgentActivity.channel)
-            .order_by(desc(func.coalesce(func.sum(AgentActivity.tokens_out), 0)))
+            .where(*base_filter, Session.platform != "")
+            .group_by(Session.platform)
+            .order_by(desc(func.sum(Session.total_tokens)))
             .limit(20)
         )
         by_channel = [dict(r._mapping) for r in (await session.execute(q_channel)).all()]

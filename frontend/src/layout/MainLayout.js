@@ -115,6 +115,7 @@ export default function MainLayout() {
           </div>
         )}
         <div className={`max-w-7xl mx-auto pb-8 ${isMobile ? 'px-4' : 'px-8'}`}>
+          <RestartBanner />
           <Outlet />
         </div>
       </main>
